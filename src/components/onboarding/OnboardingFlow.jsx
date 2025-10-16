@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Autocomplete from 'react-google-autocomplete';
 import {
   Award,
   Calendar,
@@ -22,6 +23,8 @@ import {
 } from 'lucide-react';
 
 const defaultDayState = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
 const createInitialState = () => ({
   profileImage: '',
@@ -672,13 +675,21 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
               <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Where do you teach?</h2>
               <p className="text-sm text-gray-600">Add all locations where you regularly teach</p>
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                <input
-                  type="text"
+                <Autocomplete
+                  apiKey={googleApiKey}
                   value={locationInput}
                   onChange={(event) => setLocationInput(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && addLocation()}
+                  onPlaceSelected={(place) => {
+                    const address = place?.formatted_address || place?.name || '';
+                    if (address) {
+                      setLocationInput(address);
+                    }
+                  }}
+                  options={{ types: ['establishment', 'geocode'] }}
                   className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Enter tennis court or location..."
+                  defaultValue=""
                 />
                 <button
                   type="button"
