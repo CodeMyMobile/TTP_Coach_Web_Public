@@ -2,18 +2,23 @@ name: Deploy PR Preview
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, closed]
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: preview-${{ github.event.pull_request.number }}
+  group: preview-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   deploy-preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
       VITE_API_URL: ${{ secrets.VITE_API_URL }}
@@ -21,7 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --- Build & publish for open/sync events ---
       - name: Setup Node
         if: github.event.action != 'closed'
         uses: actions/setup-node@v4
@@ -29,19 +33,17 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install deps
+      - name: Install dependencies
         if: github.event.action != 'closed'
         run: npm ci
 
-      - name: Build preview (scoped base path)
+      - name: Build preview
         if: github.event.action != 'closed'
-        env:
-          VITE_BASE: /TTP_Coach_Web_Public/pr-preview/pr-${{ github.event.number }}/
-        run: npm run build
+        run: npm run build -- --base="/TTP_Coach_Web_Public/pr-preview/pr-${{ github.event.number }}/"
 
-      - name: Add 404.html fallback
-        if: github.event.action != 'closed'
-        run: cp dist/index.html dist/404.html
+      - name: Ensure dist directory exists for teardown
+        if: github.event.action == 'closed'
+        run: mkdir -p dist
 
       - name: Deploy PR preview
         if: github.event.action != 'closed'
@@ -51,7 +53,6 @@ jobs:
           preview-branch: gh-pages
           umbrella-dir: pr-preview
 
-      # --- Teardown on close/merge ---
       - name: Teardown PR preview
         if: github.event.action == 'closed'
         uses: rossjrw/pr-preview-action@v1.6.2
