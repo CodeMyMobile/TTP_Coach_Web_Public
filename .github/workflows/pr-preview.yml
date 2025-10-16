@@ -1,4 +1,3 @@
-# .github/workflows/pr-preview.yml
 name: Deploy PR Preview
 
 on:
@@ -22,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Build + publish preview for open/sync PRs
+      # --- Build & publish for open/sync events ---
       - name: Setup Node
         if: github.event.action != 'closed'
         uses: actions/setup-node@v4
@@ -36,8 +35,13 @@ jobs:
 
       - name: Build preview (scoped base path)
         if: github.event.action != 'closed'
-        run: |
-          npm run build -- --base="/TTP_Coach_Web_Public/pr-preview/pr-${{ github.event.number }}/"
+        env:
+          VITE_BASE: /TTP_Coach_Web_Public/pr-preview/pr-${{ github.event.number }}/
+        run: npm run build
+
+      - name: Add 404.html fallback
+        if: github.event.action != 'closed'
+        run: cp dist/index.html dist/404.html
 
       - name: Deploy PR preview
         if: github.event.action != 'closed'
@@ -47,7 +51,7 @@ jobs:
           preview-branch: gh-pages
           umbrella-dir: pr-preview
 
-      # Clean up the preview when PR is closed/merged
+      # --- Teardown on close/merge ---
       - name: Teardown PR preview
         if: github.event.action == 'closed'
         uses: rossjrw/pr-preview-action@v1.6.2
