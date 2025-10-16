@@ -1,0 +1,57 @@
+# .github/workflows/pr-preview.yml
+name: Deploy PR Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build + publish preview for open/sync PRs
+      - name: Setup Node
+        if: github.event.action != 'closed'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        if: github.event.action != 'closed'
+        run: npm ci
+
+      - name: Build preview (scoped base path)
+        if: github.event.action != 'closed'
+        run: |
+          npm run build -- --base="/TTP_Coach_Web_Public/pr-preview/pr-${{ github.event.number }}/"
+
+      - name: Deploy PR preview
+        if: github.event.action != 'closed'
+        uses: rossjrw/pr-preview-action@v1.6.2
+        with:
+          source-dir: dist
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+
+      # Clean up the preview when PR is closed/merged
+      - name: Teardown PR preview
+        if: github.event.action == 'closed'
+        uses: rossjrw/pr-preview-action@v1.6.2
+        with:
+          action: teardown
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
