@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Autocomplete from 'react-google-autocomplete';
 import {
   Award,
@@ -21,34 +21,12 @@ import {
   User,
   Users
 } from 'lucide-react';
-
-const defaultDayState = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
+import { createStripeOnboardingLink, getStripeOnboardingStatus } from '../../api/CoachApi/payments';
 
 const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
-const createInitialState = () => ({
-  profileImage: '',
-  profileImageFile: null,
-  name: '',
-  email: '',
-  phone: '',
-  bio: '',
-  experience_years: '',
-  certifications: '',
-  home_courts: [],
-  levels: [],
-  specialties: [],
-  formats: [],
-  price_private: 100,
-  price_semi: 75,
-  price_group: 50,
-  packages: [],
-  languages: [],
-  otherLanguage: '',
-  availability: defaultDayState.reduce((acc, day) => ({ ...acc, [day]: [] }), {}),
-  availabilityLocations: defaultDayState.reduce((acc, day) => ({ ...acc, [day]: {} }), {}),
-  groupClasses: []
-});
+const createInitialState = () => createDefaultProfile();
 
 const stepsConfig = [
   { title: 'Basic Info', icon: <User className="h-4 w-4" /> },
@@ -69,11 +47,15 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   const [errors, setErrors] = useState({});
   const [locationInput, setLocationInput] = useState('');
   const [stripeStatus, setStripeStatus] = useState('not_connected');
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeError, setStripeError] = useState(null);
   const [availabilityTab, setAvailabilityTab] = useState('private');
-  const [selectedDay, setSelectedDay] = useState('Monday');
+  const [selectedDay, setSelectedDay] = useState(DAYS_OF_WEEK[0]);
   const [newTimeSlot, setNewTimeSlot] = useState({ start: '09:00', end: '10:00', location: '' });
   const [showStepsMenu, setShowStepsMenu] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState(null);
 
   useEffect(() => {
     if (initialData) {
@@ -98,6 +80,10 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   useEffect(() => {
     setCurrentStep(initialStep || 0);
   }, [initialStep]);
+
+  useEffect(() => {
+    fetchStripeStatus();
+  }, [fetchStripeStatus]);
 
   const progress = useMemo(() => ((currentStep + 1) / stepsConfig.length) * 100, [currentStep]);
 
@@ -210,13 +196,62 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     setCurrentStep((step) => Math.max(0, step - 1));
   };
 
-  const handleSubmit = () => {
-    if (!validateStep()) {
+  const handleSubmit = async () => {
+    if (!validateStep() || !onComplete) {
       return;
     }
-    onComplete?.(formData);
-    setCurrentStep(0);
+
+    setSubmissionError(null);
+    setIsSubmitting(true);
+    try {
+      const result = await onComplete(formData);
+
+      if (result?.error) {
+        const message =
+          typeof result.error === 'string'
+            ? result.error
+            : result.error?.message || 'Failed to submit profile';
+        setSubmissionError(message);
+        return;
+      }
+
+      setCurrentStep(0);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to submit profile';
+      setSubmissionError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const fetchStripeStatus = useCallback(async () => {
+    setStripeLoading(true);
+    setStripeError(null);
+    try {
+      const response = await getStripeOnboardingStatus();
+      if (!response) {
+        throw new Error('Unable to check Stripe status.');
+      }
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setStripeStatus('not_connected');
+          setStripeError(null);
+          return;
+        }
+        throw new Error('Unable to check Stripe status.');
+      }
+
+      const data = await response.json().catch(() => null);
+      const resolvedStatus = data?.status || data?.stripe_status || data?.account_status || 'not_connected';
+      setStripeStatus(resolvedStatus);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to check Stripe status.';
+      setStripeError(message);
+    } finally {
+      setStripeLoading(false);
+    }
+  }, []);
 
   const addLocation = () => {
     if (locationInput.trim() && !formData.home_courts.includes(locationInput)) {
@@ -232,12 +267,43 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     });
   };
 
-  const initiateStripeOnboarding = () => {
-    setStripeStatus('pending');
-    setTimeout(() => {
-      setStripeStatus('verified');
-    }, 2000);
-  };
+  const initiateStripeOnboarding = useCallback(async () => {
+    setStripeError(null);
+    setStripeLoading(true);
+    try {
+      const response = await createStripeOnboardingLink();
+      if (!response) {
+        throw new Error('Failed to start Stripe onboarding.');
+      }
+
+      if (!response.ok) {
+        let message = 'Failed to start Stripe onboarding.';
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message || errorBody?.error || message;
+        } catch (parseError) {
+          // Ignore parse errors
+        }
+        throw new Error(message);
+      }
+
+      const data = await response.json().catch(() => null);
+      const onboardingUrl = data?.url || data?.onboarding_url || data?.account_link_url;
+
+      if (onboardingUrl && typeof window !== 'undefined') {
+        window.open(onboardingUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      setStripeStatus('pending');
+      fetchStripeStatus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start Stripe onboarding.';
+      setStripeError(message);
+      setStripeStatus('not_connected');
+    } finally {
+      setStripeLoading(false);
+    }
+  }, [fetchStripeStatus]);
 
   const addTimeSlot = () => {
     const daySlots = formData.availability[selectedDay] || [];
@@ -896,6 +962,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900">Set up payments</h2>
               <p className="text-sm text-gray-600">Connect with Stripe to receive payments directly from students</p>
+              {stripeError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                  {stripeError}
+                </div>
+              )}
               {stripeStatus === 'not_connected' && (
                 <div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 p-6">
                   <h3 className="mb-2 font-semibold text-gray-900">Secure payments with Stripe</h3>
@@ -908,21 +979,27 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                   <button
                     type="button"
                     onClick={initiateStripeOnboarding}
+                    disabled={stripeLoading}
                     className="rounded-lg bg-purple-600 px-6 py-3 text-white transition hover:bg-purple-700"
                   >
-                    Connect with Stripe →
+                    {stripeLoading ? 'Connecting…' : 'Connect with Stripe →'}
                   </button>
                 </div>
               )}
               {stripeStatus === 'pending' && (
                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 text-sm text-yellow-700">
-                  Verification in progress. This usually takes less than 2 minutes.
+                  {stripeLoading
+                    ? 'Opening Stripe—complete the verification in the new tab.'
+                    : 'Verification in progress. This usually takes less than 2 minutes.'}
                 </div>
               )}
               {stripeStatus === 'verified' && (
                 <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-sm text-green-700">
                   Stripe account connected successfully!
                 </div>
+              )}
+              {stripeLoading && stripeStatus !== 'not_connected' && (
+                <div className="text-sm text-gray-500">Refreshing Stripe status…</div>
               )}
             </div>
           )}
@@ -1002,7 +1079,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
               {availabilityTab === 'private' && (
                 <div>
                   <div className="flex space-x-2 overflow-x-auto pb-2">
-                    {defaultDayState.map((day) => (
+                    {DAYS_OF_WEEK.map((day) => (
                       <button
                         key={day}
                         type="button"
@@ -1134,7 +1211,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                                 onChange={(event) => updateGroupClass(index, 'day', event.target.value)}
                                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                               >
-                                {defaultDayState.map((day) => (
+                                {DAYS_OF_WEEK.map((day) => (
                                   <option key={day} value={day}>
                                     {day}
                                   </option>
@@ -1322,9 +1399,9 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
           <button
             type="button"
             onClick={prevStep}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || isSubmitting}
             className={`flex w-full items-center justify-center space-x-2 rounded-lg border px-6 py-3 text-sm font-medium transition sm:w-auto ${
-              currentStep === 0
+              currentStep === 0 || isSubmitting
                 ? 'cursor-not-allowed border-gray-200 text-gray-400'
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
             }`}
@@ -1337,6 +1414,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
             <button
               type="button"
               onClick={nextStep}
+              disabled={isSubmitting}
               className="flex w-full items-center justify-center space-x-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:from-green-600 hover:to-emerald-700 sm:w-auto"
             >
               <span>Next</span>
@@ -1346,13 +1424,20 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
             <button
               type="button"
               onClick={handleSubmit}
+              disabled={isSubmitting}
               className="flex w-full items-center justify-center space-x-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:from-green-600 hover:to-emerald-700 sm:w-auto"
             >
               <Save className="h-4 w-4" />
-              <span>Submit</span>
+              <span>{isSubmitting ? 'Saving...' : 'Submit'}</span>
             </button>
           )}
         </div>
+
+        {submissionError && (
+          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            {submissionError}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import {
   Grid,
   List,
   Menu,
+  LogOut,
   MessageSquare,
   MoreVertical,
   Package,
@@ -70,6 +71,7 @@ const DashboardPage = ({
   onOpenCreatePackage,
   onEditProfile,
   onRequestAvailabilityOnboarding,
+  onLogout,
   studentSearchQuery,
   onStudentSearchQueryChange,
   showMobileMenu,
@@ -407,13 +409,24 @@ const DashboardPage = ({
                 <Bell className="h-5 w-5" />
                 <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
               </button>
-              <button
-                type="button"
-                onClick={onEditProfile}
-                className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
+              <div className="flex items-center space-x-1">
+                <button
+                  type="button"
+                  onClick={onEditProfile}
+                  className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
+                >
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">Edit profile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="sr-only">Log out</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -444,6 +457,17 @@ const DashboardPage = ({
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              onToggleMobileMenu(false);
+              onLogout?.();
+            }}
+            className="flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-left text-red-600 hover:bg-red-50"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Log out</span>
+          </button>
         </div>
       )}
 
