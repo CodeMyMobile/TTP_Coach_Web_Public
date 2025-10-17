@@ -134,6 +134,18 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     resolvedProfile.groupClasses = profileCandidate.groupClasses;
   }
 
+  if (profileCandidate?.stripe_account_id !== undefined) {
+    resolvedProfile.stripe_account_id = profileCandidate.stripe_account_id;
+  }
+
+  if (profileCandidate?.charges_enabled !== undefined) {
+    resolvedProfile.charges_enabled = Boolean(profileCandidate.charges_enabled);
+  }
+
+  if (profileCandidate?.charges_disabled_reason !== undefined) {
+    resolvedProfile.charges_disabled_reason = profileCandidate.charges_disabled_reason;
+  }
+
   const isComplete = Boolean(
     pickDefined(
       container?.is_complete,

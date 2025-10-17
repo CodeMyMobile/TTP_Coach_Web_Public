@@ -22,7 +22,7 @@ import {
   Users
 } from 'lucide-react';
 import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
-import { createStripeOnboardingLink, getStripeOnboardingStatus } from '../../api/CoachApi/payments';
+import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
 
 const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
@@ -49,6 +49,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   const [stripeStatus, setStripeStatus] = useState('not_connected');
   const [stripeLoading, setStripeLoading] = useState(false);
   const [stripeError, setStripeError] = useState(null);
+  const [stripeReturnUrl, setStripeReturnUrl] = useState('');
   const [availabilityTab, setAvailabilityTab] = useState('private');
   const [selectedDay, setSelectedDay] = useState(DAYS_OF_WEEK[0]);
   const [newTimeSlot, setNewTimeSlot] = useState({ start: '09:00', end: '10:00', location: '' });
@@ -81,9 +82,19 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     setCurrentStep(initialStep || 0);
   }, [initialStep]);
 
+  const deriveStripeStatus = useCallback(() => {
+    if (formData?.charges_enabled) {
+      return 'verified';
+    }
+    if (formData?.stripe_account_id) {
+      return 'pending';
+    }
+    return 'not_connected';
+  }, [formData?.charges_enabled, formData?.stripe_account_id]);
+
   useEffect(() => {
-    fetchStripeStatus();
-  }, [fetchStripeStatus]);
+    setStripeStatus(deriveStripeStatus());
+  }, [deriveStripeStatus]);
 
   const progress = useMemo(() => ((currentStep + 1) / stepsConfig.length) * 100, [currentStep]);
 
@@ -224,35 +235,6 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     }
   };
 
-  const fetchStripeStatus = useCallback(async () => {
-    setStripeLoading(true);
-    setStripeError(null);
-    try {
-      const response = await getStripeOnboardingStatus();
-      if (!response) {
-        throw new Error('Unable to check Stripe status.');
-      }
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          setStripeStatus('not_connected');
-          setStripeError(null);
-          return;
-        }
-        throw new Error('Unable to check Stripe status.');
-      }
-
-      const data = await response.json().catch(() => null);
-      const resolvedStatus = data?.status || data?.stripe_status || data?.account_status || 'not_connected';
-      setStripeStatus(resolvedStatus);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to check Stripe status.';
-      setStripeError(message);
-    } finally {
-      setStripeLoading(false);
-    }
-  }, []);
-
   const addLocation = () => {
     if (locationInput.trim() && !formData.home_courts.includes(locationInput)) {
       setFormData({ ...formData, home_courts: [...formData.home_courts, locationInput.trim()] });
@@ -267,6 +249,19 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     });
   };
 
+  const openStripeOnboardingWindow = useCallback((payload = {}) => {
+    const redirectUrl = (payload.redirect_url || payload.url || payload.onboarding_url || '').trim();
+    const returnUrl = (payload.return_url || '').trim();
+
+    if (returnUrl) {
+      setStripeReturnUrl(returnUrl);
+    }
+
+    if (redirectUrl && typeof window !== 'undefined') {
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
   const initiateStripeOnboarding = useCallback(async () => {
     setStripeError(null);
     setStripeLoading(true);
@@ -276,26 +271,15 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
         throw new Error('Failed to start Stripe onboarding.');
       }
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        let message = 'Failed to start Stripe onboarding.';
-        try {
-          const errorBody = await response.json();
-          message = errorBody?.message || errorBody?.error || message;
-        } catch (parseError) {
-          // Ignore parse errors
-        }
+        const message = data?.message || data?.error || 'Failed to start Stripe onboarding.';
         throw new Error(message);
       }
 
-      const data = await response.json().catch(() => null);
-      const onboardingUrl = data?.url || data?.onboarding_url || data?.account_link_url;
-
-      if (onboardingUrl && typeof window !== 'undefined') {
-        window.open(onboardingUrl, '_blank', 'noopener,noreferrer');
-      }
-
+      openStripeOnboardingWindow(data || {});
       setStripeStatus('pending');
-      fetchStripeStatus();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start Stripe onboarding.';
       setStripeError(message);
@@ -303,7 +287,33 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     } finally {
       setStripeLoading(false);
     }
-  }, [fetchStripeStatus]);
+  }, [openStripeOnboardingWindow]);
+
+  const handleStripeRefresh = useCallback(async () => {
+    setStripeError(null);
+    setStripeLoading(true);
+    try {
+      const response = await refreshStripeOnboardingLink();
+      if (!response) {
+        throw new Error('Unable to refresh Stripe onboarding.');
+      }
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = data?.message || data?.error || 'Unable to refresh Stripe onboarding.';
+        throw new Error(message);
+      }
+
+      openStripeOnboardingWindow(data || {});
+      setStripeStatus((previous) => (previous === 'not_connected' ? 'pending' : previous));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to refresh Stripe onboarding.';
+      setStripeError(message);
+    } finally {
+      setStripeLoading(false);
+    }
+  }, [openStripeOnboardingWindow]);
 
   const addTimeSlot = () => {
     const daySlots = formData.availability[selectedDay] || [];
@@ -987,10 +997,28 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                 </div>
               )}
               {stripeStatus === 'pending' && (
-                <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 text-sm text-yellow-700">
-                  {stripeLoading
-                    ? 'Opening Stripe—complete the verification in the new tab.'
-                    : 'Verification in progress. This usually takes less than 2 minutes.'}
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 text-sm text-yellow-700">
+                    {stripeLoading
+                      ? 'Opening Stripe—complete the verification in the new tab.'
+                      : 'Stripe is still finishing your verification. If you recently submitted your details, click below to resume or check again.'}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleStripeRefresh}
+                      disabled={stripeLoading}
+                      className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {stripeLoading ? 'Opening Stripe…' : 'Resume Stripe setup'}
+                    </button>
+                    {stripeReturnUrl && (
+                      <span className="text-xs text-gray-500">
+                        Once Stripe redirects you back to{' '}
+                        <span className="font-medium text-gray-600">{stripeReturnUrl}</span>, refresh this page to continue.
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               {stripeStatus === 'verified' && (
@@ -998,8 +1026,8 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                   Stripe account connected successfully!
                 </div>
               )}
-              {stripeLoading && stripeStatus !== 'not_connected' && (
-                <div className="text-sm text-gray-500">Refreshing Stripe status…</div>
+              {stripeLoading && stripeStatus === 'not_connected' && (
+                <div className="text-sm text-gray-500">Preparing Stripe onboarding…</div>
               )}
             </div>
           )}

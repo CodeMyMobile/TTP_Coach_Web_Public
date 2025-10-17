@@ -29,7 +29,10 @@ export const createDefaultProfile = () => ({
   otherLanguage: '',
   availability: createEmptySchedule(() => []),
   availabilityLocations: createEmptySchedule(() => ({})),
-  groupClasses: []
+  groupClasses: [],
+  stripe_account_id: null,
+  charges_enabled: false,
+  charges_disabled_reason: ''
 });
 
 export default {

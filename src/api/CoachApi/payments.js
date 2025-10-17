@@ -1,16 +1,35 @@
-import { apiRequest } from '../apiRequest';
+import { API_URL } from '../../constants/urls';
+import { getAccessToken } from '../../utils/tokenHelper';
+
+const authorisedStripeRequest = async (path, { method = 'GET', body } = {}) => {
+  const accessToken = await getAccessToken();
+  const headers = {
+    'Content-Type': 'application/json;charset=UTF-8'
+  };
+
+  if (accessToken) {
+    headers.Authorization = `token ${accessToken}`;
+  }
+
+  return fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+};
 
 export const createStripeOnboardingLink = async () =>
-  apiRequest('/coach/stripe/onboarding', {
-    method: 'POST'
+  authorisedStripeRequest('/stripe/onboard-user', {
+    method: 'POST',
+    body: {}
   });
 
-export const getStripeOnboardingStatus = async () =>
-  apiRequest('/coach/stripe/onboarding/status', {
+export const refreshStripeOnboardingLink = async () =>
+  authorisedStripeRequest('/stripe/onboard-user/refresh', {
     method: 'GET'
   });
 
 export default {
   createStripeOnboardingLink,
-  getStripeOnboardingStatus
+  refreshStripeOnboardingLink
 };
