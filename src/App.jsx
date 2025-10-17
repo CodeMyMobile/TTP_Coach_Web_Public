@@ -5,47 +5,14 @@ import AvailabilityModal from './components/modals/AvailabilityModal';
 import ConfirmationDialog from './components/modals/ConfirmationDialog';
 import CreatePackageModal from './components/modals/CreatePackageModal';
 import LessonDetailModal from './components/modals/LessonDetailModal';
+import LoginPage from './components/auth/LoginPage';
 import { useCoachSchedule } from './hooks/useCoachSchedule';
 import { useCoachStudents } from './hooks/useCoachStudents';
+import useCoachProfile from './hooks/useCoachProfile';
+import useAuth from './hooks/useAuth.jsx';
+import { createDefaultProfile } from './constants/profile';
 
-const defaultProfile = {
-  profileImage: '',
-  profileImageFile: null,
-  name: '',
-  email: '',
-  phone: '',
-  bio: '',
-  experience_years: '',
-  certifications: '',
-  home_courts: [],
-  levels: [],
-  specialties: [],
-  formats: [],
-  price_private: 100,
-  price_semi: 75,
-  price_group: 50,
-  packages: [],
-  languages: [],
-  availability: {
-    Monday: [],
-    Tuesday: [],
-    Wednesday: [],
-    Thursday: [],
-    Friday: [],
-    Saturday: [],
-    Sunday: []
-  },
-  availabilityLocations: {
-    Monday: {},
-    Tuesday: {},
-    Wednesday: {},
-    Thursday: {},
-    Friday: {},
-    Saturday: {},
-    Sunday: {}
-  },
-  groupClasses: []
-};
+const defaultProfile = createDefaultProfile();
 
 const formatDuration = (duration) => {
   const hours = Math.floor(duration / 2);
@@ -67,8 +34,19 @@ const addMinutesToTime = (time, minutes) => {
 };
 
 function App() {
+  const { user, initialising: authInitialising, logout } = useAuth();
+  const isAuthenticated = Boolean(user);
+  const {
+    profile: remoteProfile,
+    isComplete: remoteProfileComplete,
+    loading: profileLoading,
+    error: profileError,
+    hasFetched: profileFetched,
+    saveProfile
+  } = useCoachProfile({ enabled: isAuthenticated });
   const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [profileData, setProfileData] = useState(defaultProfile);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
   const [dashboardTab, setDashboardTab] = useState('calendar');
   const [calendarView, setCalendarView] = useState('week');
@@ -94,12 +72,37 @@ function App() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    setProfileData(remoteProfile);
+  }, [remoteProfile]);
+
+  useEffect(() => {
+    if (!isEditingProfile) {
+      setIsProfileComplete(remoteProfileComplete);
+    }
+  }, [remoteProfileComplete, isEditingProfile]);
+
+  useEffect(() => {
+    if (profileError) {
+      console.error('Failed to load coach profile', profileError);
+    }
+  }, [profileError]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfileData(defaultProfile);
+      setIsProfileComplete(false);
+      setIsEditingProfile(false);
+      setOnboardingInitialStep(0);
+    }
+  }, [isAuthenticated]);
+
   const {
     students,
     loading: studentsLoading,
     error: studentsError,
     refresh: refreshStudents
-  } = useCoachStudents({ enabled: isProfileComplete });
+  } = useCoachStudents({ enabled: isProfileComplete && isAuthenticated });
 
   const {
     lessons,
@@ -112,7 +115,7 @@ function App() {
     updateLesson: persistLesson,
     mutationError: scheduleMutationError,
     mutationLoading: scheduleMutationLoading
-  } = useCoachSchedule({ enabled: isProfileComplete });
+  } = useCoachSchedule({ enabled: isProfileComplete && isAuthenticated });
 
   const recurringAvailability = useMemo(() => {
     if (!scheduleAvailability?.weekly || Object.keys(scheduleAvailability.weekly).length === 0) {
@@ -270,19 +273,30 @@ function App() {
     }
   };
 
-  const handleOnboardingComplete = (data) => {
-    setProfileData(data);
-    setIsProfileComplete(true);
-    setOnboardingInitialStep(0);
+  const handleOnboardingComplete = async (data) => {
+    try {
+      const result = await saveProfile(data);
+      const resolvedProfile = result?.profile ? { ...result.profile } : { ...profileData, ...data };
+      setProfileData(resolvedProfile);
+      setIsProfileComplete(Boolean(result?.isComplete ?? true));
+      setIsEditingProfile(false);
+      setOnboardingInitialStep(0);
+      return { data: resolvedProfile };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save profile';
+      return { error: message };
+    }
   };
 
   const handleEditProfile = () => {
     setOnboardingInitialStep(0);
+    setIsEditingProfile(true);
     setIsProfileComplete(false);
   };
 
   const handleRequestAvailabilityOnboarding = () => {
     setOnboardingInitialStep(8);
+    setIsEditingProfile(true);
     setIsProfileComplete(false);
   };
 
@@ -304,7 +318,29 @@ function App() {
     Array.isArray(students) ? students : students?.students || []
   ), [students]);
 
-  if (!isProfileComplete) {
+  const shouldShowOnboarding = (!isProfileComplete || isEditingProfile) && isAuthenticated;
+
+  if (authInitialising) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white text-gray-600">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  if (!isEditingProfile && !profileFetched && profileLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white text-gray-600">
+        Loading profile...
+      </div>
+    );
+  }
+
+  if (shouldShowOnboarding) {
     return (
       <OnboardingFlow
         initialData={profileData}
@@ -350,6 +386,7 @@ function App() {
         onOpenCreatePackage={() => setShowCreatePackageModal(true)}
         onEditProfile={handleEditProfile}
         onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
+        onLogout={logout}
         studentSearchQuery={studentSearchQuery}
         onStudentSearchQueryChange={setStudentSearchQuery}
         showMobileMenu={showMobileMenu}
