@@ -1,4 +1,4 @@
-export const API_URL = "https://ttp-api.codemymobile.com/api";
+export const API_URL = import.meta.env.VITE_API_URL;
 
 export const SHOPIFY_URL = "https://garage-dummy.myshopify.com"; // dummy shopify store
 
