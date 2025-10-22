@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Autocomplete from 'react-google-autocomplete';
 import {
   Award,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
 import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
+import { requestCoachAvatarUploadUrl, uploadCoachAvatar } from '../../api/CoachApi/onboarding';
 
 const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
@@ -57,6 +58,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(
+    () => (initialData?.profileImage && typeof initialData.profileImage === 'string' ? initialData.profileImage : '')
+  );
+  const [profileImageUploading, setProfileImageUploading] = useState(false);
+  const uploadObjectUrlRef = useRef(null);
 
   useEffect(() => {
     if (initialData) {
@@ -75,12 +81,26 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
           ...(initialData.availabilityLocations || {})
         }
       });
+      if (initialData.profileImage && typeof initialData.profileImage === 'string') {
+        setProfileImagePreview(initialData.profileImage);
+      } else {
+        setProfileImagePreview('');
+      }
     }
   }, [initialData]);
 
   useEffect(() => {
     setCurrentStep(initialStep || 0);
   }, [initialStep]);
+
+  useEffect(() => {
+    return () => {
+      if (uploadObjectUrlRef.current) {
+        URL.revokeObjectURL(uploadObjectUrlRef.current);
+        uploadObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const deriveStripeStatus = useCallback(() => {
     if (formData?.charges_enabled) {
@@ -98,7 +118,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
 
   const progress = useMemo(() => ((currentStep + 1) / stepsConfig.length) * 100, [currentStep]);
 
-  const clearProfileImageError = () => {
+  const clearProfileImageError = useCallback(() => {
     setErrors((previousErrors) => {
       if (!previousErrors.profileImage) {
         return previousErrors;
@@ -106,39 +126,152 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
       const { profileImage, ...rest } = previousErrors;
       return rest;
     });
-  };
+  }, []);
 
-  const updateProfileImage = (file) => {
-    if (!file) {
-      setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
+  const updateProfileImage = useCallback(
+    async (file) => {
+      if (!file) {
+        setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
+        if (uploadObjectUrlRef.current) {
+          URL.revokeObjectURL(uploadObjectUrlRef.current);
+          uploadObjectUrlRef.current = null;
+        }
+        setProfileImagePreview('');
+        clearProfileImageError();
+        return;
+      }
+
+      if (!(file instanceof File) || !file.type?.startsWith('image/')) {
+        setErrors((previous) => ({
+          ...previous,
+          profileImage: 'Please choose a valid image file'
+        }));
+        return;
+      }
+
+      const contentType = file.type || 'image/jpeg';
+      const extensionFromType = contentType.split('/')?.[1] || '';
+      const extensionFromName = typeof file.name === 'string' ? file.name.split('.').pop() || '' : '';
+      const resolvedExtension =
+        (extensionFromType || extensionFromName).toLowerCase() === 'jpg'
+          ? 'jpeg'
+          : (extensionFromType || extensionFromName).toLowerCase();
+
+      if (!resolvedExtension) {
+        setErrors((previous) => ({
+          ...previous,
+          profileImage: 'Unable to determine image type'
+        }));
+        return;
+      }
+
+      try {
+        clearProfileImageError();
+        setProfileImageUploading(true);
+
+        const presignResponse = await requestCoachAvatarUploadUrl(resolvedExtension);
+        if (!presignResponse || !presignResponse.ok) {
+          let message = 'Unable to start profile photo upload.';
+          try {
+            const body = await presignResponse.json();
+            message = body?.detail || body?.message || body?.error || message;
+          } catch (parseError) {
+            // ignore parse issues
+          }
+          throw new Error(message);
+        }
+
+        const presignData = await presignResponse.json().catch(() => null);
+        const uploadUrl =
+          presignData?.uploadURL ||
+          presignData?.uploadUrl ||
+          presignData?.url ||
+          presignData?.signedUrl ||
+          presignData?.signedURL;
+
+        if (!uploadUrl) {
+          throw new Error('Upload URL not provided by server.');
+        }
+
+        const uploadResponse = await uploadCoachAvatar(uploadUrl, file, contentType);
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload profile photo to storage.');
+        }
+
+        const fileKey =
+          presignData?.fileKey ||
+          presignData?.file_key ||
+          presignData?.key ||
+          presignData?.s3Key ||
+          presignData?.s3_key ||
+          '';
+        const fileUrl =
+          presignData?.fileUrl ||
+          presignData?.file_url ||
+          presignData?.cdnUrl ||
+          presignData?.cdn_url ||
+          presignData?.publicUrl ||
+          presignData?.public_url ||
+          '';
+
+        setFormData((previous) => ({
+          ...previous,
+          profileImage: fileKey || fileUrl || previous.profileImage || '',
+          profileImageFile: null
+        }));
+
+        if (uploadObjectUrlRef.current) {
+          URL.revokeObjectURL(uploadObjectUrlRef.current);
+          uploadObjectUrlRef.current = null;
+        }
+
+        if (fileUrl) {
+          setProfileImagePreview(fileUrl);
+        } else if (typeof window !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL) {
+          const objectUrl = URL.createObjectURL(file);
+          uploadObjectUrlRef.current = objectUrl;
+          setProfileImagePreview(objectUrl);
+        } else {
+          setProfileImagePreview('');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload profile photo.';
+        setErrors((previous) => ({
+          ...previous,
+          profileImage: message
+        }));
+      } finally {
+        setProfileImageUploading(false);
+      }
+    },
+    [clearProfileImageError]
+  );
+
+  const handleProfileImageInputChange = async (event) => {
+    if (profileImageUploading) {
+      if (event.target) {
+        event.target.value = '';
+      }
       return;
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((previous) => ({
-        ...previous,
-        profileImage: typeof reader.result === 'string' ? reader.result : '',
-        profileImageFile: file
-      }));
-    };
-    reader.readAsDataURL(file);
-    clearProfileImageError();
-  };
-
-  const handleProfileImageInputChange = (event) => {
     const file = event.target.files?.[0];
-    updateProfileImage(file);
+    await updateProfileImage(file);
     if (event.target) {
       event.target.value = '';
     }
   };
 
-  const handleProfileImageDrop = (event) => {
+  const handleProfileImageDrop = async (event) => {
     event.preventDefault();
     setIsDraggingImage(false);
+    if (profileImageUploading) {
+      if (event.dataTransfer) {
+        event.dataTransfer.clearData();
+      }
+      return;
+    }
     const file = event.dataTransfer?.files?.[0];
-    updateProfileImage(file);
+    await updateProfileImage(file);
     if (event.dataTransfer) {
       event.dataTransfer.clearData();
     }
@@ -146,7 +279,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
 
   const handleProfileImageDragOver = (event) => {
     event.preventDefault();
-    if (!isDraggingImage) {
+    if (!isDraggingImage && !profileImageUploading) {
       setIsDraggingImage(true);
     }
   };
@@ -157,7 +290,13 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   };
 
   const handleRemoveProfileImage = () => {
+    if (uploadObjectUrlRef.current) {
+      URL.revokeObjectURL(uploadObjectUrlRef.current);
+      uploadObjectUrlRef.current = null;
+    }
+    setProfileImagePreview('');
     setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
+    clearProfileImageError();
   };
 
   const validateStep = () => {
@@ -165,7 +304,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
 
     switch (currentStep) {
       case 0: {
-        if (!formData.profileImage) newErrors.profileImage = 'Profile image is required';
+        if (!formData.profileImage && !profileImagePreview) newErrors.profileImage = 'Profile image is required';
         if (!formData.name.trim()) newErrors.name = 'Name is required';
         if (!formData.email.trim()) newErrors.email = 'Email is required';
         if (!formData.bio.trim()) newErrors.bio = 'Bio is required';
@@ -446,6 +585,10 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     return selected;
   }, [formData.languages, formData.otherLanguage, languageOptions]);
 
+  const resolvedProfileImageSrc =
+    profileImagePreview ||
+    (typeof formData.profileImage === 'string' && formData.profileImage ? formData.profileImage : '');
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
       <div className="border-b border-gray-200 bg-white shadow-sm">
@@ -576,18 +719,27 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                     onDragLeave={handleProfileImageDragLeave}
                     onDrop={handleProfileImageDrop}
                   >
-                    {formData.profileImage ? (
+                    {resolvedProfileImageSrc ? (
                       <>
                         <img
-                          src={formData.profileImage}
+                          src={resolvedProfileImageSrc}
                           alt="Profile preview"
                           className="mb-4 h-24 w-24 rounded-full border border-white object-cover shadow-md"
                         />
-                        <p className="text-sm text-gray-600">Click or drop a new image to replace your current photo.</p>
+                        <p className="text-sm text-gray-600">
+                          {profileImageUploading
+                            ? 'Uploading new photo…'
+                            : 'Click or drop a new image to replace your current photo.'}
+                        </p>
                         <button
                           type="button"
                           onClick={handleRemoveProfileImage}
-                          className="mt-3 inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-100"
+                          disabled={profileImageUploading}
+                          className={`mt-3 inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium transition ${
+                            profileImageUploading
+                              ? 'cursor-not-allowed text-gray-400'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
                         >
                           Remove photo
                         </button>
@@ -607,7 +759,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                       accept="image/*"
                       onChange={handleProfileImageInputChange}
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      disabled={profileImageUploading}
                     />
+                    {profileImageUploading && !resolvedProfileImageSrc && (
+                      <div className="mt-3 text-sm text-gray-500">Uploading photo…</div>
+                    )}
                   </div>
                   {errors.profileImage && <p className="mt-1 text-xs text-red-500">{errors.profileImage}</p>}
                 </div>

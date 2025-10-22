@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { addCoachProfile, getCoachProfile, modifyProfileDetails } from '../api/CoachApi/profileScreen';
+import { getCoachOnboarding, saveCoachOnboarding } from '../api/CoachApi/onboarding';
 import { createDefaultProfile } from '../constants/profile';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -48,9 +48,22 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     profileImageFile: null
   };
 
-  const fullName = pickDefined(profileCandidate?.full_name, profileCandidate?.fullName, profileCandidate?.name);
+  const fullName = pickDefined(
+    profileCandidate?.full_name,
+    profileCandidate?.fullName,
+    profileCandidate?.name
+  );
   if (fullName !== undefined) {
     resolvedProfile.name = fullName;
+  }
+
+  const experienceYears = pickDefined(
+    profileCandidate?.experience_years,
+    profileCandidate?.experienceYears,
+    container?.experience_years
+  );
+  if (experienceYears !== undefined) {
+    resolvedProfile.experience_years = experienceYears;
   }
 
   const aboutMe = pickDefined(profileCandidate?.about_me, profileCandidate?.aboutMe, profileCandidate?.bio);
@@ -72,15 +85,39 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     profileCandidate?.hourly_rate,
     profileCandidate?.hourlyRate,
     profileCandidate?.rate,
-    container?.hourly_rate
+    profileCandidate?.price_private,
+    container?.hourly_rate,
+    container?.price_private
   );
   if (hourlyRate !== undefined) {
     resolvedProfile.price_private = toNumberOrDefault(hourlyRate, mergedFallback.price_private);
   }
 
+  const priceSemi = pickDefined(
+    profileCandidate?.price_semi,
+    profileCandidate?.priceSemi,
+    container?.price_semi,
+    container?.priceSemi
+  );
+  if (priceSemi !== undefined) {
+    resolvedProfile.price_semi = toNumberOrDefault(priceSemi, mergedFallback.price_semi);
+  }
+
+  const priceGroup = pickDefined(
+    profileCandidate?.price_group,
+    profileCandidate?.priceGroup,
+    container?.price_group,
+    container?.priceGroup
+  );
+  if (priceGroup !== undefined) {
+    resolvedProfile.price_group = toNumberOrDefault(priceGroup, mergedFallback.price_group);
+  }
+
   const avatar = pickDefined(
     profileCandidate?.profile_picture,
     profileCandidate?.profilePicture,
+    profileCandidate?.profile_image,
+    profileCandidate?.profileImage,
     profileCandidate?.avatar,
     container?.profile_picture
   );
@@ -90,6 +127,10 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
 
   if (Array.isArray(profileCandidate?.home_courts)) {
     resolvedProfile.home_courts = profileCandidate.home_courts;
+  }
+
+  if (Array.isArray(profileCandidate?.homeCourts)) {
+    resolvedProfile.home_courts = profileCandidate.homeCourts;
   }
 
   if (Array.isArray(profileCandidate?.levels)) {
@@ -116,6 +157,10 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     resolvedProfile.otherLanguage = profileCandidate.otherLanguage;
   }
 
+  if (typeof profileCandidate?.other_language === 'string') {
+    resolvedProfile.otherLanguage = profileCandidate.other_language;
+  }
+
   if (isObject(profileCandidate?.availability)) {
     resolvedProfile.availability = {
       ...resolvedProfile.availability,
@@ -130,8 +175,19 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     };
   }
 
+  if (isObject(profileCandidate?.availability_locations)) {
+    resolvedProfile.availabilityLocations = {
+      ...resolvedProfile.availabilityLocations,
+      ...profileCandidate.availability_locations
+    };
+  }
+
   if (Array.isArray(profileCandidate?.groupClasses)) {
     resolvedProfile.groupClasses = profileCandidate.groupClasses;
+  }
+
+  if (Array.isArray(profileCandidate?.group_classes)) {
+    resolvedProfile.groupClasses = profileCandidate.group_classes;
   }
 
   if (profileCandidate?.stripe_account_id !== undefined) {
@@ -166,22 +222,6 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
   };
 };
 
-const buildProfilePayload = (formData = {}) => {
-  const hourlyRateCandidate = pickDefined(
-    formData.hourlyRate,
-    formData.price_private,
-    formData.pricePrivate,
-    formData.rate
-  );
-
-  return {
-    fullName: formData.name ?? null,
-    aboutMe: formData.bio ?? null,
-    hourlyRate: hourlyRateCandidate !== undefined ? toNumberOrDefault(hourlyRateCandidate, 0) : 0,
-    profilePicture: formData.profileImage ?? null
-  };
-};
-
 export const useCoachProfile = ({ enabled = true } = {}) => {
   const [profile, setProfile] = useState(() => createDefaultProfile());
   const [profileId, setProfileId] = useState(null);
@@ -199,7 +239,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getCoachProfile();
+      const response = await getCoachOnboarding();
 
       if (!response) {
         setHasFetched(true);
@@ -210,7 +250,13 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       }
 
       if (!response.ok) {
-        const message = `Failed to fetch coach profile (${response.status})`;
+        let message = `Failed to fetch coach onboarding (${response.status})`;
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.detail || errorBody?.message || errorBody?.error || message;
+        } catch (parseError) {
+          // ignore JSON parse issues
+        }
         throw new Error(message);
       }
 
@@ -222,7 +268,8 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       setHasFetched(true);
       return normalised;
     } catch (err) {
-      const normalisedError = err instanceof Error ? err : new Error('Failed to fetch coach profile');
+      const normalisedError =
+        err instanceof Error ? err : new Error('Failed to fetch coach onboarding');
       setError(normalisedError);
       setHasFetched(true);
       setIsComplete(false);
@@ -251,29 +298,19 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
     async (formData) => {
       setLoading(true);
       setError(null);
-      const payload = buildProfilePayload(formData);
 
       try {
-        const requestConfig = {
-          fullName: payload.fullName,
-          aboutMe: payload.aboutMe,
-          hourlyRate: payload.hourlyRate,
-          profilePicture: payload.profilePicture
-        };
-
-        const response = profileId
-          ? await modifyProfileDetails({ id: profileId, ...requestConfig })
-          : await addCoachProfile(requestConfig);
+        const response = await saveCoachOnboarding(formData);
 
         if (!response) {
-          throw new Error('Failed to save coach profile');
+          throw new Error('Failed to save coach onboarding');
         }
 
         if (!response.ok) {
-          let errorMessage = 'Failed to save coach profile';
+          let errorMessage = 'Failed to save coach onboarding';
           try {
             const errorBody = await response.json();
-            errorMessage = errorBody?.message || errorBody?.error || errorMessage;
+            errorMessage = errorBody?.detail || errorBody?.message || errorBody?.error || errorMessage;
           } catch (parseError) {
             // ignore JSON parse issues
           }
@@ -290,7 +327,8 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
 
         return normalised;
       } catch (err) {
-        const normalisedError = err instanceof Error ? err : new Error('Failed to save coach profile');
+        const normalisedError =
+          err instanceof Error ? err : new Error('Failed to save coach onboarding');
         setError(normalisedError);
         throw normalisedError;
       } finally {
