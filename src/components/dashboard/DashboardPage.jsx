@@ -22,6 +22,7 @@ import {
   Grid,
   List,
   Menu,
+  LogOut,
   MessageSquare,
   MoreVertical,
   Package,
@@ -36,6 +37,39 @@ import {
   Users,
   Zap
 } from 'lucide-react';
+
+const parseNumber = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatLessonTypeLabel = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const formatValidityLabel = (months) => {
+  if (months === null || months === undefined || months <= 0) {
+    return 'No expiration';
+  }
+
+  if (months === 1) {
+    return '1 month';
+  }
+
+  return `${months} months`;
+};
 
 const DashboardPage = ({
   profile,
@@ -70,11 +104,15 @@ const DashboardPage = ({
   onOpenCreatePackage,
   onEditProfile,
   onRequestAvailabilityOnboarding,
+  onLogout,
   studentSearchQuery,
   onStudentSearchQueryChange,
   showMobileMenu,
   onToggleMobileMenu,
-  formatDuration
+  formatDuration,
+  packagesLoading = false,
+  packagesError = null,
+  onRefreshPackages = () => {}
 }) => {
   const generateWeekDays = () => {
     const days = [];
@@ -106,6 +144,61 @@ const DashboardPage = ({
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
     : lessonsData?.lessons || [];
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 2
+      }),
+    []
+  );
+
+  const packages = useMemo(() => {
+    if (!Array.isArray(profile?.packages)) {
+      return [];
+    }
+
+    return profile.packages
+      .map((entry, index) => {
+        const lessonCount = parseNumber(entry.lessonCount ?? entry.lesson_count);
+        const totalPrice = parseNumber(entry.totalPrice ?? entry.total_price ?? entry.price);
+        const validity = parseNumber(entry.validityMonths ?? entry.validity_months);
+
+        const lessonTypesSource =
+          Array.isArray(entry.lessonTypesAllowed) && entry.lessonTypesAllowed.length > 0
+            ? entry.lessonTypesAllowed
+            : Array.isArray(entry.lesson_types_allowed)
+              ? entry.lesson_types_allowed
+              : [];
+
+        const lessonTypes = lessonTypesSource
+          .map((type) => (typeof type === 'string' ? type.trim() : ''))
+          .filter((type) => type.length > 0);
+
+        return {
+          id: entry.id ?? entry.package_id ?? `package-${index}`,
+          name: entry.name || entry.title || 'Untitled Package',
+          description: typeof entry.description === 'string' ? entry.description : '',
+          lessonCount,
+          totalPrice,
+          validityMonths: validity,
+          perLessonPrice:
+            lessonCount !== null && lessonCount > 0 && totalPrice !== null
+              ? totalPrice / lessonCount
+              : null,
+          lessonTypes,
+          isActive: entry.is_active ?? entry.isActive ?? true
+        };
+      })
+      .sort((a, b) => {
+        if (a.isActive === b.isActive) {
+          return 0;
+        }
+        return a.isActive ? -1 : 1;
+      });
+  }, [profile]);
 
   const stats = {
     todayLessons: statsData?.todayLessons ?? 0,
@@ -407,13 +500,24 @@ const DashboardPage = ({
                 <Bell className="h-5 w-5" />
                 <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
               </button>
-              <button
-                type="button"
-                onClick={onEditProfile}
-                className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
+              <div className="flex items-center space-x-1">
+                <button
+                  type="button"
+                  onClick={onEditProfile}
+                  className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
+                >
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">Edit profile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="sr-only">Log out</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -444,6 +548,17 @@ const DashboardPage = ({
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              onToggleMobileMenu(false);
+              onLogout?.();
+            }}
+            className="flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-left text-red-600 hover:bg-red-50"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Log out</span>
+          </button>
         </div>
       )}
 
@@ -855,7 +970,9 @@ const DashboardPage = ({
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">Lesson Packages</h2>
-                  <p className="text-sm text-gray-500">Create and manage lesson bundles for your students</p>
+                  <p className="text-sm text-gray-500">
+                    Create and manage lesson bundles for your students
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -868,34 +985,128 @@ const DashboardPage = ({
               </div>
 
               <div className="mt-6 space-y-4">
-                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">10 Lesson Performance Bundle</h3>
-                      <p className="text-sm text-gray-500">Perfect for students preparing for tournaments</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">Popular</span>
-                      <button className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700">
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                    </div>
+                {packagesLoading && packages.length === 0 && (
+                  <div className="flex flex-col items-center justify-center space-y-2 py-10">
+                    <RefreshCw className="h-6 w-6 animate-spin text-purple-600" />
+                    <p className="text-sm text-gray-500">Loading packages...</p>
                   </div>
-                  <div className="mt-4 grid gap-4 md:grid-cols-3">
-                    <div>
-                      <p className="text-xs uppercase text-gray-500">Price</p>
-                      <p className="text-sm font-medium text-gray-900">$850</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-gray-500">Lessons</p>
-                      <p className="text-sm font-medium text-gray-900">10 x 60 min</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-gray-500">Students enrolled</p>
-                      <p className="text-sm font-medium text-gray-900">7</p>
-                    </div>
+                )}
+
+                {!packagesLoading && packagesError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    <p className="font-medium">We couldn't load your packages.</p>
+                    <p className="mt-1 text-xs text-red-600">{packagesError}</p>
+                    <button
+                      type="button"
+                      onClick={onRefreshPackages}
+                      className="mt-3 inline-flex items-center space-x-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Try again</span>
+                    </button>
                   </div>
-                </div>
+                )}
+
+                {!packagesLoading && !packagesError && packages.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-white p-6 text-center">
+                    <h3 className="text-base font-semibold text-gray-900">No packages yet</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Create your first lesson bundle to offer students multi-lesson savings.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={onOpenCreatePackage}
+                      className="mt-4 inline-flex items-center justify-center space-x-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700"
+                    >
+                      <Package className="h-4 w-4" />
+                      <span>Create package</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                {packages.length > 0 &&
+                  packages.map((lessonPackage) => (
+                    <div
+                      key={lessonPackage.id}
+                      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {lessonPackage.name}
+                            </h3>
+                            {!lessonPackage.isActive && (
+                              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                                Archived
+                              </span>
+                            )}
+                          </div>
+                          {lessonPackage.description && (
+                            <p className="mt-1 text-sm text-gray-500">
+                              {lessonPackage.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          {lessonPackage.lessonTypes.length > 0 ? (
+                            lessonPackage.lessonTypes.map((type) => (
+                              <span
+                                key={`${lessonPackage.id}-${type}`}
+                                className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700"
+                              >
+                                {formatLessonTypeLabel(type)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                              Any lesson type
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-4 md:grid-cols-4">
+                        <div>
+                          <p className="text-xs uppercase text-gray-500">Price</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {lessonPackage.totalPrice !== null
+                              ? currencyFormatter.format(lessonPackage.totalPrice)
+                              : 'N/A'}
+                          </p>
+                          {lessonPackage.perLessonPrice !== null && (
+                            <p className="text-xs text-gray-500">
+                              {currencyFormatter.format(lessonPackage.perLessonPrice)} per lesson
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase text-gray-500">Lessons Included</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {lessonPackage.lessonCount !== null
+                              ? `${lessonPackage.lessonCount} lessons`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase text-gray-500">Validity</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {formatValidityLabel(lessonPackage.validityMonths)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase text-gray-500">Status</p>
+                          <p
+                            className={`text-sm font-medium ${
+                              lessonPackage.isActive ? 'text-green-600' : 'text-gray-500'
+                            }`}
+                          >
+                            {lessonPackage.isActive ? 'Active' : 'Archived'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           </section>

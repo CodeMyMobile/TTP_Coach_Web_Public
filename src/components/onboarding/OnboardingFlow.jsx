@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Autocomplete from 'react-google-autocomplete';
 import {
   Award,
@@ -21,34 +21,13 @@ import {
   User,
   Users
 } from 'lucide-react';
-
-const defaultDayState = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
+import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
+import { requestCoachAvatarUploadUrl, uploadCoachAvatar } from '../../api/CoachApi/onboarding';
 
 const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
-const createInitialState = () => ({
-  profileImage: '',
-  profileImageFile: null,
-  name: '',
-  email: '',
-  phone: '',
-  bio: '',
-  experience_years: '',
-  certifications: '',
-  home_courts: [],
-  levels: [],
-  specialties: [],
-  formats: [],
-  price_private: 100,
-  price_semi: 75,
-  price_group: 50,
-  packages: [],
-  languages: [],
-  otherLanguage: '',
-  availability: defaultDayState.reduce((acc, day) => ({ ...acc, [day]: [] }), {}),
-  availabilityLocations: defaultDayState.reduce((acc, day) => ({ ...acc, [day]: {} }), {}),
-  groupClasses: []
-});
+const createInitialState = () => createDefaultProfile();
 
 const stepsConfig = [
   { title: 'Basic Info', icon: <User className="h-4 w-4" /> },
@@ -69,11 +48,21 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   const [errors, setErrors] = useState({});
   const [locationInput, setLocationInput] = useState('');
   const [stripeStatus, setStripeStatus] = useState('not_connected');
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeError, setStripeError] = useState(null);
+  const [stripeReturnUrl, setStripeReturnUrl] = useState('');
   const [availabilityTab, setAvailabilityTab] = useState('private');
-  const [selectedDay, setSelectedDay] = useState('Monday');
+  const [selectedDay, setSelectedDay] = useState(DAYS_OF_WEEK[0]);
   const [newTimeSlot, setNewTimeSlot] = useState({ start: '09:00', end: '10:00', location: '' });
   const [showStepsMenu, setShowStepsMenu] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(
+    () => (initialData?.profileImage && typeof initialData.profileImage === 'string' ? initialData.profileImage : '')
+  );
+  const [profileImageUploading, setProfileImageUploading] = useState(false);
+  const uploadObjectUrlRef = useRef(null);
 
   useEffect(() => {
     if (initialData) {
@@ -92,6 +81,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
           ...(initialData.availabilityLocations || {})
         }
       });
+      if (initialData.profileImage && typeof initialData.profileImage === 'string') {
+        setProfileImagePreview(initialData.profileImage);
+      } else {
+        setProfileImagePreview('');
+      }
     }
   }, [initialData]);
 
@@ -99,9 +93,32 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     setCurrentStep(initialStep || 0);
   }, [initialStep]);
 
+  useEffect(() => {
+    return () => {
+      if (uploadObjectUrlRef.current) {
+        URL.revokeObjectURL(uploadObjectUrlRef.current);
+        uploadObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const deriveStripeStatus = useCallback(() => {
+    if (formData?.charges_enabled) {
+      return 'verified';
+    }
+    if (formData?.stripe_account_id) {
+      return 'pending';
+    }
+    return 'not_connected';
+  }, [formData?.charges_enabled, formData?.stripe_account_id]);
+
+  useEffect(() => {
+    setStripeStatus(deriveStripeStatus());
+  }, [deriveStripeStatus]);
+
   const progress = useMemo(() => ((currentStep + 1) / stepsConfig.length) * 100, [currentStep]);
 
-  const clearProfileImageError = () => {
+  const clearProfileImageError = useCallback(() => {
     setErrors((previousErrors) => {
       if (!previousErrors.profileImage) {
         return previousErrors;
@@ -109,39 +126,152 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
       const { profileImage, ...rest } = previousErrors;
       return rest;
     });
-  };
+  }, []);
 
-  const updateProfileImage = (file) => {
-    if (!file) {
-      setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
+  const updateProfileImage = useCallback(
+    async (file) => {
+      if (!file) {
+        setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
+        if (uploadObjectUrlRef.current) {
+          URL.revokeObjectURL(uploadObjectUrlRef.current);
+          uploadObjectUrlRef.current = null;
+        }
+        setProfileImagePreview('');
+        clearProfileImageError();
+        return;
+      }
+
+      if (!(file instanceof File) || !file.type?.startsWith('image/')) {
+        setErrors((previous) => ({
+          ...previous,
+          profileImage: 'Please choose a valid image file'
+        }));
+        return;
+      }
+
+      const contentType = file.type || 'image/jpeg';
+      const extensionFromType = contentType.split('/')?.[1] || '';
+      const extensionFromName = typeof file.name === 'string' ? file.name.split('.').pop() || '' : '';
+      const resolvedExtension =
+        (extensionFromType || extensionFromName).toLowerCase() === 'jpg'
+          ? 'jpeg'
+          : (extensionFromType || extensionFromName).toLowerCase();
+
+      if (!resolvedExtension) {
+        setErrors((previous) => ({
+          ...previous,
+          profileImage: 'Unable to determine image type'
+        }));
+        return;
+      }
+
+      try {
+        clearProfileImageError();
+        setProfileImageUploading(true);
+
+        const presignResponse = await requestCoachAvatarUploadUrl(resolvedExtension);
+        if (!presignResponse || !presignResponse.ok) {
+          let message = 'Unable to start profile photo upload.';
+          try {
+            const body = await presignResponse.json();
+            message = body?.detail || body?.message || body?.error || message;
+          } catch (parseError) {
+            // ignore parse issues
+          }
+          throw new Error(message);
+        }
+
+        const presignData = await presignResponse.json().catch(() => null);
+        const uploadUrl =
+          presignData?.uploadURL ||
+          presignData?.uploadUrl ||
+          presignData?.url ||
+          presignData?.signedUrl ||
+          presignData?.signedURL;
+
+        if (!uploadUrl) {
+          throw new Error('Upload URL not provided by server.');
+        }
+
+        const uploadResponse = await uploadCoachAvatar(uploadUrl, file, contentType);
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload profile photo to storage.');
+        }
+
+        const fileKey =
+          presignData?.fileKey ||
+          presignData?.file_key ||
+          presignData?.key ||
+          presignData?.s3Key ||
+          presignData?.s3_key ||
+          '';
+        const fileUrl =
+          presignData?.fileUrl ||
+          presignData?.file_url ||
+          presignData?.cdnUrl ||
+          presignData?.cdn_url ||
+          presignData?.publicUrl ||
+          presignData?.public_url ||
+          '';
+
+        setFormData((previous) => ({
+          ...previous,
+          profileImage: fileKey || fileUrl || previous.profileImage || '',
+          profileImageFile: null
+        }));
+
+        if (uploadObjectUrlRef.current) {
+          URL.revokeObjectURL(uploadObjectUrlRef.current);
+          uploadObjectUrlRef.current = null;
+        }
+
+        if (fileUrl) {
+          setProfileImagePreview(fileUrl);
+        } else if (typeof window !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL) {
+          const objectUrl = URL.createObjectURL(file);
+          uploadObjectUrlRef.current = objectUrl;
+          setProfileImagePreview(objectUrl);
+        } else {
+          setProfileImagePreview('');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload profile photo.';
+        setErrors((previous) => ({
+          ...previous,
+          profileImage: message
+        }));
+      } finally {
+        setProfileImageUploading(false);
+      }
+    },
+    [clearProfileImageError]
+  );
+
+  const handleProfileImageInputChange = async (event) => {
+    if (profileImageUploading) {
+      if (event.target) {
+        event.target.value = '';
+      }
       return;
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((previous) => ({
-        ...previous,
-        profileImage: typeof reader.result === 'string' ? reader.result : '',
-        profileImageFile: file
-      }));
-    };
-    reader.readAsDataURL(file);
-    clearProfileImageError();
-  };
-
-  const handleProfileImageInputChange = (event) => {
     const file = event.target.files?.[0];
-    updateProfileImage(file);
+    await updateProfileImage(file);
     if (event.target) {
       event.target.value = '';
     }
   };
 
-  const handleProfileImageDrop = (event) => {
+  const handleProfileImageDrop = async (event) => {
     event.preventDefault();
     setIsDraggingImage(false);
+    if (profileImageUploading) {
+      if (event.dataTransfer) {
+        event.dataTransfer.clearData();
+      }
+      return;
+    }
     const file = event.dataTransfer?.files?.[0];
-    updateProfileImage(file);
+    await updateProfileImage(file);
     if (event.dataTransfer) {
       event.dataTransfer.clearData();
     }
@@ -149,7 +279,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
 
   const handleProfileImageDragOver = (event) => {
     event.preventDefault();
-    if (!isDraggingImage) {
+    if (!isDraggingImage && !profileImageUploading) {
       setIsDraggingImage(true);
     }
   };
@@ -160,7 +290,13 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   };
 
   const handleRemoveProfileImage = () => {
+    if (uploadObjectUrlRef.current) {
+      URL.revokeObjectURL(uploadObjectUrlRef.current);
+      uploadObjectUrlRef.current = null;
+    }
+    setProfileImagePreview('');
     setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
+    clearProfileImageError();
   };
 
   const validateStep = () => {
@@ -168,7 +304,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
 
     switch (currentStep) {
       case 0: {
-        if (!formData.profileImage) newErrors.profileImage = 'Profile image is required';
+        if (!formData.profileImage && !profileImagePreview) newErrors.profileImage = 'Profile image is required';
         if (!formData.name.trim()) newErrors.name = 'Name is required';
         if (!formData.email.trim()) newErrors.email = 'Email is required';
         if (!formData.bio.trim()) newErrors.bio = 'Bio is required';
@@ -210,12 +346,32 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     setCurrentStep((step) => Math.max(0, step - 1));
   };
 
-  const handleSubmit = () => {
-    if (!validateStep()) {
+  const handleSubmit = async () => {
+    if (!validateStep() || !onComplete) {
       return;
     }
-    onComplete?.(formData);
-    setCurrentStep(0);
+
+    setSubmissionError(null);
+    setIsSubmitting(true);
+    try {
+      const result = await onComplete(formData);
+
+      if (result?.error) {
+        const message =
+          typeof result.error === 'string'
+            ? result.error
+            : result.error?.message || 'Failed to submit profile';
+        setSubmissionError(message);
+        return;
+      }
+
+      setCurrentStep(0);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to submit profile';
+      setSubmissionError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addLocation = () => {
@@ -232,12 +388,71 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     });
   };
 
-  const initiateStripeOnboarding = () => {
-    setStripeStatus('pending');
-    setTimeout(() => {
-      setStripeStatus('verified');
-    }, 2000);
-  };
+  const openStripeOnboardingWindow = useCallback((payload = {}) => {
+    const redirectUrl = (payload.redirect_url || payload.url || payload.onboarding_url || '').trim();
+    const returnUrl = (payload.return_url || '').trim();
+
+    if (returnUrl) {
+      setStripeReturnUrl(returnUrl);
+    }
+
+    if (redirectUrl && typeof window !== 'undefined') {
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
+  const initiateStripeOnboarding = useCallback(async () => {
+    setStripeError(null);
+    setStripeLoading(true);
+    try {
+      const response = await createStripeOnboardingLink();
+      if (!response) {
+        throw new Error('Failed to start Stripe onboarding.');
+      }
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = data?.message || data?.error || 'Failed to start Stripe onboarding.';
+        throw new Error(message);
+      }
+
+      openStripeOnboardingWindow(data || {});
+      setStripeStatus('pending');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start Stripe onboarding.';
+      setStripeError(message);
+      setStripeStatus('not_connected');
+    } finally {
+      setStripeLoading(false);
+    }
+  }, [openStripeOnboardingWindow]);
+
+  const handleStripeRefresh = useCallback(async () => {
+    setStripeError(null);
+    setStripeLoading(true);
+    try {
+      const response = await refreshStripeOnboardingLink();
+      if (!response) {
+        throw new Error('Unable to refresh Stripe onboarding.');
+      }
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = data?.message || data?.error || 'Unable to refresh Stripe onboarding.';
+        throw new Error(message);
+      }
+
+      openStripeOnboardingWindow(data || {});
+      setStripeStatus((previous) => (previous === 'not_connected' ? 'pending' : previous));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to refresh Stripe onboarding.';
+      setStripeError(message);
+    } finally {
+      setStripeLoading(false);
+    }
+  }, [openStripeOnboardingWindow]);
 
   const addTimeSlot = () => {
     const daySlots = formData.availability[selectedDay] || [];
@@ -370,6 +585,10 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     return selected;
   }, [formData.languages, formData.otherLanguage, languageOptions]);
 
+  const resolvedProfileImageSrc =
+    profileImagePreview ||
+    (typeof formData.profileImage === 'string' && formData.profileImage ? formData.profileImage : '');
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
       <div className="border-b border-gray-200 bg-white shadow-sm">
@@ -500,18 +719,27 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                     onDragLeave={handleProfileImageDragLeave}
                     onDrop={handleProfileImageDrop}
                   >
-                    {formData.profileImage ? (
+                    {resolvedProfileImageSrc ? (
                       <>
                         <img
-                          src={formData.profileImage}
+                          src={resolvedProfileImageSrc}
                           alt="Profile preview"
                           className="mb-4 h-24 w-24 rounded-full border border-white object-cover shadow-md"
                         />
-                        <p className="text-sm text-gray-600">Click or drop a new image to replace your current photo.</p>
+                        <p className="text-sm text-gray-600">
+                          {profileImageUploading
+                            ? 'Uploading new photo…'
+                            : 'Click or drop a new image to replace your current photo.'}
+                        </p>
                         <button
                           type="button"
                           onClick={handleRemoveProfileImage}
-                          className="mt-3 inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-100"
+                          disabled={profileImageUploading}
+                          className={`mt-3 inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium transition ${
+                            profileImageUploading
+                              ? 'cursor-not-allowed text-gray-400'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
                         >
                           Remove photo
                         </button>
@@ -531,7 +759,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                       accept="image/*"
                       onChange={handleProfileImageInputChange}
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      disabled={profileImageUploading}
                     />
+                    {profileImageUploading && !resolvedProfileImageSrc && (
+                      <div className="mt-3 text-sm text-gray-500">Uploading photo…</div>
+                    )}
                   </div>
                   {errors.profileImage && <p className="mt-1 text-xs text-red-500">{errors.profileImage}</p>}
                 </div>
@@ -896,6 +1128,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900">Set up payments</h2>
               <p className="text-sm text-gray-600">Connect with Stripe to receive payments directly from students</p>
+              {stripeError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                  {stripeError}
+                </div>
+              )}
               {stripeStatus === 'not_connected' && (
                 <div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 p-6">
                   <h3 className="mb-2 font-semibold text-gray-900">Secure payments with Stripe</h3>
@@ -908,21 +1145,45 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                   <button
                     type="button"
                     onClick={initiateStripeOnboarding}
+                    disabled={stripeLoading}
                     className="rounded-lg bg-purple-600 px-6 py-3 text-white transition hover:bg-purple-700"
                   >
-                    Connect with Stripe →
+                    {stripeLoading ? 'Connecting…' : 'Connect with Stripe →'}
                   </button>
                 </div>
               )}
               {stripeStatus === 'pending' && (
-                <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 text-sm text-yellow-700">
-                  Verification in progress. This usually takes less than 2 minutes.
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 text-sm text-yellow-700">
+                    {stripeLoading
+                      ? 'Opening Stripe—complete the verification in the new tab.'
+                      : 'Stripe is still finishing your verification. If you recently submitted your details, click below to resume or check again.'}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleStripeRefresh}
+                      disabled={stripeLoading}
+                      className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {stripeLoading ? 'Opening Stripe…' : 'Resume Stripe setup'}
+                    </button>
+                    {stripeReturnUrl && (
+                      <span className="text-xs text-gray-500">
+                        Once Stripe redirects you back to{' '}
+                        <span className="font-medium text-gray-600">{stripeReturnUrl}</span>, refresh this page to continue.
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               {stripeStatus === 'verified' && (
                 <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-sm text-green-700">
                   Stripe account connected successfully!
                 </div>
+              )}
+              {stripeLoading && stripeStatus === 'not_connected' && (
+                <div className="text-sm text-gray-500">Preparing Stripe onboarding…</div>
               )}
             </div>
           )}
@@ -1002,7 +1263,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
               {availabilityTab === 'private' && (
                 <div>
                   <div className="flex space-x-2 overflow-x-auto pb-2">
-                    {defaultDayState.map((day) => (
+                    {DAYS_OF_WEEK.map((day) => (
                       <button
                         key={day}
                         type="button"
@@ -1134,7 +1395,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
                                 onChange={(event) => updateGroupClass(index, 'day', event.target.value)}
                                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                               >
-                                {defaultDayState.map((day) => (
+                                {DAYS_OF_WEEK.map((day) => (
                                   <option key={day} value={day}>
                                     {day}
                                   </option>
@@ -1322,9 +1583,9 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
           <button
             type="button"
             onClick={prevStep}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || isSubmitting}
             className={`flex w-full items-center justify-center space-x-2 rounded-lg border px-6 py-3 text-sm font-medium transition sm:w-auto ${
-              currentStep === 0
+              currentStep === 0 || isSubmitting
                 ? 'cursor-not-allowed border-gray-200 text-gray-400'
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
             }`}
@@ -1337,6 +1598,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
             <button
               type="button"
               onClick={nextStep}
+              disabled={isSubmitting}
               className="flex w-full items-center justify-center space-x-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:from-green-600 hover:to-emerald-700 sm:w-auto"
             >
               <span>Next</span>
@@ -1346,13 +1608,20 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
             <button
               type="button"
               onClick={handleSubmit}
+              disabled={isSubmitting}
               className="flex w-full items-center justify-center space-x-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:from-green-600 hover:to-emerald-700 sm:w-auto"
             >
               <Save className="h-4 w-4" />
-              <span>Submit</span>
+              <span>{isSubmitting ? 'Saving...' : 'Submit'}</span>
             </button>
           )}
         </div>
+
+        {submissionError && (
+          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            {submissionError}
+          </div>
+        )}
       </div>
     </div>
   );
