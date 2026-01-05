@@ -8,7 +8,7 @@ export const apiRequest = async (url, options = {}) => {
   config.headers = { ...(options.headers || {}) };
 
   if (accessToken && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+    config.headers.Authorization = `token ${accessToken}`;
   }
 
   const endpoint = url.startsWith('/') ? `${API_URL}${url}` : `${API_URL}/${url}`;
@@ -26,7 +26,7 @@ export const apiRequest = async (url, options = {}) => {
     accessToken = newTokens.access_token;
 
     if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+      config.headers.Authorization = `token ${accessToken}`;
     } else {
       delete config.headers.Authorization;
     }

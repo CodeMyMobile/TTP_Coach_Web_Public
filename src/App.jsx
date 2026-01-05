@@ -1,10 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import DashboardPage from './components/dashboard/DashboardPage';
+import CoachRoutes from './components/coach/CoachRoutes';
 import OnboardingFlow from './components/onboarding/OnboardingFlow';
-import AvailabilityModal from './components/modals/AvailabilityModal';
-import ConfirmationDialog from './components/modals/ConfirmationDialog';
-import CreatePackageModal from './components/modals/CreatePackageModal';
-import LessonDetailModal from './components/modals/LessonDetailModal';
 import LoginPage from './components/auth/LoginPage';
 import { useCoachSchedule } from './hooks/useCoachSchedule';
 import { useCoachStudents } from './hooks/useCoachStudents';
@@ -484,98 +480,7 @@ function App() {
     );
   }
 
-  return (
-    <>
-      <DashboardPage
-        profile={profileData}
-        isMobile={isMobile}
-        dashboardTab={dashboardTab}
-        onDashboardTabChange={setDashboardTab}
-        calendarView={calendarView}
-        onCalendarViewChange={setCalendarView}
-        currentDate={currentDate}
-        onCurrentDateChange={setCurrentDate}
-        mobileDayIndex={mobileDayIndex}
-        onMobileDayIndexChange={setMobileDayIndex}
-        studentsData={students}
-        studentsLoading={studentsLoading}
-        studentsError={studentsError}
-        onRefreshStudents={refreshStudents}
-        lessonsData={lessons}
-        availabilityData={scheduleAvailability}
-        statsData={scheduleStats}
-        scheduleLoading={scheduleLoading}
-        scheduleError={scheduleError}
-        onRefreshSchedule={refreshSchedule}
-        mutationError={scheduleMutationError}
-        mutationLoading={scheduleMutationLoading}
-        combinedAdHocAvailability={combinedAdHocAvailability}
-        recurringAvailability={recurringAvailability}
-        recurringAvailabilityLocations={recurringAvailabilityLocations}
-        onLessonSelect={handleLessonSelect}
-        onAvailabilitySlotSelect={handleAvailabilitySlotSelect}
-        onEmptySlotSelect={handleEmptySlotSelect}
-        onOpenAddAvailability={handleAddAvailabilityOpen}
-        onOpenCreatePackage={() => setShowCreatePackageModal(true)}
-        onEditProfile={handleEditProfile}
-        onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
-        onLogout={logout}
-        studentSearchQuery={studentSearchQuery}
-        onStudentSearchQueryChange={setStudentSearchQuery}
-        showMobileMenu={showMobileMenu}
-        onToggleMobileMenu={setShowMobileMenu}
-        formatDuration={formatDuration}
-        packagesLoading={packagesLoading}
-        packagesError={packagesError}
-        onRefreshPackages={refreshPackages}
-      />
-
-      <LessonDetailModal
-        isOpen={showLessonDetailModal && !!selectedLessonDetail}
-        lesson={selectedLessonDetail}
-        onClose={handleCloseLessonDetail}
-        isEditing={isEditingLesson}
-        onStartEdit={handleEditLesson}
-        onCancelEdit={handleCancelEdit}
-        onSaveEdit={handleSaveLesson}
-        editData={lessonEditData || selectedLessonDetail}
-        onEditChange={setLessonEditData}
-        mutationLoading={scheduleMutationLoading}
-        onCancelLesson={handleCancelLesson}
-        students={resolvedStudents}
-        coachCourts={profileData.home_courts}
-        formatDuration={formatDuration}
-        onAcceptRequest={handleAcceptRequest}
-        onDeclineRequest={handleDeclineRequest}
-      />
-
-      <ConfirmationDialog
-        isOpen={showCancelConfirmation}
-        title="Cancel Lesson"
-        description="Are you sure you want to cancel this lesson? This action cannot be undone and the student will be notified."
-        confirmLabel="Cancel Lesson"
-        cancelLabel="Keep Lesson"
-        onConfirm={confirmCancelLesson}
-        onCancel={() => setShowCancelConfirmation(false)}
-      />
-
-      <CreatePackageModal
-        isOpen={showCreatePackageModal}
-        onClose={() => setShowCreatePackageModal(false)}
-        onCreated={handlePackageCreated}
-      />
-
-      <AvailabilityModal
-        isOpen={showAddLessonModal}
-        slot={adHocSlot}
-        onChange={setAdHocSlot}
-        onClose={() => setShowAddLessonModal(false)}
-        onSubmit={handleAddAdHocAvailability}
-        isSubmitting={scheduleMutationLoading}
-        locations={profileData.home_courts}
-      />
-    </>
-  );
+  return <CoachRoutes coach={profileData} />;
 }
 
 export default App;

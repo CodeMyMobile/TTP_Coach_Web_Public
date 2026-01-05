@@ -34,7 +34,7 @@ const buildHeaders = (token) => {
   };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = `token ${token}`;
   }
 
   return headers;

@@ -1,12 +1,16 @@
 const resolveBaseUrl = () => {
   const browserCandidate =
     typeof import.meta !== 'undefined' && import.meta.env
-      ? import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_VITE_API_URL ||
+        import.meta.env.VITE_API_BASE_URL ||
+        import.meta.env.VITE_API_URL
       : '';
 
   const nodeCandidate =
     typeof process !== 'undefined' && process.env
-      ? process.env.VITE_API_BASE_URL || process.env.VITE_API_URL
+      ? process.env.VITE_VITE_API_URL ||
+        process.env.VITE_API_BASE_URL ||
+        process.env.VITE_API_URL
       : '';
 
   const candidate = browserCandidate || nodeCandidate || '';
