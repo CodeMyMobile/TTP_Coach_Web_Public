@@ -14,13 +14,63 @@ const emptyAvailability = {
   blockedSlots: []
 };
 
+const toLessonDateTime = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toTimeString = (date) => {
+  if (!date) {
+    return '';
+  }
+
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+const normaliseLesson = (lesson) => {
+  if (!lesson || typeof lesson !== 'object') {
+    return lesson;
+  }
+
+  if (lesson.date && lesson.time) {
+    return lesson;
+  }
+
+  const start = toLessonDateTime(lesson.start_date_time || lesson.startDateTime || lesson.start);
+  const end = toLessonDateTime(lesson.end_date_time || lesson.endDateTime || lesson.end);
+  const durationMinutes = start && end ? Math.max(0, (end - start) / 60000) : null;
+  const durationSlots = durationMinutes !== null ? Math.max(1, Math.round(durationMinutes / 30)) : 2;
+
+  const typeLabel = lesson.lesson_type_name || lesson.lessonType || lesson.type || '';
+  const statusValue = lesson.status;
+  const lessonStatus = statusValue === 0 ? 'pending' : lesson.lessonStatus || 'scheduled';
+
+  return {
+    ...lesson,
+    id: lesson.id ?? lesson.lesson_id ?? lesson.lessonId,
+    date: start ? start.toISOString().split('T')[0] : lesson.date,
+    time: start ? toTimeString(start) : lesson.time,
+    duration: lesson.duration ?? durationSlots,
+    type: typeof typeLabel === 'string' ? typeLabel.toLowerCase() : lesson.type,
+    student: lesson.student || lesson.full_name || lesson.player_name || lesson.playerName || '',
+    location: lesson.location || lesson.court || lesson.venue || '',
+    lessonStatus
+  };
+};
+
 const normaliseLessons = (payload) => {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload.map(normaliseLesson);
   }
 
   if (payload && Array.isArray(payload.lessons)) {
-    return payload.lessons;
+    return payload.lessons.map(normaliseLesson);
   }
 
   return [];

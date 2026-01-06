@@ -12,6 +12,7 @@ import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
 import { createDefaultProfile } from './constants/profile';
 import { listCoachPackages } from './api/CoachApi/packages';
+import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -67,6 +68,7 @@ const addMinutesToTime = (time, minutes) => {
 function App() {
   const { user, initialising: authInitialising, logout } = useAuth();
   const isAuthenticated = Boolean(user);
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const {
     profile: remoteProfile,
     isComplete: remoteProfileComplete,
@@ -81,7 +83,7 @@ function App() {
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
   const [dashboardTab, setDashboardTab] = useState('calendar');
   const [calendarView, setCalendarView] = useState('week');
-  const [currentDate, setCurrentDate] = useState(new Date('2025-01-27'));
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const [mobileDayIndex, setMobileDayIndex] = useState(0);
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
@@ -98,6 +100,8 @@ function App() {
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packagesError, setPackagesError] = useState(null);
   const packagesFetchedRef = useRef(false);
+  const isLoginRoute = currentPath === '/';
+  const isDashboardRoute = currentPath === '/dashboard';
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -134,12 +138,55 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  const navigate = useCallback((nextPath, { replace = false } = {}) => {
+    if (window.location.pathname === nextPath) {
+      return;
+    }
+
+    if (replace) {
+      window.history.replaceState(null, '', nextPath);
+    } else {
+      window.history.pushState(null, '', nextPath);
+    }
+    setCurrentPath(nextPath);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (authInitialising) {
+      return;
+    }
+
+    if (!isAuthenticated && !isLoginRoute) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (isAuthenticated && !isDashboardRoute) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [authInitialising, isAuthenticated, isLoginRoute, isDashboardRoute, navigate]);
+
   const {
     students,
     loading: studentsLoading,
+    loadingMore: studentsLoadingMore,
     error: studentsError,
+    hasMore: studentsHasMore,
+    loadMore: loadMoreStudents,
+    page: studentsPage,
+    perPage: studentsPerPage,
     refresh: refreshStudents
-  } = useCoachStudents({ enabled: isProfileComplete && isAuthenticated });
+  } = useCoachStudents({
+    enabled: isProfileComplete && isAuthenticated,
+    perPage: 5,
+    search: studentSearchQuery
+  });
 
   const {
     lessons,
@@ -439,12 +486,69 @@ function App() {
     setLessonEditData(null);
   };
 
-  const handleAcceptRequest = () => {
-    setShowLessonDetailModal(false);
+  const handleAcceptRequest = async () => {
+    if (!selectedLessonDetail?.id) {
+      setShowLessonDetailModal(false);
+      return;
+    }
+
+    if (selectedLessonDetail.status === 1) {
+      setShowLessonDetailModal(false);
+      return;
+    }
+
+    try {
+      const response = await coachStripePaymentIntent({
+        coachAccessToken: user?.session?.access_token,
+        lessonId: selectedLessonDetail.id
+      });
+
+      await refreshSchedule();
+
+      if (response?.status === 200 || response?.status === 201) {
+        window.alert('The lesson booked successfully!!');
+      } else {
+        window.alert('Something went wrong!!');
+      }
+    } catch (error) {
+      console.error('Failed to accept lesson request', error);
+      window.alert('Something went wrong!!');
+    } finally {
+      setShowLessonDetailModal(false);
+    }
   };
 
-  const handleDeclineRequest = () => {
-    setShowLessonDetailModal(false);
+  const handleDeclineRequest = async () => {
+    if (!selectedLessonDetail?.id) {
+      setShowLessonDetailModal(false);
+      return;
+    }
+
+    if (selectedLessonDetail.status === 'CANCELLED') {
+      setShowLessonDetailModal(false);
+      return;
+    }
+
+    try {
+      const response = await updateCoachLessons(
+        user?.session?.access_token,
+        selectedLessonDetail.id,
+        { status: 'CANCELLED' }
+      );
+
+      await refreshSchedule();
+
+      if (response?.status === 200) {
+        window.alert('The lesson cancelled successfully!!');
+      } else {
+        window.alert('Something went wrong!!');
+      }
+    } catch (error) {
+      console.error('Failed to cancel lesson request', error);
+      window.alert('Something went wrong!!');
+    } finally {
+      setShowLessonDetailModal(false);
+    }
   };
 
   const resolvedStudents = useMemo(() => (
@@ -499,8 +603,13 @@ function App() {
         onMobileDayIndexChange={setMobileDayIndex}
         studentsData={students}
         studentsLoading={studentsLoading}
+        studentsLoadingMore={studentsLoadingMore}
         studentsError={studentsError}
         onRefreshStudents={refreshStudents}
+        studentsHasMore={studentsHasMore}
+        onLoadMoreStudents={loadMoreStudents}
+        studentsPage={studentsPage}
+        studentsPerPage={studentsPerPage}
         lessonsData={lessons}
         availabilityData={scheduleAvailability}
         statsData={scheduleStats}

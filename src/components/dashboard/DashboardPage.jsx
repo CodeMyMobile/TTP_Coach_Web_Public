@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertCircle,
@@ -10,8 +10,6 @@ import {
   CalendarPlus,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   Clock,
   Copy,
@@ -37,6 +35,8 @@ import {
   Users,
   Zap
 } from 'lucide-react';
+import { getActivePlayerPackages, updateCoachPlayer } from '../../services/coach';
+import CoachCalendar from './CoachCalendar';
 
 const parseNumber = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -73,7 +73,6 @@ const formatValidityLabel = (months) => {
 
 const DashboardPage = ({
   profile,
-  isMobile,
   dashboardTab,
   onDashboardTabChange,
   calendarView,
@@ -84,8 +83,13 @@ const DashboardPage = ({
   onMobileDayIndexChange,
   studentsData,
   studentsLoading,
+  studentsLoadingMore = false,
   studentsError,
   onRefreshStudents,
+  studentsHasMore = false,
+  onLoadMoreStudents = () => {},
+  studentsPage = 1,
+  studentsPerPage = 5,
   lessonsData,
   availabilityData,
   statsData,
@@ -94,9 +98,6 @@ const DashboardPage = ({
   onRefreshSchedule,
   mutationError,
   mutationLoading,
-  combinedAdHocAvailability,
-  recurringAvailability,
-  recurringAvailabilityLocations,
   onLessonSelect,
   onAvailabilitySlotSelect,
   onEmptySlotSelect,
@@ -114,33 +115,6 @@ const DashboardPage = ({
   packagesError = null,
   onRefreshPackages = () => {}
 }) => {
-  const generateWeekDays = () => {
-    const days = [];
-    const startOfWeek = new Date(currentDate);
-    const day = startOfWeek.getDay();
-    const diff = startOfWeek.getDate() - day;
-    startOfWeek.setDate(diff);
-
-    for (let index = 0; index < 7; index += 1) {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + index);
-      days.push(date);
-    }
-    return days;
-  };
-
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 6; hour <= 21; hour += 1) {
-      slots.push(`${hour}:00`);
-      slots.push(`${hour}:30`);
-    }
-    return slots;
-  };
-
-  const weekDays = useMemo(generateWeekDays, [currentDate]);
-  const timeSlots = useMemo(generateTimeSlots, []);
-
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
     : lessonsData?.lessons || [];
@@ -208,255 +182,175 @@ const DashboardPage = ({
     pendingRequests: statsData?.pendingRequests ?? bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
   };
 
-  const getAvailabilityForDate = (date, time) => {
-    const dateStr = date.toISOString().split('T')[0];
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-
-    if (combinedAdHocAvailability?.[dateStr]?.[time]) {
-      return combinedAdHocAvailability[dateStr][time];
-    }
-
-    const daySlots = recurringAvailability?.[dayName];
-    const dayLocations = recurringAvailabilityLocations?.[dayName];
-    if (!daySlots || daySlots.length === 0) {
-      return null;
-    }
-
-    const parseTimeToMinutes = (timeString) => {
-      if (!timeString) {
-        return null;
-      }
-
-      const [hourPart, minutePart = '0'] = timeString.split(':');
-      const hour = parseInt(hourPart, 10);
-      const minute = parseInt(minutePart, 10);
-
-      if (Number.isNaN(hour) || Number.isNaN(minute)) {
-        return null;
-      }
-
-      return hour * 60 + minute;
-    };
-
-    const slotMinutes = parseTimeToMinutes(time);
-    if (slotMinutes === null) {
-      return null;
-    }
-
-    for (const slot of daySlots) {
-      const [rawStart, rawEnd] = slot.split(' - ');
-      const startStr = rawStart?.trim();
-      const endStr = rawEnd?.trim();
-      const startMinutes = parseTimeToMinutes(startStr);
-      const endMinutes = parseTimeToMinutes(endStr);
-
-      if (startMinutes === null || endMinutes === null) {
-        continue;
-      }
-
-      if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
-        return {
-          type: 'recurring',
-          label: slot,
-          location: dayLocations?.[slot] || 'Not specified',
-          endTime: endStr
-        };
-      }
-    }
-
-    return null;
-  };
-
-  const getLessonForSlot = (date, time) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return bookedLessons.find((lesson) => {
-      if (lesson.date !== dateStr) {
-        return false;
-      }
-      const [lessonHour, lessonMin] = lesson.time.split(':').map(Number);
-      const lessonStartMinutes = lessonHour * 60 + lessonMin;
-      const lessonEndMinutes = lessonStartMinutes + lesson.duration * 30;
-
-      const [slotHour, slotMin] = time.split(':').map(Number);
-      const slotMinutes = slotHour * 60 + slotMin;
-      return slotMinutes >= lessonStartMinutes && slotMinutes < lessonEndMinutes;
-    });
-  };
-
-  const isLessonStart = (lesson, time) => lesson?.time === time;
-
-  const buildAvailabilityDetail = (date, time, availability) => {
-    const endTime = availability?.endTime;
-    let duration = 2; // default to 1 hour
-    if (endTime) {
-      const [startHour, startMinute] = time.split(':').map(Number);
-      const [endHour, endMinute] = endTime.split(':').map(Number);
-      const totalMinutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
-      duration = Math.max(1, Math.round(totalMinutes / 30));
-    }
-    return {
-      id: `${date}-${time}`,
-      type: 'available',
-      date,
-      time,
-      duration,
-      location: availability?.location || profile.home_courts[0] || '',
-      court: availability?.location || '',
-      lessonStatus: 'available'
-    };
-  };
-
-  const handleSlotClick = (date, time) => {
-    const lesson = getLessonForSlot(date, time);
-    const availability = getAvailabilityForDate(date, time);
-
-    if (lesson && isLessonStart(lesson, time)) {
-      onLessonSelect(lesson);
-      return;
-    }
-
-    if (availability) {
-      onAvailabilitySlotSelect(buildAvailabilityDetail(date.toISOString().split('T')[0], time, availability));
-      return;
-    }
-
-    onEmptySlotSelect({
-      date: date.toISOString().split('T')[0],
-      start: time,
-      end: availability?.endTime ?? time,
-      location: profile.home_courts[0] || ''
-    });
-  };
-
-  const navigateWeek = (direction) => {
-    const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() + direction * 7);
-    onCurrentDateChange(newDate);
-  };
-
-  const navigateMobileDay = (direction) => {
-    const nextIndex = mobileDayIndex + direction;
-    if (nextIndex >= 0 && nextIndex < 7) {
-      onMobileDayIndexChange(nextIndex);
-    }
-  };
-
   const goToToday = () => {
     onCurrentDateChange(new Date());
     onMobileDayIndexChange(new Date().getDay());
   };
 
+  const handleAvailabilitySelect = (availability) => {
+    if (!availability) {
+      return;
+    }
+
+    const dateValue = availability.date instanceof Date
+      ? availability.date.toISOString().split('T')[0]
+      : availability.date || '';
+    const startValue = availability.start || availability.startTime || availability.from || '';
+    const endValue = availability.end || availability.endTime || availability.to || availability.finish || '';
+
+    onAvailabilitySlotSelect({
+      ...availability,
+      date: dateValue,
+      start: startValue,
+      end: endValue,
+      location: availability.location || profile.home_courts[0] || ''
+    });
+  };
+
+  const [rosterAction, setRosterAction] = useState(null);
+  const [activePackagesLoading, setActivePackagesLoading] = useState(false);
+  const [activePackagesError, setActivePackagesError] = useState(null);
+  const [activePackagesByPlayer, setActivePackagesByPlayer] = useState({});
+
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
     : studentsData?.students || [];
 
-  const filteredStudents = resolvedStudents.filter((student) =>
-    student.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
-    student.email.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
-    student.phone.includes(studentSearchQuery)
+  const normalizeStudent = (student) => {
+    const name = student?.full_name || student?.name || '';
+    const email = student?.email || '';
+    const phone = student?.phone || '';
+    const statusValue = student?.status ?? null;
+    const createdBy = student?.created_by ?? null;
+    const playerId = student?.player_id ?? student?.id ?? null;
+    const isConfirmed = statusValue === 1 || statusValue === 'CONFIRMED';
+    const isPlayerRequest = createdBy !== null && playerId !== null && createdBy === playerId;
+
+    return {
+      id: student?.id || playerId || student?.email || name,
+      name,
+      email,
+      phone,
+      status: statusValue,
+      isConfirmed,
+      isPlayerRequest,
+      playerId,
+      avatar: student?.profile_picture || student?.avatar || ''
+    };
+  };
+
+  const normalizedStudents = resolvedStudents.map(normalizeStudent);
+
+  const filteredStudents = normalizedStudents.filter((student) => {
+    const searchValue = studentSearchQuery.toLowerCase();
+    return (
+      student.name.toLowerCase().includes(searchValue) ||
+      student.email.toLowerCase().includes(searchValue) ||
+      student.phone.includes(studentSearchQuery)
+    );
+  });
+
+  const handleRosterUpdate = useCallback(
+    async (playerId, status) => {
+      if (!playerId) {
+        return;
+      }
+
+      setRosterAction({ playerId, status });
+      try {
+        await updateCoachPlayer({ playerId, status });
+        onRefreshStudents?.();
+      } catch (error) {
+        console.error('Failed to update roster status', error);
+      } finally {
+        setRosterAction(null);
+      }
+    },
+    [onRefreshStudents]
   );
 
+  useEffect(() => {
+    if (dashboardTab !== 'students') {
+      return;
+    }
+
+    setActivePackagesByPlayer({});
+    setActivePackagesError(null);
+  }, [dashboardTab, studentSearchQuery, studentsPerPage]);
+
+  useEffect(() => {
+    if (dashboardTab !== 'students') {
+      return;
+    }
+
+    let isMounted = true;
+    const fetchActivePackages = async () => {
+      setActivePackagesLoading(true);
+      setActivePackagesError(null);
+
+      try {
+        const response = await getActivePlayerPackages({
+          perPage: studentsPerPage,
+          page: studentsPage,
+          search: studentSearchQuery
+        });
+        const purchases = Array.isArray(response)
+          ? response
+          : response?.purchases || [];
+
+        const map = purchases.reduce((acc, purchase) => {
+          const playerId = purchase?.player_id ?? purchase?.playerId ?? purchase?.player?.id;
+          if (!playerId) {
+            return acc;
+          }
+
+          const creditsRemaining = parseNumber(
+            purchase?.credits_remaining ??
+              purchase?.creditsRemaining ??
+              (parseNumber(purchase?.credits_total) ?? 0) - (parseNumber(purchase?.credits_used) ?? 0)
+          );
+
+          const existing = acc[playerId];
+          if (existing && creditsRemaining !== null && existing.creditsRemaining > creditsRemaining) {
+            return acc;
+          }
+
+          acc[playerId] = {
+            creditsRemaining,
+            packageName:
+              purchase?.package_name ||
+              purchase?.package_title ||
+              purchase?.package?.name ||
+              purchase?.packageName ||
+              'Active package'
+          };
+          return acc;
+        }, {});
+
+        if (isMounted) {
+          setActivePackagesByPlayer((previous) =>
+            studentsPage === 1 ? map : { ...previous, ...map }
+          );
+        }
+      } catch (error) {
+        if (isMounted) {
+          setActivePackagesError(error instanceof Error ? error : new Error('Failed to load packages.'));
+        }
+      } finally {
+        if (isMounted) {
+          setActivePackagesLoading(false);
+        }
+      }
+    };
+
+    fetchActivePackages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [dashboardTab, studentSearchQuery, studentsPage, studentsPerPage]);
+
   const pendingLessons = bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending');
-
-  const getLessonSpan = (lesson) => lesson.duration;
-
-  const getLessonColor = (lesson) => {
-    if (lesson.lessonStatus === 'pending') return 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-white shadow-lg ring-2 ring-yellow-300 animate-pulse';
-    if (lesson.type === 'available') return 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg ring-2 ring-purple-400';
-    if (lesson.type === 'private') return 'bg-gradient-to-br from-blue-500 to-blue-600 text-white';
-    if (lesson.type === 'semi') return 'bg-gradient-to-br from-green-500 to-green-600 text-white';
-    if (lesson.type === 'group') return 'bg-gradient-to-br from-orange-500 to-orange-600 text-white';
-    if (lesson.type === 'clinic') return 'bg-gradient-to-br from-pink-500 to-pink-600 text-white';
-    return 'bg-gray-200';
-  };
-
-  const MobileCalendarView = () => {
-    const currentDay = weekDays[mobileDayIndex];
-
-    return (
-      <div className="rounded-lg bg-white">
-        <div className="flex items-center justify-between rounded-t-lg bg-gray-50 p-4">
-          <button
-            type="button"
-            onClick={() => navigateMobileDay(-1)}
-            disabled={mobileDayIndex === 0}
-            className={`rounded-lg p-2 ${mobileDayIndex === 0 ? 'text-gray-300' : 'text-gray-600 hover:bg-gray-100'}`}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <div className="text-center">
-            <div className="text-xs uppercase text-gray-500">
-              {currentDay.toLocaleDateString('en-US', { weekday: 'long' })}
-            </div>
-            <div className="text-lg font-bold text-gray-900">
-              {currentDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigateMobileDay(1)}
-            disabled={mobileDayIndex === 6}
-            className={`rounded-lg p-2 ${mobileDayIndex === 6 ? 'text-gray-300' : 'text-gray-600 hover:bg-gray-100'}`}
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {timeSlots.map((time) => {
-            const lesson = getLessonForSlot(currentDay, time);
-            const availability = getAvailabilityForDate(currentDay, time);
-            const isStart = isLessonStart(lesson, time);
-
-            if (lesson && !isStart) {
-              return null;
-            }
-
-            return (
-              <div
-                key={time}
-                role="button"
-                tabIndex={0}
-                onClick={() => handleSlotClick(currentDay, time)}
-                onKeyDown={(event) => event.key === 'Enter' && handleSlotClick(currentDay, time)}
-                className={`cursor-pointer p-4 transition-colors ${
-                  availability && !lesson
-                    ? 'bg-green-50'
-                    : lesson
-                      ? ''
-                      : 'hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{time}</p>
-                    {lesson ? (
-                      <div className="mt-1 space-y-1 text-sm">
-                        <p className="font-semibold text-gray-900">{lesson.student || lesson.title}</p>
-                        <p className="text-xs text-gray-500">{formatDuration(lesson.duration)}</p>
-                        <p className="flex items-center text-xs text-gray-500">
-                          <Clock className="mr-1 h-3 w-3" />
-                          {lesson.location}
-                        </p>
-                      </div>
-                    ) : availability ? (
-                      <p className="text-sm font-medium text-green-600">Available for booking</p>
-                    ) : (
-                      <p className="text-sm text-gray-400">Tap to add availability</p>
-                    )}
-                  </div>
-                  {lesson && (
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${getLessonColor(lesson)}`}>
-                      {lesson.type}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -676,32 +570,10 @@ const DashboardPage = ({
               </div>
 
               <div className="mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-center space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => (isMobile ? navigateMobileDay(-1) : navigateWeek(-1))}
-                      className="touch-target rounded-lg p-2 text-gray-600 transition hover:bg-gray-100"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <div>
-                      <p className="text-xs uppercase text-gray-500">Week of</p>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {isMobile
-                          ? weekDays[mobileDayIndex].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                          : `${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                      </h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => (isMobile ? navigateMobileDay(1) : navigateWeek(1))}
-                      className="touch-target rounded-lg p-2 text-gray-600 transition hover:bg-gray-100"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-gray-500">
+                    <span>Calendar view</span>
                   </div>
-
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:space-x-2 sm:gap-0">
                     <button
                       type="button"
@@ -722,96 +594,17 @@ const DashboardPage = ({
                   </div>
                 </div>
 
-                {isMobile ? (
-                  <MobileCalendarView />
-                ) : (
-                  <div className="overflow-x-auto rounded-lg border border-gray-200">
-                    <div className="min-w-[600px]">
-                      <div className="grid grid-cols-[100px_repeat(7,minmax(0,1fr))] border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500">
-                        <div className="flex items-center space-x-2">
-                          <Filter className="h-4 w-4" />
-                          <span>Time</span>
-                        </div>
-                        {weekDays.map((day) => (
-                          <div key={day.toISOString()} className="text-center">
-                            <div className="text-xs uppercase text-gray-400">
-                              {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                            </div>
-                            <div className="text-sm font-semibold text-gray-900">
-                              {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="relative">
-                        <div className="grid grid-cols-[100px_repeat(7,minmax(0,1fr))]">
-                          {timeSlots.map((time) => (
-                            <React.Fragment key={time}>
-                              <div className="border-b border-r border-gray-100 px-4 py-6 text-sm text-gray-400">
-                                {time}
-                              </div>
-                              {weekDays.map((day) => {
-                                const lesson = getLessonForSlot(day, time);
-                                const availability = getAvailabilityForDate(day, time);
-                                const isStart = isLessonStart(lesson, time);
-
-                                if (lesson && !isStart) {
-                                  return <div key={`${day.toISOString()}-${time}`} />;
-                                }
-
-                                return (
-                                  <div
-                                    key={`${day.toISOString()}-${time}`}
-                                    className={`border-b border-r border-gray-100 p-2 ${
-                                      availability && !lesson
-                                        ? 'bg-green-50'
-                                        : lesson
-                                          ? ''
-                                          : 'hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSlotClick(day, time)}
-                                      className="flex h-full w-full flex-col items-start space-y-2 rounded-lg border border-dashed border-transparent p-2 text-left transition hover:border-purple-200"
-                                    >
-                                      {lesson ? (
-                                        <div
-                                          className={`w-full rounded-lg p-3 text-left text-sm shadow ${getLessonColor(lesson)}`}
-                                          style={{ gridRowEnd: `span ${getLessonSpan(lesson)}` }}
-                                        >
-                                          <div className="flex items-center justify-between text-xs uppercase">
-                                            <span className="font-bold">{lesson.type}</span>
-                                            <span className="opacity-75">{formatDuration(lesson.duration)}</span>
-                                          </div>
-                                          <div className="mt-1 font-semibold">
-                                            {lesson.type === 'group' ? lesson.title : lesson.student}
-                                          </div>
-                                          <div className="mt-2 text-xs opacity-75">
-                                            {lesson.location}
-                                          </div>
-                                        </div>
-                                      ) : availability ? (
-                                        <div className="w-full rounded-lg border border-green-200 bg-white p-3 text-sm text-green-600">
-                                          Available • {availability.location}
-                                        </div>
-                                      ) : (
-                                        <div className="w-full rounded-lg border border-dashed border-gray-200 p-3 text-xs text-gray-400">
-                                          Add availability
-                                        </div>
-                                      )}
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <CoachCalendar
+                  lessons={bookedLessons}
+                  availability={availabilityData}
+                  currentDate={currentDate}
+                  onDateChange={onCurrentDateChange}
+                  view={calendarView}
+                  onViewChange={onCalendarViewChange}
+                  onLessonSelect={onLessonSelect}
+                  onAvailabilitySelect={handleAvailabilitySelect}
+                  onEmptySlotSelect={onEmptySlotSelect}
+                />
               </div>
             </div>
           </section>
@@ -869,40 +662,129 @@ const DashboardPage = ({
                   </div>
                 )}
 
+                {activePackagesError && !studentsError && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+                    We couldn't load active packages for these students.
+                  </div>
+                )}
+
+                {activePackagesLoading && !studentsLoading && !studentsError && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
+                    Loading active packages...
+                  </div>
+                )}
+
                 {!studentsLoading && !studentsError && filteredStudents.length === 0 && (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
                     No students found matching your search.
                   </div>
                 )}
 
-                {filteredStudents.map((student) => (
-                  <div key={student.email} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{student.name}</h3>
-                        <p className="text-sm text-gray-500">{student.email} • {student.phone}</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Active</span>
-                        <button className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700">
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                {filteredStudents.map((student) => {
+                  const activePackage = student.playerId
+                    ? activePackagesByPlayer[student.playerId]
+                    : null;
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <p className="text-xs uppercase text-gray-500">Current Package</p>
-                        <p className="mt-1 text-sm font-medium text-gray-900">{student.package || 'No active package'}</p>
-                        <p className="text-xs text-gray-500">Remaining lessons: {student.remaining ?? 'N/A'}</p>
+                  return (
+                    <div key={student.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 overflow-hidden rounded-full bg-gray-100">
+                            {student.avatar ? (
+                              <img
+                                src={student.avatar}
+                                alt={student.name || 'Student'}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-gray-500">
+                                {student.name ? student.name.slice(0, 1).toUpperCase() : '?'}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">{student.name || 'Unnamed student'}</h3>
+                            <p className="text-sm text-gray-500">{student.email} • {student.phone}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {student.isConfirmed ? (
+                            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Active</span>
+                          ) : student.isPlayerRequest ? (
+                            <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
+                              Request pending
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                              Invite pending
+                            </span>
+                          )}
+                          <button className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700">
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <p className="text-xs uppercase text-gray-500">Next Lesson</p>
-                        <p className="mt-1 text-sm font-medium text-gray-900">{student.nextLesson || 'Not scheduled'}</p>
+
+                      {!student.isConfirmed && student.isPlayerRequest && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRosterUpdate(student.playerId, 'CONFIRMED')}
+                            disabled={rosterAction?.playerId === student.playerId}
+                            className="inline-flex items-center rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            <Check className="mr-2 h-4 w-4" />
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRosterUpdate(student.playerId, 'CANCELLED')}
+                            disabled={rosterAction?.playerId === student.playerId}
+                            className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <div className="rounded-lg bg-gray-50 p-3">
+                          <p className="text-xs uppercase text-gray-500">Current Package</p>
+                          <p className="mt-1 text-sm font-medium text-gray-900">
+                            {activePackage?.packageName || 'No active package'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Remaining lessons: {activePackage?.creditsRemaining ?? 'N/A'}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 p-3">
+                          <p className="text-xs uppercase text-gray-500">Next Lesson</p>
+                          <p className="mt-1 text-sm font-medium text-gray-900">{student.nextLesson || 'Not scheduled'}</p>
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+
+                {!studentsLoading && !studentsError && studentsHasMore && (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={onLoadMoreStudents}
+                      disabled={studentsLoadingMore}
+                      className="inline-flex items-center rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {studentsLoadingMore ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Loading more...
+                        </>
+                      ) : (
+                        'Load more'
+                      )}
+                    </button>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </section>
