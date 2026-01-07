@@ -79,6 +79,49 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
 
   const events = [];
   const weekStart = getWeekStart(referenceDate);
+  const addEvent = ({ date, start, end, location, source }) => {
+    const startDate = toDateTime(date, start);
+    const endDate = toDateTime(date, end);
+    if (!startDate || !endDate) {
+      return;
+    }
+
+    events.push({
+      start: startDate,
+      end: endDate,
+      title: location || 'Available',
+      resource: {
+        ...(source || {}),
+        date,
+        start,
+        end,
+        location
+      },
+      type: 'availability'
+    });
+  };
+
+  if (Array.isArray(availability)) {
+    availability.forEach((slot) => {
+      const dayKey = String(slot?.day || '').toLowerCase();
+      const dayIndex = DAY_INDEX[dayKey];
+      if (dayIndex === undefined) {
+        return;
+      }
+
+      const dayDate = new Date(weekStart);
+      dayDate.setDate(weekStart.getDate() + dayIndex);
+      addEvent({
+        date: dayDate,
+        start: slot.from || slot.start,
+        end: slot.to || slot.end,
+        location: slot.location || slot.location_name || '',
+        source: slot
+      });
+    });
+
+    return events;
+  }
 
   Object.entries(availability.weekly || {}).forEach(([dayKey, slots]) => {
     const dayIndex = DAY_INDEX[String(dayKey).toLowerCase()];
@@ -95,35 +138,23 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
       }
 
       const [rawStart, rawEnd] = slot.split('-').map((part) => part.trim());
-      const start = toDateTime(dayDate, rawStart);
-      const end = toDateTime(dayDate, rawEnd);
-      if (!start || !end) {
-        return;
-      }
-
-      events.push({
-        start,
-        end,
-        title: availability.weeklyLocations?.[dayKey]?.[slot] || 'Available',
-        resource: { date: dayDate, start: rawStart, end: rawEnd, location: availability.weeklyLocations?.[dayKey]?.[slot] || '' },
-        type: 'availability'
+      addEvent({
+        date: dayDate,
+        start: rawStart,
+        end: rawEnd,
+        location: availability.weeklyLocations?.[dayKey]?.[slot] || '',
+        source: { date: dayDate, start: rawStart, end: rawEnd }
       });
     });
   });
 
   (availability.adHoc || []).forEach((slot) => {
-    const start = toDateTime(slot.date, slot.start);
-    const end = toDateTime(slot.date, slot.end || slot.endTime);
-    if (!start || !end) {
-      return;
-    }
-
-    events.push({
-      start,
-      end,
-      title: slot.location || 'Available',
-      resource: slot,
-      type: 'availability'
+    addEvent({
+      date: slot.date,
+      start: slot.start,
+      end: slot.end || slot.endTime,
+      location: slot.location || '',
+      source: slot
     });
   });
 
@@ -133,6 +164,7 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
 const CoachCalendar = ({
   lessons = [],
   availability = null,
+  events = null,
   currentDate,
   onDateChange,
   view = 'week',
@@ -142,28 +174,45 @@ const CoachCalendar = ({
   onAvailabilitySelect,
   onEmptySlotSelect
 }) => {
-  const events = useMemo(() => {
+  const resolvedEvents = useMemo(() => {
+    if (Array.isArray(events)) {
+      return events;
+    }
+
     const lessonEvents = buildLessonEvents(lessons);
     const availabilityEvents = buildAvailabilityEvents(availability, currentDate || new Date());
     return [...availabilityEvents, ...lessonEvents];
-  }, [lessons, availability, currentDate]);
+  }, [events, lessons, availability, currentDate]);
 
   useEffect(() => {
-    const lessonEvents = events.filter((event) => event.type === 'lesson');
+    const lessonEvents = resolvedEvents.filter((event) => event.type === 'lesson');
+    const availabilityEvents = resolvedEvents.filter((event) => event.type === 'availability');
+    console.log('[CoachCalendar] events summary', {
+      total: resolvedEvents.length,
+      lessons: lessonEvents.length,
+      availability: availabilityEvents.length
+    });
+
     if (lessonEvents.length === 0) {
-      return;
+      if (availabilityEvents.length === 0) {
+        return;
+      }
     }
 
     lessonEvents.forEach((event) => {
       console.log('[CoachCalendar] lesson event', event.start, event.end, event.title);
     });
-  }, [events]);
 
+    availabilityEvents.forEach((event) => {
+      console.log('[CoachCalendar] availability event', event.start, event.end, event.title);
+    });
+  }, [resolvedEvents]);
+console.log("events",events);
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <Calendar
         localizer={localizer}
-        events={events}
+        events={resolvedEvents}
         startAccessor="start"
         endAccessor="end"
         views={['week', 'day']}
@@ -209,7 +258,10 @@ const CoachCalendar = ({
             style: {
               backgroundColor: '#8ecae6',
               borderColor: '#023047',
-              borderRadius: '4px'
+              borderRadius: '6px',
+              opacity: 0.85,
+              color: '#0f172a',
+              fontWeight: 600
             }
           };
         }}

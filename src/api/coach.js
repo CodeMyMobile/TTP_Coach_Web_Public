@@ -74,6 +74,19 @@ export const getCoachAllAvailability = async (coachAccessToken) => {
   return response.json();
 };
 
+export const getCoachSchedule = async (coachAccessToken) => {
+  if (!coachAccessToken) {
+    return null;
+  }
+
+  return fetch(`${API_URL}/coach/schedule`, {
+    method: 'GET',
+    headers: {
+      Authorization: `token ${coachAccessToken}`
+    }
+  });
+};
+
 export const getCoachCurrentDayAvailability = async (coachAccessToken, currentDay) => {
   if (!coachAccessToken || !currentDay) {
     return null;
@@ -87,6 +100,19 @@ export const getCoachCurrentDayAvailability = async (coachAccessToken, currentDa
   });
 
   return response.json();
+};
+
+export const getCoachScheduleByDay = async (coachAccessToken, day) => {
+  if (!coachAccessToken || !day) {
+    return null;
+  }
+
+  return fetch(`${API_URL}/coach/schedule/${day}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `token ${coachAccessToken}`
+    }
+  });
 };
 
 export const getCoachUpcomingLessons = async (coachAccessToken, perPage = 5, page = 1) => {
@@ -284,7 +310,9 @@ export default {
   replaceCoachAvailability,
   deleteCoachAvailability,
   getCoachAllAvailability,
+  getCoachSchedule,
   getCoachCurrentDayAvailability,
+  getCoachScheduleByDay,
   getCoachUpcomingLessons,
   getCoachUpcomingLessonsByDate,
   getCoachUpcomingLessonsById,

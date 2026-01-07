@@ -169,10 +169,10 @@ export const updateCoachLesson = (lessonId, payload) => {
   });
 };
 
-export const getCoachAvailability = () => request('/coach/availability');
+export const getCoachAvailability = () => request('/coach/schedule');
 
 export const createCoachAvailability = (payload) =>
-  request('/coach/availability', {
+  request('/coach/schedule', {
     method: 'POST',
     body: payload
   });
@@ -182,7 +182,7 @@ export const deleteCoachAvailability = (availabilityId) => {
     throw new Error('An availability id is required to delete a slot.');
   }
 
-  return request(`/coach/availability/${availabilityId}`, {
+  return request(`/coach/schedule/${availabilityId}`, {
     method: 'DELETE'
   });
 };

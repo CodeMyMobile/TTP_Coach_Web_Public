@@ -139,9 +139,9 @@ const normaliseAvailability = (payload) => {
     }
 
     const day = slot.dayOfWeek || slot.day;
-    const start = slot.start || slot.startTime;
-    const end = slot.end || slot.endTime;
-    const location = slot.location || slot.court || slot.venue || '';
+    const start = slot.start || slot.startTime || slot.from;
+    const end = slot.end || slot.endTime || slot.to;
+    const location = slot.location || slot.location_name || slot.court || slot.venue || '';
 
     addWeeklySlot(availability, day, start, end, location);
   };
