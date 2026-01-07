@@ -12,6 +12,12 @@ import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
 import { createDefaultProfile } from './constants/profile';
 import { listCoachPackages } from './api/CoachApi/packages';
+import {
+  addCoachCustomLocation,
+  addCoachLocation,
+  deleteCoachLocation,
+  getCoachLocations
+} from './api/coach';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 
 const resolvePackagesFromPayload = (payload) => {
@@ -94,12 +100,21 @@ function App() {
   const [lessonEditData, setLessonEditData] = useState(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [adHocSlot, setAdHocSlot] = useState({ date: '', start: '09:00', end: '10:00', location: '' });
+  const [adHocSlot, setAdHocSlot] = useState({
+    date: '',
+    start: '09:00',
+    end: '10:00',
+    location: '',
+    location_id: null
+  });
   const [adHocAvailability, setAdHocAvailability] = useState({});
   const [isMobile, setIsMobile] = useState(false);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packagesError, setPackagesError] = useState(null);
   const packagesFetchedRef = useRef(false);
+  const [coachLocations, setCoachLocations] = useState([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [locationsError, setLocationsError] = useState(null);
   const isLoginRoute = currentPath === '/';
   const isDashboardRoute = currentPath === '/dashboard';
 
@@ -135,6 +150,9 @@ function App() {
       setPackagesLoading(false);
       setPackagesError(null);
       packagesFetchedRef.current = false;
+      setCoachLocations([]);
+      setLocationsLoading(false);
+      setLocationsError(null);
     }
   }, [isAuthenticated]);
 
@@ -258,6 +276,68 @@ function App() {
 
   const refreshPackages = useCallback(() => fetchPackages({ force: true }), [fetchPackages]);
 
+  const normalizeLocations = useCallback((payload) => {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if (payload && Array.isArray(payload.locations)) {
+      return payload.locations;
+    }
+
+    if (payload && Array.isArray(payload.data)) {
+      return payload.data;
+    }
+
+    if (payload && Array.isArray(payload.result)) {
+      return payload.result;
+    }
+
+    return [];
+  }, []);
+
+  const fetchLocations = useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    setLocationsLoading(true);
+    setLocationsError(null);
+
+    try {
+      const response = await getCoachLocations(user?.session?.access_token);
+
+      if (!response) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      if (!response.ok) {
+        let message = 'Failed to load locations. Please try again.';
+        try {
+          const errorBody = await response.json();
+          message =
+            errorBody?.message ||
+            errorBody?.error ||
+            errorBody?.errors?.[0] ||
+            message;
+        } catch {
+          // Ignore JSON parse errors.
+        }
+        throw new Error(message);
+      }
+
+      const payload = await response.json().catch(() => null);
+      setCoachLocations(normalizeLocations(payload));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load locations.';
+      setLocationsError(message);
+    } finally {
+      setLocationsLoading(false);
+    }
+  }, [isAuthenticated, normalizeLocations, user?.session?.access_token]);
+
+  const refreshLocations = useCallback(() => fetchLocations(), [fetchLocations]);
+
   useEffect(() => {
     if (!isAuthenticated || dashboardTab !== 'packages') {
       return;
@@ -273,6 +353,97 @@ function App() {
       packagesFetchedRef.current = false;
     }
   }, [dashboardTab, packagesFetchedRef]);
+
+  const handleAddLocationById = useCallback(
+    async (locationId) => {
+      if (!locationId || !isAuthenticated) {
+        return { error: 'A location id is required.' };
+      }
+
+      try {
+        const response = await addCoachLocation({
+          coachAccessToken: user?.session?.access_token,
+          location_id: Number(locationId)
+        });
+
+        if (!response?.ok) {
+          const errorBody = await response?.json().catch(() => null);
+          throw new Error(errorBody?.message || errorBody?.error || 'Failed to add location.');
+        }
+
+        await fetchLocations();
+        return { ok: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to add location.';
+        return { error: message };
+      }
+    },
+    [fetchLocations, isAuthenticated, user?.session?.access_token]
+  );
+
+  const handleAddCustomLocation = useCallback(
+    async ({ location, latitude, longitude }) => {
+      if (!location || latitude === '' || longitude === '' || !isAuthenticated) {
+        return { error: 'Location name, latitude, and longitude are required.' };
+      }
+
+      try {
+        const response = await addCoachCustomLocation({
+          coachAccessToken: user?.session?.access_token,
+          location,
+          latitude: Number(latitude),
+          longitude: Number(longitude)
+        });
+
+        if (!response?.ok) {
+          const errorBody = await response?.json().catch(() => null);
+          throw new Error(errorBody?.message || errorBody?.error || 'Failed to add location.');
+        }
+
+        await fetchLocations();
+        return { ok: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to add location.';
+        return { error: message };
+      }
+    },
+    [fetchLocations, isAuthenticated, user?.session?.access_token]
+  );
+
+  const handleDeleteLocation = useCallback(
+    async (locationId) => {
+      if (!locationId || !isAuthenticated) {
+        return { error: 'A location id is required.' };
+      }
+
+      try {
+        const response = await deleteCoachLocation({
+          coachAccessToken: user?.session?.access_token,
+          location_id: locationId
+        });
+
+        if (!response?.ok) {
+          const errorBody = await response?.json().catch(() => null);
+          throw new Error(errorBody?.message || errorBody?.error || 'Failed to delete location.');
+        }
+
+        await fetchLocations();
+        return { ok: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete location.';
+        return { error: message };
+      }
+    },
+    [fetchLocations, isAuthenticated, user?.session?.access_token]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated || (dashboardTab !== 'locations' && dashboardTab !== 'calendar')) {
+      return;
+    }
+
+    fetchLocations();
+  }, [dashboardTab, fetchLocations, isAuthenticated]);
 
   const recurringAvailability = useMemo(() => {
     if (!scheduleAvailability?.weekly || Object.keys(scheduleAvailability.weekly).length === 0) {
@@ -378,22 +549,26 @@ function App() {
   };
 
   const handleEmptySlotSelect = ({ date, start, location }) => {
+    const defaultLocation = resolveDefaultLocation();
     setAdHocSlot({
       date,
       start,
       end: addMinutesToTime(start, 60),
-      location: location || profileData.home_courts[0] || ''
+      location: location || defaultLocation.location,
+      location_id: defaultLocation.location_id
     });
     setShowAddLessonModal(true);
   };
 
   const handleAddAvailabilityOpen = () => {
     const today = new Date().toISOString().split('T')[0];
+    const defaultLocation = resolveDefaultLocation();
     setAdHocSlot({
       date: today,
       start: '09:00',
       end: '10:00',
-      location: profileData.home_courts[0] || ''
+      location: defaultLocation.location,
+      location_id: defaultLocation.location_id
     });
     setShowAddLessonModal(true);
   };
@@ -405,7 +580,8 @@ function App() {
         date: adHocSlot.date,
         start: adHocSlot.start,
         end: adHocSlot.end,
-        location: adHocSlot.location
+        location: adHocSlot.location,
+        location_id: adHocSlot.location_id
       };
 
       try {
@@ -423,12 +599,36 @@ function App() {
           }
         }));
         setShowAddLessonModal(false);
-        setAdHocSlot({ date: '', start: '09:00', end: '10:00', location: '' });
+        setAdHocSlot({
+          date: '',
+          start: '09:00',
+          end: '10:00',
+          location: '',
+          location_id: null
+        });
       } catch (error) {
         console.error('Failed to add availability slot', error);
       }
     }
   };
+
+  const resolveDefaultLocation = useCallback(() => {
+    if (coachLocations.length === 0) {
+      return {
+        location: profileData.home_courts[0] || '',
+        location_id: null
+      };
+    }
+
+    const first = coachLocations[0] || {};
+    const location = first.location || first.name || first.address || '';
+    const locationId = first.location_id ?? first.locationId ?? null;
+
+    return {
+      location,
+      location_id: locationId
+    };
+  }, [coachLocations, profileData.home_courts]);
 
   const handlePackageCreated = (newPackage) => {
     if (!newPackage) {
@@ -637,6 +837,13 @@ function App() {
         packagesLoading={packagesLoading}
         packagesError={packagesError}
         onRefreshPackages={refreshPackages}
+        locationsData={coachLocations}
+        locationsLoading={locationsLoading}
+        locationsError={locationsError}
+        onRefreshLocations={refreshLocations}
+        onAddLocationById={handleAddLocationById}
+        onAddCustomLocation={handleAddCustomLocation}
+        onDeleteLocation={handleDeleteLocation}
       />
 
       <LessonDetailModal
@@ -681,7 +888,7 @@ function App() {
         onClose={() => setShowAddLessonModal(false)}
         onSubmit={handleAddAdHocAvailability}
         isSubmitting={scheduleMutationLoading}
-        locations={profileData.home_courts}
+        locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
       />
     </>
   );

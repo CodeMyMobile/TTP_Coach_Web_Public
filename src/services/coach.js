@@ -47,6 +47,51 @@ const parseJsonSafely = async (response) => {
 
 import { getAccessToken } from '../utils/tokenHelper';
 
+const normalizeScheduleTime = (value) => {
+  if (!value) {
+    return value;
+  }
+
+  const raw = String(value).trim();
+  if (/^\d{2}:\d{2}$/.test(raw)) {
+    return `${raw}:00`;
+  }
+  return raw;
+};
+
+const buildSchedulePayload = (payload = {}) => {
+  const dayValue = payload.day || payload.dayOfWeek;
+  const dateValue = payload.date;
+  let day = dayValue ? String(dayValue).toUpperCase() : '';
+
+  if (!day && dateValue) {
+    const parsed = new Date(dateValue);
+    if (!Number.isNaN(parsed.getTime())) {
+      day = parsed.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+    }
+  }
+
+  const normalized = {
+    from: normalizeScheduleTime(payload.from || payload.start || payload.startTime),
+    to: normalizeScheduleTime(payload.to || payload.end || payload.endTime || payload.finish),
+    day,
+    location_id:
+      payload.location_id ??
+      payload.locationId ??
+      payload.location?.id ??
+      payload.location?.location_id,
+    court: payload.court ?? payload.courtId ?? payload.court_id ?? null
+  };
+
+  Object.keys(normalized).forEach((key) => {
+    if (normalized[key] === undefined || normalized[key] === '') {
+      delete normalized[key];
+    }
+  });
+
+  return normalized;
+};
+
 const request = async (path, options = {}) => {
   const { headers = {}, body, method = 'GET', ...rest } = options;
   const accessToken = await getAccessToken();
@@ -174,8 +219,41 @@ export const getCoachAvailability = () => request('/coach/schedule');
 export const createCoachAvailability = (payload) =>
   request('/coach/schedule', {
     method: 'POST',
-    body: payload
+    body: buildSchedulePayload(payload)
   });
+
+export const createCoachAvailabilityBulk = (payload = []) => {
+  if (!Array.isArray(payload) || payload.length === 0) {
+    return Promise.resolve([]);
+  }
+
+  return request('/coach/schedule/bulk', {
+    method: 'POST',
+    body: payload.map((item) => buildSchedulePayload(item))
+  });
+};
+
+export const updateCoachAvailability = (scheduleId, payload = {}) => {
+  if (!scheduleId) {
+    throw new Error('A schedule id is required to update availability.');
+  }
+
+  return request(`/coach/schedule/${scheduleId}`, {
+    method: 'PATCH',
+    body: buildSchedulePayload(payload)
+  });
+};
+
+export const replaceCoachAvailability = (scheduleId, payload = {}) => {
+  if (!scheduleId) {
+    throw new Error('A schedule id is required to replace availability.');
+  }
+
+  return request(`/coach/schedule/${scheduleId}`, {
+    method: 'PUT',
+    body: buildSchedulePayload(payload)
+  });
+};
 
 export const deleteCoachAvailability = (availabilityId) => {
   if (!availabilityId) {
@@ -193,10 +271,13 @@ export default {
   getCoachStudents,
   getCoachLessons,
   getActivePlayerPackages,
+  createCoachAvailability,
+  createCoachAvailabilityBulk,
+  updateCoachAvailability,
+  replaceCoachAvailability,
   updateCoachPlayer,
   updateCoachLesson,
   getCoachAvailability,
-  createCoachAvailability,
   deleteCoachAvailability,
   getCoachStats
 };
