@@ -159,6 +159,26 @@ export const getCoachStudents = ({ perPage, page, search } = {}) => {
 
 export const getCoachLessons = () => request('/coach/lessons');
 
+export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) => {
+  if (!playerId) {
+    throw new Error('A player id is required to fetch previous lessons.');
+  }
+
+  const params = new URLSearchParams();
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query
+    ? `/coach/player_previous_lessons/${playerId}?${query}`
+    : `/coach/player_previous_lessons/${playerId}`;
+  return request(path);
+};
+
 export const getActivePlayerPackages = ({ playerId, player_id, search, perPage, page } = {}) => {
   const params = new URLSearchParams();
   const resolvedPlayerId = playerId ?? player_id;

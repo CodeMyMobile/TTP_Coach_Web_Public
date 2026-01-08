@@ -39,3 +39,5 @@ export const RELATION_TYPES = {
   RELATION_DECLINED_BY_COACH: 'relation-declined-by-coach',
   RELATION_CREATED_BY_PLAYER: 'relation-created-by-player'
 };
+
+export const SHORT_WEEKS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

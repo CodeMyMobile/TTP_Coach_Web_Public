@@ -13,6 +13,7 @@ const StudentsSection = ({
   activePackagesByPlayer,
   rosterAction,
   onRosterUpdate,
+  onStudentSelect,
   studentsHasMore,
   studentsLoadingMore,
   onLoadMoreStudents
@@ -90,7 +91,19 @@ const StudentsSection = ({
           const activePackage = student.playerId ? activePackagesByPlayer[student.playerId] : null;
 
           return (
-            <div key={student.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div
+              key={student.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onStudentSelect?.(student)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onStudentSelect?.(student);
+                }
+              }}
+              className="cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-purple-200 hover:shadow-md"
+            >
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 overflow-hidden rounded-full bg-gray-100">
@@ -123,7 +136,11 @@ const StudentsSection = ({
                       Invite pending
                     </span>
                   )}
-                  <button className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700">
+                  <button
+                    type="button"
+                    onClick={(event) => event.stopPropagation()}
+                    className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </button>
                 </div>
@@ -133,7 +150,10 @@ const StudentsSection = ({
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => onRosterUpdate(student.playerId, 'CONFIRMED')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRosterUpdate(student.playerId, 'CONFIRMED');
+                    }}
                     disabled={rosterAction?.playerId === student.playerId}
                     className="inline-flex items-center rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
@@ -142,7 +162,10 @@ const StudentsSection = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onRosterUpdate(student.playerId, 'CANCELLED')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRosterUpdate(student.playerId, 'CANCELLED');
+                    }}
                     disabled={rosterAction?.playerId === student.playerId}
                     className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
                   >

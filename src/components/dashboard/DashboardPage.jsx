@@ -88,9 +88,11 @@ const DashboardPage = ({
   onOpenCreatePackage,
   onRequestAvailabilityOnboarding,
   onOpenSettings,
+  onOpenNotifications = () => {},
   onLogout,
   studentSearchQuery,
   onStudentSearchQueryChange,
+  onStudentSelect = () => {},
   showMobileMenu,
   onToggleMobileMenu,
   packagesLoading = false,
@@ -445,7 +447,11 @@ const DashboardPage = ({
                   </span>
                 </button>
               )}
-              <button className="relative rounded-lg p-2 text-gray-500 hover:text-gray-700">
+              <button
+                type="button"
+                onClick={onOpenNotifications}
+                className="relative rounded-lg p-2 text-gray-500 hover:text-gray-700"
+              >
                 <Bell className="h-5 w-5" />
                 <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
               </button>
@@ -575,6 +581,7 @@ const DashboardPage = ({
             activePackagesByPlayer={activePackagesByPlayer}
             rosterAction={rosterAction}
             onRosterUpdate={handleRosterUpdate}
+            onStudentSelect={onStudentSelect}
             studentsHasMore={studentsHasMore}
             studentsLoadingMore={studentsLoadingMore}
             onLoadMoreStudents={onLoadMoreStudents}

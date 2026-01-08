@@ -22,6 +22,9 @@ import {
 import CreateLessonModal from './components/modals/CreateLessonModal';
 import SettingsPage from './components/settings/SettingsPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
+import NotificationsPage from './components/notifications/NotificationsPage';
+import StudentDetailModal from './components/modals/StudentDetailModal';
+import { getCoachPlayerPreviousLessons } from './services/coach';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -105,6 +108,14 @@ function App() {
   const [isEditingLesson, setIsEditingLesson] = useState(false);
   const [lessonEditData, setLessonEditData] = useState(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showStudentDetailModal, setShowStudentDetailModal] = useState(false);
+  const [studentLessons, setStudentLessons] = useState([]);
+  const [studentLessonsPage, setStudentLessonsPage] = useState(1);
+  const [studentLessonsHasMore, setStudentLessonsHasMore] = useState(true);
+  const [studentLessonsLoading, setStudentLessonsLoading] = useState(false);
+  const [studentLessonsLoadingMore, setStudentLessonsLoadingMore] = useState(false);
+  const [studentLessonsError, setStudentLessonsError] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [adHocSlot, setAdHocSlot] = useState({
     date: '',
@@ -124,6 +135,7 @@ function App() {
   const isLoginRoute = currentPath === '/';
   const isDashboardRoute = currentPath === '/dashboard';
   const isSettingsRoute = currentPath === '/settings';
+  const isNotificationsRoute = currentPath === '/notifications';
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -192,10 +204,10 @@ function App() {
       return;
     }
 
-    if (isAuthenticated && !isDashboardRoute && !isSettingsRoute) {
+    if (isAuthenticated && !isDashboardRoute && !isSettingsRoute && !isNotificationsRoute) {
       navigate('/dashboard', { replace: true });
     }
-  }, [authInitialising, isAuthenticated, isLoginRoute, isDashboardRoute, isSettingsRoute, navigate]);
+  }, [authInitialising, isAuthenticated, isLoginRoute, isDashboardRoute, isSettingsRoute, isNotificationsRoute, navigate]);
 
   const {
     students,
@@ -212,6 +224,60 @@ function App() {
     perPage: 5,
     search: studentSearchQuery
   });
+
+  const resolvePreviousLessons = useCallback((payload) => {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if (payload && Array.isArray(payload.lessons)) {
+      return payload.lessons;
+    }
+
+    if (payload && Array.isArray(payload.data)) {
+      return payload.data;
+    }
+
+    if (payload && Array.isArray(payload.items)) {
+      return payload.items;
+    }
+
+    return [];
+  }, []);
+
+  const fetchStudentPreviousLessons = useCallback(
+    async ({ playerId, page = 1, replace = false } = {}) => {
+      if (!playerId) {
+        return;
+      }
+
+      if (page === 1) {
+        setStudentLessonsLoading(true);
+      } else {
+        setStudentLessonsLoadingMore(true);
+      }
+
+      setStudentLessonsError(null);
+
+      try {
+        const payload = await getCoachPlayerPreviousLessons({
+          playerId,
+          perPage: 10,
+          page
+        });
+        const lessons = resolvePreviousLessons(payload);
+        setStudentLessons((prev) => (replace ? lessons : [...prev, ...lessons]));
+        setStudentLessonsHasMore(lessons.length >= 10);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load previous lessons.';
+        setStudentLessonsError(message);
+      } finally {
+        setStudentLessonsLoading(false);
+        setStudentLessonsLoadingMore(false);
+      }
+    },
+    [resolvePreviousLessons]
+  );
 
   const {
     lessons,
@@ -549,6 +615,19 @@ function App() {
     setShowLessonDetailModal(true);
   };
 
+  const handleStudentSelect = (student) => {
+    if (!student?.playerId) {
+      return;
+    }
+
+    setSelectedStudent(student);
+    setShowStudentDetailModal(true);
+    setStudentLessons([]);
+    setStudentLessonsPage(1);
+    setStudentLessonsHasMore(true);
+    fetchStudentPreviousLessons({ playerId: student.playerId, page: 1, replace: true });
+  };
+
   const handleAvailabilitySlotSelect = (availability) => {
     if (availability) {
       handleCreateLessonFromAvailability(availability);
@@ -595,6 +674,22 @@ function App() {
     });
     setShowLessonDetailModal(false);
     setShowCreateLessonModal(true);
+  };
+
+  const handleCloseStudentDetail = () => {
+    setShowStudentDetailModal(false);
+    setSelectedStudent(null);
+    setStudentLessonsError(null);
+  };
+
+  const handleLoadMoreStudentLessons = () => {
+    if (!selectedStudent?.playerId || studentLessonsLoadingMore || !studentLessonsHasMore) {
+      return;
+    }
+
+    const nextPage = studentLessonsPage + 1;
+    setStudentLessonsPage(nextPage);
+    fetchStudentPreviousLessons({ playerId: selectedStudent.playerId, page: nextPage });
   };
 
   const handleEmptySlotSelect = ({ date, start, location }) => {
@@ -936,19 +1031,19 @@ function App() {
   return (
     <>
       {isSettingsRoute ? (
-        <SettingsPage
-          onBack={() => navigate('/dashboard')}
-        />
+        <SettingsPage onBack={() => navigate('/dashboard')} />
+      ) : isNotificationsRoute ? (
+        <NotificationsPage onBack={() => navigate('/dashboard')} />
       ) : (
         <DashboardPage
           profile={profileData}
           isMobile={isMobile}
           dashboardTab={dashboardTab}
           onDashboardTabChange={setDashboardTab}
-        calendarView={calendarView}
-        onCalendarViewChange={setCalendarView}
-        currentDate={currentDate}
-        onCurrentDateChange={setCurrentDate}
+          calendarView={calendarView}
+          onCalendarViewChange={setCalendarView}
+          currentDate={currentDate}
+          onCurrentDateChange={setCurrentDate}
           studentsData={students}
           studentsLoading={studentsLoading}
           studentsLoadingMore={studentsLoadingMore}
@@ -973,12 +1068,14 @@ function App() {
           onOpenCreatePackage={() => setShowCreatePackageModal(true)}
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
+          onOpenNotifications={() => navigate('/notifications')}
           onLogout={logout}
           studentSearchQuery={studentSearchQuery}
-        onStudentSearchQueryChange={setStudentSearchQuery}
-        showMobileMenu={showMobileMenu}
-        onToggleMobileMenu={setShowMobileMenu}
-        packagesLoading={packagesLoading}
+          onStudentSearchQueryChange={setStudentSearchQuery}
+          onStudentSelect={handleStudentSelect}
+          showMobileMenu={showMobileMenu}
+          onToggleMobileMenu={setShowMobileMenu}
+          packagesLoading={packagesLoading}
           packagesError={packagesError}
           onRefreshPackages={refreshPackages}
           locationsData={coachLocations}
@@ -990,6 +1087,18 @@ function App() {
           onDeleteLocation={handleDeleteLocation}
         />
       )}
+
+      <StudentDetailModal
+        isOpen={showStudentDetailModal}
+        student={selectedStudent}
+        lessons={studentLessons}
+        loading={studentLessonsLoading}
+        loadingMore={studentLessonsLoadingMore}
+        error={studentLessonsError}
+        hasMore={studentLessonsHasMore}
+        onClose={handleCloseStudentDetail}
+        onLoadMore={handleLoadMoreStudentLessons}
+      />
 
       <LessonDetailModal
         isOpen={showLessonDetailModal && !!selectedLessonDetail}
