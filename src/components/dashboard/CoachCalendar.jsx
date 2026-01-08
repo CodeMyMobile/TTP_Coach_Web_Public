@@ -236,6 +236,24 @@ console.log("events",events);
           const dateKey = start.toISOString().split('T')[0];
           const startTime = start.toTimeString().slice(0, 5);
           const endTime = end.toTimeString().slice(0, 5);
+
+          const availabilityEvent = resolvedEvents.find(
+            (event) =>
+              event.type === 'availability' &&
+              event.start <= start &&
+              event.end >= end
+          );
+
+          if (availabilityEvent) {
+            onAvailabilitySelect?.({
+              ...(availabilityEvent.resource || {}),
+              date: dateKey,
+              start: startTime,
+              end: endTime
+            });
+            return;
+          }
+
           onEmptySlotSelect?.({
             date: dateKey,
             start: startTime,

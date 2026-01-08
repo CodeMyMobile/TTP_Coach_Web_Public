@@ -184,6 +184,7 @@ const normaliseAvailability = (payload) => {
         registerWeeklySlot(slot);
       }
     });
+    availability.schedule = payload;
     return availability;
   }
 

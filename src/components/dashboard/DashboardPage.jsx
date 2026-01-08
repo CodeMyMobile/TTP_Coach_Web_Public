@@ -675,7 +675,7 @@ const DashboardPage = ({
 
                 <CoachCalendar
                   lessons={bookedLessons}
-                  availability={availabilityData}
+                  availability={availabilityData?.schedule || availabilityData}
                   currentDate={currentDate}
                   onDateChange={onCurrentDateChange}
                   view={calendarView}

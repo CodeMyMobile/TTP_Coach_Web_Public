@@ -16,8 +16,10 @@ import {
   addCoachCustomLocation,
   addCoachLocation,
   deleteCoachLocation,
-  getCoachLocations
+  getCoachLocations,
+  scheduleCoachLesson
 } from './api/coach';
+import CreateLessonModal from './components/modals/CreateLessonModal';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 
 const resolvePackagesFromPayload = (payload) => {
@@ -94,6 +96,10 @@ function App() {
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
   const [showLessonDetailModal, setShowLessonDetailModal] = useState(false);
+  const [showCreateLessonModal, setShowCreateLessonModal] = useState(false);
+  const [lessonDraft, setLessonDraft] = useState(null);
+  const [lessonSubmitError, setLessonSubmitError] = useState(null);
+  const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [isEditingLesson, setIsEditingLesson] = useState(false);
@@ -542,10 +548,51 @@ function App() {
   };
 
   const handleAvailabilitySlotSelect = (availability) => {
+    if (availability) {
+      handleCreateLessonFromAvailability(availability);
+      return;
+    }
+
     setSelectedLessonDetail(availability);
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(true);
+  };
+
+  const parseDateTime = (date, time) => {
+    if (!date || !time) {
+      return null;
+    }
+    const [hour, minute] = String(time).split(':').map(Number);
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    parsed.setHours(hour || 0, minute || 0, 0, 0);
+    return parsed;
+  };
+
+  const handleCreateLessonFromAvailability = (availability) => {
+    const start = parseDateTime(availability?.date, availability?.start);
+    const end = parseDateTime(availability?.date, availability?.end);
+    setLessonDraft({
+      start,
+      end,
+      location_id: availability?.location_id ?? null,
+      court: availability?.court ?? null,
+      lessontype_id: 1,
+      playerIds: [],
+      metadata: {
+        title: '',
+        level: 'All',
+        duration: start && end ? String(Math.max(0, Math.round((end - start) / 60000))) : '',
+        description: ''
+      },
+      price_per_person: '',
+      player_limit: ''
+    });
+    setShowLessonDetailModal(false);
+    setShowCreateLessonModal(true);
   };
 
   const handleEmptySlotSelect = ({ date, start, location }) => {
@@ -609,6 +656,102 @@ function App() {
       } catch (error) {
         console.error('Failed to add availability slot', error);
       }
+    }
+  };
+
+  const handleCreateLessonSubmit = async (form) => {
+    if (!form?.start || !form?.end) {
+      setLessonSubmitError('Start and end time are required.');
+      return;
+    }
+
+    const startMoment = new Date(form.start);
+    const endMoment = new Date(form.end);
+    if (Number.isNaN(startMoment.getTime()) || Number.isNaN(endMoment.getTime())) {
+      setLessonSubmitError('Invalid date/time values.');
+      return;
+    }
+
+    const durationMin = parseInt(form.metadata?.duration, 10);
+    let resolvedEnd = endMoment;
+    if (Number(form.lessontype_id) === 3 && Number.isFinite(durationMin) && durationMin > 0) {
+      resolvedEnd = new Date(startMoment.getTime() + durationMin * 60000);
+    }
+
+    const formatLocalIso = (date) => {
+      const pad = (value) => String(value).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+    };
+
+    const courtValue = form.court === '' || form.court === undefined || form.court === null
+      ? null
+      : Number.isFinite(Number(form.court))
+        ? Number(form.court)
+        : null;
+
+    const payload = {
+      start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
+      end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
+      start_date_time_tz: startMoment.toISOString(),
+      end_date_time_tz: resolvedEnd.toISOString(),
+      location_id: form.location_id,
+      court: courtValue,
+      status: 'PENDING',
+      lessontype_id: Number(form.lessontype_id),
+      metadata: {
+        title: form.metadata?.title || '',
+        level: form.metadata?.level || 'All',
+        description: form.metadata?.description || '',
+        duration: String(Math.round((resolvedEnd - startMoment) / 60000))
+      }
+    };
+
+    if (payload.lessontype_id === 1) {
+      if (!Array.isArray(form.playerIds) || form.playerIds.length !== 1) {
+        setLessonSubmitError('Select exactly one player for a private lesson.');
+        return;
+      }
+      payload.player_id = Number(form.playerIds[0]);
+    } else if (payload.lessontype_id === 2) {
+      if (!Array.isArray(form.playerIds) || form.playerIds.length === 0) {
+        setLessonSubmitError('Select at least one player for a semi-private lesson.');
+        return;
+      }
+      payload.player_ids_arr = form.playerIds.map((id) => ({ player_id: Number(id) }));
+    } else if (payload.lessontype_id === 3) {
+      if (!form.price_per_person) {
+        setLessonSubmitError('Enter a price per person for open group lessons.');
+        return;
+      }
+      if (!form.player_limit) {
+        setLessonSubmitError('Enter a player limit for open group lessons.');
+        return;
+      }
+      payload.price_per_person = Number(form.price_per_person);
+      payload.player_limit = Number(form.player_limit);
+    }
+
+    setLessonSubmitError(null);
+    setLessonSubmitLoading(true);
+    try {
+      const response = await scheduleCoachLesson({
+        coachAccessToken: user?.session?.access_token,
+        lessonData: payload
+      });
+
+      if (!response?.ok) {
+        const errorBody = await response?.json().catch(() => null);
+        throw new Error(errorBody?.message || errorBody?.error || 'Failed to create lesson.');
+      }
+
+      await refreshSchedule();
+      setShowCreateLessonModal(false);
+      setLessonDraft(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create lesson.';
+      setLessonSubmitError(message);
+    } finally {
+      setLessonSubmitLoading(false);
     }
   };
 
@@ -863,6 +1006,7 @@ function App() {
         formatDuration={formatDuration}
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
+        onCreateLesson={handleCreateLessonFromAvailability}
       />
 
       <ConfirmationDialog
@@ -889,6 +1033,20 @@ function App() {
         onSubmit={handleAddAdHocAvailability}
         isSubmitting={scheduleMutationLoading}
         locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
+      />
+
+      <CreateLessonModal
+        isOpen={showCreateLessonModal}
+        draft={lessonDraft}
+        onClose={() => {
+          setShowCreateLessonModal(false);
+          setLessonDraft(null);
+          setLessonSubmitError(null);
+        }}
+        onSubmit={handleCreateLessonSubmit}
+        isSubmitting={lessonSubmitLoading}
+        submitError={lessonSubmitError}
+        players={resolvedStudents}
       />
     </>
   );
