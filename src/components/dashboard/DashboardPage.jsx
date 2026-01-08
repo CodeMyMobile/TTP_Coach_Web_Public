@@ -104,8 +104,8 @@ const DashboardPage = ({
   onEmptySlotSelect,
   onOpenAddAvailability,
   onOpenCreatePackage,
-  onEditProfile,
   onRequestAvailabilityOnboarding,
+  onOpenSettings,
   onLogout,
   studentSearchQuery,
   onStudentSearchQueryChange,
@@ -291,6 +291,7 @@ const DashboardPage = ({
     });
   }, [locationsData]);
 
+
   const handleRosterUpdate = useCallback(
     async (playerId, status) => {
       if (!playerId) {
@@ -345,6 +346,7 @@ const DashboardPage = ({
       setLocationAction({ type: 'error', message: result.error });
     }
   }, [onDeleteLocation]);
+
 
   useEffect(() => {
     if (dashboardTab !== 'students') {
@@ -474,11 +476,11 @@ const DashboardPage = ({
               <div className="flex items-center space-x-1">
                 <button
                   type="button"
-                  onClick={onEditProfile}
+                  onClick={onOpenSettings}
                   className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
                 >
                   <Settings className="h-5 w-5" />
-                  <span className="sr-only">Edit profile</span>
+                  <span className="sr-only">Open settings</span>
                 </button>
                 <button
                   type="button"
@@ -1225,6 +1227,7 @@ const DashboardPage = ({
             </div>
           </section>
         )}
+
       </main>
     </div>
   );

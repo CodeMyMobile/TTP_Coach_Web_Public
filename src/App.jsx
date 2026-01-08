@@ -20,6 +20,7 @@ import {
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
+import SettingsPage from './components/settings/SettingsPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 
 const resolvePackagesFromPayload = (payload) => {
@@ -123,6 +124,7 @@ function App() {
   const [locationsError, setLocationsError] = useState(null);
   const isLoginRoute = currentPath === '/';
   const isDashboardRoute = currentPath === '/dashboard';
+  const isSettingsRoute = currentPath === '/settings';
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -191,10 +193,10 @@ function App() {
       return;
     }
 
-    if (isAuthenticated && !isDashboardRoute) {
+    if (isAuthenticated && !isDashboardRoute && !isSettingsRoute) {
       navigate('/dashboard', { replace: true });
     }
-  }, [authInitialising, isAuthenticated, isLoginRoute, isDashboardRoute, navigate]);
+  }, [authInitialising, isAuthenticated, isLoginRoute, isDashboardRoute, isSettingsRoute, navigate]);
 
   const {
     students,
@@ -539,6 +541,7 @@ function App() {
       console.error('Failed to save lesson', error);
     }
   };
+
 
   const handleLessonSelect = (lesson) => {
     setSelectedLessonDetail(lesson);
@@ -933,61 +936,64 @@ function App() {
 
   return (
     <>
-      <DashboardPage
-        profile={profileData}
-        isMobile={isMobile}
-        dashboardTab={dashboardTab}
-        onDashboardTabChange={setDashboardTab}
-        calendarView={calendarView}
-        onCalendarViewChange={setCalendarView}
-        currentDate={currentDate}
-        onCurrentDateChange={setCurrentDate}
-        mobileDayIndex={mobileDayIndex}
-        onMobileDayIndexChange={setMobileDayIndex}
-        studentsData={students}
-        studentsLoading={studentsLoading}
-        studentsLoadingMore={studentsLoadingMore}
-        studentsError={studentsError}
-        onRefreshStudents={refreshStudents}
-        studentsHasMore={studentsHasMore}
-        onLoadMoreStudents={loadMoreStudents}
-        studentsPage={studentsPage}
-        studentsPerPage={studentsPerPage}
-        lessonsData={lessons}
-        availabilityData={scheduleAvailability}
-        statsData={scheduleStats}
-        scheduleLoading={scheduleLoading}
-        scheduleError={scheduleError}
-        onRefreshSchedule={refreshSchedule}
-        mutationError={scheduleMutationError}
-        mutationLoading={scheduleMutationLoading}
-        combinedAdHocAvailability={combinedAdHocAvailability}
-        recurringAvailability={recurringAvailability}
-        recurringAvailabilityLocations={recurringAvailabilityLocations}
-        onLessonSelect={handleLessonSelect}
-        onAvailabilitySlotSelect={handleAvailabilitySlotSelect}
-        onEmptySlotSelect={handleEmptySlotSelect}
-        onOpenAddAvailability={handleAddAvailabilityOpen}
-        onOpenCreatePackage={() => setShowCreatePackageModal(true)}
-        onEditProfile={handleEditProfile}
-        onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
-        onLogout={logout}
-        studentSearchQuery={studentSearchQuery}
-        onStudentSearchQueryChange={setStudentSearchQuery}
-        showMobileMenu={showMobileMenu}
-        onToggleMobileMenu={setShowMobileMenu}
-        formatDuration={formatDuration}
-        packagesLoading={packagesLoading}
-        packagesError={packagesError}
-        onRefreshPackages={refreshPackages}
-        locationsData={coachLocations}
-        locationsLoading={locationsLoading}
-        locationsError={locationsError}
-        onRefreshLocations={refreshLocations}
-        onAddLocationById={handleAddLocationById}
-        onAddCustomLocation={handleAddCustomLocation}
-        onDeleteLocation={handleDeleteLocation}
-      />
+      {isSettingsRoute ? (
+        <SettingsPage
+          onBack={() => navigate('/dashboard')}
+        />
+      ) : (
+        <DashboardPage
+          profile={profileData}
+          isMobile={isMobile}
+          dashboardTab={dashboardTab}
+          onDashboardTabChange={setDashboardTab}
+          calendarView={calendarView}
+          onCalendarViewChange={setCalendarView}
+          currentDate={currentDate}
+          onCurrentDateChange={setCurrentDate}
+          mobileDayIndex={mobileDayIndex}
+          onMobileDayIndexChange={setMobileDayIndex}
+          studentsData={students}
+          studentsLoading={studentsLoading}
+          studentsLoadingMore={studentsLoadingMore}
+          studentsError={studentsError}
+          onRefreshStudents={refreshStudents}
+          studentsHasMore={studentsHasMore}
+          onLoadMoreStudents={loadMoreStudents}
+          studentsPage={studentsPage}
+          studentsPerPage={studentsPerPage}
+          lessonsData={lessons}
+          availabilityData={scheduleAvailability}
+          statsData={scheduleStats}
+          scheduleLoading={scheduleLoading}
+          scheduleError={scheduleError}
+          onRefreshSchedule={refreshSchedule}
+          mutationError={scheduleMutationError}
+          mutationLoading={scheduleMutationLoading}
+          onLessonSelect={handleLessonSelect}
+          onAvailabilitySlotSelect={handleAvailabilitySlotSelect}
+          onEmptySlotSelect={handleEmptySlotSelect}
+          onOpenAddAvailability={handleAddAvailabilityOpen}
+          onOpenCreatePackage={() => setShowCreatePackageModal(true)}
+          onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
+          onOpenSettings={() => navigate('/settings')}
+          onLogout={logout}
+          studentSearchQuery={studentSearchQuery}
+          onStudentSearchQueryChange={setStudentSearchQuery}
+          showMobileMenu={showMobileMenu}
+          onToggleMobileMenu={setShowMobileMenu}
+          formatDuration={formatDuration}
+          packagesLoading={packagesLoading}
+          packagesError={packagesError}
+          onRefreshPackages={refreshPackages}
+          locationsData={coachLocations}
+          locationsLoading={locationsLoading}
+          locationsError={locationsError}
+          onRefreshLocations={refreshLocations}
+          onAddLocationById={handleAddLocationById}
+          onAddCustomLocation={handleAddCustomLocation}
+          onDeleteLocation={handleDeleteLocation}
+        />
+      )}
 
       <LessonDetailModal
         isOpen={showLessonDetailModal && !!selectedLessonDetail}

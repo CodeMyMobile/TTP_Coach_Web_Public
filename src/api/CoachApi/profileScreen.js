@@ -1,4 +1,5 @@
 import { apiRequest } from '../apiRequest';
+import { getAccessToken } from '../../utils/tokenHelper';
 
 const buildProfilePayload = ({
   fullName = null,
@@ -34,16 +35,19 @@ const buildHeaders = (token) => {
   };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = `token ${token}`;
   }
 
   return headers;
 };
 
-export const getCoachProfile = async () =>
-  apiRequest('/coach/profile', {
-    method: 'GET'
+export const getCoachProfile = async () => {
+  const accessToken = await getAccessToken();
+  return apiRequest('/coach/profile', {
+    method: 'GET',
+    headers: buildHeaders(accessToken)
   });
+};
 
 export const addCoachProfile = async ({
   accessToken = null,
