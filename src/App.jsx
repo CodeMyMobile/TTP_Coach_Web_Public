@@ -93,7 +93,6 @@ function App() {
   const [dashboardTab, setDashboardTab] = useState('calendar');
   const [calendarView, setCalendarView] = useState('week');
   const [currentDate, setCurrentDate] = useState(() => new Date());
-  const [mobileDayIndex, setMobileDayIndex] = useState(0);
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
   const [showLessonDetailModal, setShowLessonDetailModal] = useState(false);
@@ -946,12 +945,10 @@ function App() {
           isMobile={isMobile}
           dashboardTab={dashboardTab}
           onDashboardTabChange={setDashboardTab}
-          calendarView={calendarView}
-          onCalendarViewChange={setCalendarView}
-          currentDate={currentDate}
-          onCurrentDateChange={setCurrentDate}
-          mobileDayIndex={mobileDayIndex}
-          onMobileDayIndexChange={setMobileDayIndex}
+        calendarView={calendarView}
+        onCalendarViewChange={setCalendarView}
+        currentDate={currentDate}
+        onCurrentDateChange={setCurrentDate}
           studentsData={students}
           studentsLoading={studentsLoading}
           studentsLoadingMore={studentsLoadingMore}
@@ -978,11 +975,10 @@ function App() {
           onOpenSettings={() => navigate('/settings')}
           onLogout={logout}
           studentSearchQuery={studentSearchQuery}
-          onStudentSearchQueryChange={setStudentSearchQuery}
-          showMobileMenu={showMobileMenu}
-          onToggleMobileMenu={setShowMobileMenu}
-          formatDuration={formatDuration}
-          packagesLoading={packagesLoading}
+        onStudentSearchQueryChange={setStudentSearchQuery}
+        showMobileMenu={showMobileMenu}
+        onToggleMobileMenu={setShowMobileMenu}
+        packagesLoading={packagesLoading}
           packagesError={packagesError}
           onRefreshPackages={refreshPackages}
           locationsData={coachLocations}

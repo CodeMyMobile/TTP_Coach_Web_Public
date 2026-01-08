@@ -2,42 +2,26 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertCircle,
-  ArrowDownRight,
-  ArrowUpRight,
   Bell,
   Calendar,
-  CalendarOff,
-  CalendarPlus,
-  Check,
-  ChevronDown,
-  ChevronUp,
   Clock,
-  Copy,
   DollarSign,
-  Edit,
-  Edit2,
-  Filter,
-  Grid,
-  List,
   Menu,
-  MapPin,
   LogOut,
-  MessageSquare,
-  MoreVertical,
   Package,
   RefreshCw,
-  Search,
   Settings,
   Shield,
-  Target,
-  TrendingUp,
-  Trophy,
-  UserPlus,
   Users,
-  Zap
+  MapPin
 } from 'lucide-react';
 import { getActivePlayerPackages, updateCoachPlayer } from '../../services/coach';
-import CoachCalendar from './CoachCalendar';
+import StatsSummary from './sections/StatsSummary';
+import CalendarSection from './sections/CalendarSection';
+import StudentsSection from './sections/StudentsSection';
+import EarningsSection from './sections/EarningsSection';
+import PackagesSection from './sections/PackagesSection';
+import LocationsSection from './sections/LocationsSection';
 
 const parseNumber = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -80,8 +64,6 @@ const DashboardPage = ({
   onCalendarViewChange,
   currentDate,
   onCurrentDateChange,
-  mobileDayIndex,
-  onMobileDayIndexChange,
   studentsData,
   studentsLoading,
   studentsLoadingMore = false,
@@ -111,7 +93,6 @@ const DashboardPage = ({
   onStudentSearchQueryChange,
   showMobileMenu,
   onToggleMobileMenu,
-  formatDuration,
   packagesLoading = false,
   packagesError = null,
   onRefreshPackages = () => {},
@@ -188,11 +169,6 @@ const DashboardPage = ({
     activeStudents: statsData?.activeStudents ?? (Array.isArray(studentsData) ? studentsData.length : studentsData?.students?.length ?? 0),
     upcomingLessons: statsData?.upcomingLessons ?? bookedLessons.length,
     pendingRequests: statsData?.pendingRequests ?? bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
-  };
-
-  const goToToday = () => {
-    onCurrentDateChange(new Date());
-    onMobileDayIndexChange(new Date().getDay());
   };
 
   const handleAvailabilitySelect = (availability) => {
@@ -536,48 +512,7 @@ const DashboardPage = ({
         </div>
       )}
 
-      <div className="border-b bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-            <div className="flex items-center rounded-lg bg-gray-50 p-3">
-              <div className="rounded-lg bg-blue-50 p-2">
-                <Calendar className="h-4 w-4 text-blue-600 md:h-5 md:w-5" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs text-gray-500">Today</p>
-                <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.todayLessons}</p>
-              </div>
-            </div>
-            <div className="flex items-center rounded-lg bg-gray-50 p-3">
-              <div className="rounded-lg bg-green-50 p-2">
-                <DollarSign className="h-4 w-4 text-green-600 md:h-5 md:w-5" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs text-gray-500">Revenue</p>
-                <p className="text-base font-semibold text-gray-900 md:text-lg">${stats.weekRevenue}</p>
-              </div>
-            </div>
-            <div className="flex items-center rounded-lg bg-gray-50 p-3">
-              <div className="rounded-lg bg-purple-50 p-2">
-                <Users className="h-4 w-4 text-purple-600 md:h-5 md:w-5" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs text-gray-500">Students</p>
-                <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.activeStudents}</p>
-              </div>
-            </div>
-            <div className="flex items-center rounded-lg bg-gray-50 p-3">
-              <div className="rounded-lg bg-orange-50 p-2">
-                <TrendingUp className="h-4 w-4 text-orange-600 md:h-5 md:w-5" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs text-gray-500">Upcoming</p>
-                <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.upcomingLessons}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <StatsSummary stats={stats} />
 
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -612,620 +547,70 @@ const DashboardPage = ({
         </div>
 
         {dashboardTab === 'calendar' && (
-          <section className="mt-6 space-y-6">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Weekly Schedule</h2>
-                  <p className="text-sm text-gray-500">Manage lessons, availability, and requests</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                    {[
-                      { key: 'day', label: 'Day', icon: Grid },
-                      { key: 'week', label: 'Week', icon: List }
-                    ].map((view) => (
-                      <button
-                        key={view.key}
-                        type="button"
-                        onClick={() => onCalendarViewChange(view.key)}
-                        className={`flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium ${
-                          calendarView === view.key
-                            ? 'bg-white text-purple-600 shadow'
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        <view.icon className="h-4 w-4" />
-                        <span>{view.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={goToToday}
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-                  >
-                    Today
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-gray-500">
-                    <span>Calendar view</span>
-                  </div>
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:space-x-2 sm:gap-0">
-                    <button
-                      type="button"
-                      onClick={onOpenAddAvailability}
-                      className="flex flex-1 items-center justify-center space-x-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700 sm:flex-none"
-                    >
-                      <CalendarPlus className="h-4 w-4" />
-                      <span>Add</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onRequestAvailabilityOnboarding}
-                      className="flex flex-1 items-center justify-center space-x-2 rounded-lg border border-purple-600 px-4 py-2 text-sm font-medium text-purple-600 transition hover:bg-purple-50 sm:flex-none"
-                    >
-                      <Edit className="h-4 w-4" />
-                      <span>Edit</span>
-                    </button>
-                  </div>
-                </div>
-
-                <CoachCalendar
-                  lessons={bookedLessons}
-                  availability={availabilityData?.schedule || availabilityData}
-                  currentDate={currentDate}
-                  onDateChange={onCurrentDateChange}
-                  view={calendarView}
-                  onViewChange={onCalendarViewChange}
-                  onLessonSelect={onLessonSelect}
-                  onAvailabilitySelect={handleAvailabilitySelect}
-                  onEmptySlotSelect={onEmptySlotSelect}
-                />
-              </div>
-            </div>
-          </section>
+          <CalendarSection
+            calendarView={calendarView}
+            onCalendarViewChange={onCalendarViewChange}
+            currentDate={currentDate}
+            onCurrentDateChange={onCurrentDateChange}
+            lessons={bookedLessons}
+            availability={availabilityData?.schedule || availabilityData}
+            onLessonSelect={onLessonSelect}
+            onAvailabilitySelect={handleAvailabilitySelect}
+            onEmptySlotSelect={onEmptySlotSelect}
+            onOpenAddAvailability={onOpenAddAvailability}
+            onRequestAvailabilityOnboarding={onRequestAvailabilityOnboarding}
+          />
         )}
 
         {dashboardTab === 'students' && (
-          <section className="mt-6 space-y-6">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Student Directory</h2>
-                  <p className="text-sm text-gray-500">Manage students, packages, and communications</p>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                    <input
-                      type="search"
-                      value={studentSearchQuery}
-                      onChange={(event) => onStudentSearchQueryChange(event.target.value)}
-                      className="w-full rounded-lg border border-gray-200 px-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder="Search students..."
-                    />
-                  </div>
-                  <button className="flex items-center justify-center space-x-2 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
-                    <Filter className="h-4 w-4" />
-                    <span>Filters</span>
-                  </button>
-                  <button className="flex items-center justify-center space-x-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
-                    <UserPlus className="h-4 w-4" />
-                    <span>Add Student</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                {studentsLoading && (
-                  <div className="flex flex-col items-center justify-center space-y-2 py-10">
-                    <RefreshCw className="h-6 w-6 animate-spin text-purple-600" />
-                    <p className="text-sm text-gray-500">Loading students...</p>
-                  </div>
-                )}
-
-                {studentsError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    <p className="font-medium">We couldn't load your students.</p>
-                    <button
-                      type="button"
-                      onClick={onRefreshStudents}
-                      className="mt-2 inline-flex items-center space-x-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      <span>Try again</span>
-                    </button>
-                  </div>
-                )}
-
-                {activePackagesError && !studentsError && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    We couldn't load active packages for these students.
-                  </div>
-                )}
-
-                {activePackagesLoading && !studentsLoading && !studentsError && (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
-                    Loading active packages...
-                  </div>
-                )}
-
-                {!studentsLoading && !studentsError && filteredStudents.length === 0 && (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-                    No students found matching your search.
-                  </div>
-                )}
-
-                {filteredStudents.map((student) => {
-                  const activePackage = student.playerId
-                    ? activePackagesByPlayer[student.playerId]
-                    : null;
-
-                  return (
-                    <div key={student.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 overflow-hidden rounded-full bg-gray-100">
-                            {student.avatar ? (
-                              <img
-                                src={student.avatar}
-                                alt={student.name || 'Student'}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-gray-500">
-                                {student.name ? student.name.slice(0, 1).toUpperCase() : '?'}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900">{student.name || 'Unnamed student'}</h3>
-                            <p className="text-sm text-gray-500">{student.email} • {student.phone}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {student.isConfirmed ? (
-                            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Active</span>
-                          ) : student.isPlayerRequest ? (
-                            <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
-                              Request pending
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                              Invite pending
-                            </span>
-                          )}
-                          <button className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700">
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {!student.isConfirmed && student.isPlayerRequest && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleRosterUpdate(student.playerId, 'CONFIRMED')}
-                            disabled={rosterAction?.playerId === student.playerId}
-                            className="inline-flex items-center rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-70"
-                          >
-                            <Check className="mr-2 h-4 w-4" />
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRosterUpdate(student.playerId, 'CANCELLED')}
-                            disabled={rosterAction?.playerId === student.playerId}
-                            className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <div className="rounded-lg bg-gray-50 p-3">
-                          <p className="text-xs uppercase text-gray-500">Current Package</p>
-                          <p className="mt-1 text-sm font-medium text-gray-900">
-                            {activePackage?.packageName || 'No active package'}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Remaining lessons: {activePackage?.creditsRemaining ?? 'N/A'}
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 p-3">
-                          <p className="text-xs uppercase text-gray-500">Next Lesson</p>
-                          <p className="mt-1 text-sm font-medium text-gray-900">{student.nextLesson || 'Not scheduled'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {!studentsLoading && !studentsError && studentsHasMore && (
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={onLoadMoreStudents}
-                      disabled={studentsLoadingMore}
-                      className="inline-flex items-center rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {studentsLoadingMore ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Loading more...
-                        </>
-                      ) : (
-                        'Load more'
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          <StudentsSection
+            studentSearchQuery={studentSearchQuery}
+            onStudentSearchQueryChange={onStudentSearchQueryChange}
+            studentsLoading={studentsLoading}
+            studentsError={studentsError}
+            onRefreshStudents={onRefreshStudents}
+            activePackagesLoading={activePackagesLoading}
+            activePackagesError={activePackagesError}
+            filteredStudents={filteredStudents}
+            activePackagesByPlayer={activePackagesByPlayer}
+            rosterAction={rosterAction}
+            onRosterUpdate={handleRosterUpdate}
+            studentsHasMore={studentsHasMore}
+            studentsLoadingMore={studentsLoadingMore}
+            onLoadMoreStudents={onLoadMoreStudents}
+          />
         )}
 
-        {dashboardTab === 'earnings' && (
-          <section className="mt-6 space-y-6">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Earnings Overview</h2>
-                  <p className="text-sm text-gray-500">Track revenue, payouts, and performance</p>
-                </div>
-                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:space-x-2 sm:gap-0">
-                  <button className="flex w-full items-center justify-center space-x-2 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 sm:w-auto sm:justify-start">
-                    <Calendar className="h-4 w-4" />
-                    <span>Past 30 days</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
-                  <button className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 sm:w-auto">
-                    Export
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <div className="rounded-xl border border-purple-100 bg-purple-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase text-purple-500">Total Revenue</p>
-                      <p className="text-2xl font-bold text-purple-900">${stats.weekRevenue}</p>
-                    </div>
-                    <ArrowUpRight className="h-5 w-5 text-purple-500" />
-                  </div>
-                  <p className="mt-2 text-xs text-purple-700">Up 12% from last period</p>
-                </div>
-                <div className="rounded-xl border border-green-100 bg-green-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase text-green-500">Outstanding</p>
-                      <p className="text-2xl font-bold text-green-900">$280</p>
-                    </div>
-                    <ArrowDownRight className="h-5 w-5 text-green-500" />
-                  </div>
-                  <p className="mt-2 text-xs text-green-700">2 invoices awaiting payment</p>
-                </div>
-                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase text-blue-500">Average Rate</p>
-                      <p className="text-2xl font-bold text-blue-900">$112/hr</p>
-                    </div>
-                    <Target className="h-5 w-5 text-blue-500" />
-                  </div>
-                  <p className="mt-2 text-xs text-blue-700">Across all lesson types</p>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
+        {dashboardTab === 'earnings' && <EarningsSection stats={stats} />}
 
         {dashboardTab === 'packages' && (
-          <section className="mt-6 space-y-6">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Lesson Packages</h2>
-                  <p className="text-sm text-gray-500">
-                    Create and manage lesson bundles for your students
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={onOpenCreatePackage}
-                  className="flex w-full items-center justify-center space-x-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700 sm:w-auto sm:justify-start"
-                >
-                  <Package className="h-4 w-4" />
-                  <span>Create package</span>
-                </button>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                {packagesLoading && packages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center space-y-2 py-10">
-                    <RefreshCw className="h-6 w-6 animate-spin text-purple-600" />
-                    <p className="text-sm text-gray-500">Loading packages...</p>
-                  </div>
-                )}
-
-                {!packagesLoading && packagesError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    <p className="font-medium">We couldn't load your packages.</p>
-                    <p className="mt-1 text-xs text-red-600">{packagesError}</p>
-                    <button
-                      type="button"
-                      onClick={onRefreshPackages}
-                      className="mt-3 inline-flex items-center space-x-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      <span>Try again</span>
-                    </button>
-                  </div>
-                )}
-
-                {!packagesLoading && !packagesError && packages.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-white p-6 text-center">
-                    <h3 className="text-base font-semibold text-gray-900">No packages yet</h3>
-                    <p className="mt-2 text-sm text-gray-500">
-                      Create your first lesson bundle to offer students multi-lesson savings.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={onOpenCreatePackage}
-                      className="mt-4 inline-flex items-center justify-center space-x-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700"
-                    >
-                      <Package className="h-4 w-4" />
-                      <span>Create package</span>
-                    </button>
-                  </div>
-                ) : null}
-
-                {packages.length > 0 &&
-                  packages.map((lessonPackage) => (
-                    <div
-                      key={lessonPackage.id}
-                      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {lessonPackage.name}
-                            </h3>
-                            {!lessonPackage.isActive && (
-                              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                                Archived
-                              </span>
-                            )}
-                          </div>
-                          {lessonPackage.description && (
-                            <p className="mt-1 text-sm text-gray-500">
-                              {lessonPackage.description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 md:justify-end">
-                          {lessonPackage.lessonTypes.length > 0 ? (
-                            lessonPackage.lessonTypes.map((type) => (
-                              <span
-                                key={`${lessonPackage.id}-${type}`}
-                                className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700"
-                              >
-                                {formatLessonTypeLabel(type)}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                              Any lesson type
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid gap-4 md:grid-cols-4">
-                        <div>
-                          <p className="text-xs uppercase text-gray-500">Price</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {lessonPackage.totalPrice !== null
-                              ? currencyFormatter.format(lessonPackage.totalPrice)
-                              : 'N/A'}
-                          </p>
-                          {lessonPackage.perLessonPrice !== null && (
-                            <p className="text-xs text-gray-500">
-                              {currencyFormatter.format(lessonPackage.perLessonPrice)} per lesson
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase text-gray-500">Lessons Included</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {lessonPackage.lessonCount !== null
-                              ? `${lessonPackage.lessonCount} lessons`
-                              : 'N/A'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase text-gray-500">Validity</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatValidityLabel(lessonPackage.validityMonths)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase text-gray-500">Status</p>
-                          <p
-                            className={`text-sm font-medium ${
-                              lessonPackage.isActive ? 'text-green-600' : 'text-gray-500'
-                            }`}
-                          >
-                            {lessonPackage.isActive ? 'Active' : 'Archived'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </section>
+          <PackagesSection
+            packages={packages}
+            packagesLoading={packagesLoading}
+            packagesError={packagesError}
+            onRefreshPackages={onRefreshPackages}
+            onOpenCreatePackage={onOpenCreatePackage}
+            currencyFormatter={currencyFormatter}
+            formatLessonTypeLabel={formatLessonTypeLabel}
+            formatValidityLabel={formatValidityLabel}
+          />
         )}
 
         {dashboardTab === 'locations' && (
-          <section className="mt-6 space-y-6">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Locations</h2>
-                  <p className="text-sm text-gray-500">Manage courts and teaching locations</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={onRefreshLocations}
-                  className="inline-flex items-center space-x-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Refresh</span>
-                </button>
-              </div>
-
-              {locationAction && (
-                <div
-                  className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
-                    locationAction.type === 'error'
-                      ? 'border-red-200 bg-red-50 text-red-700'
-                      : 'border-green-200 bg-green-50 text-green-700'
-                  }`}
-                >
-                  {locationAction.message}
-                </div>
-              )}
-
-              <div className="mt-6 grid gap-6 lg:grid-cols-2">
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="text-base font-semibold text-gray-900">Add Existing Location</h3>
-                  <p className="mt-1 text-xs text-gray-500">Use a master location id.</p>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="Location ID"
-                      value={locationIdInput}
-                      onChange={(event) => setLocationIdInput(event.target.value)}
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddLocation}
-                      className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="text-base font-semibold text-gray-900">Add Custom Location</h3>
-                  <p className="mt-1 text-xs text-gray-500">Create and link a new location.</p>
-                  <div className="mt-4 space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Location name"
-                      value={customLocationForm.location}
-                      onChange={(event) => setCustomLocationForm((prev) => ({ ...prev, location: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="any"
-                        placeholder="Latitude"
-                        value={customLocationForm.latitude}
-                        onChange={(event) => setCustomLocationForm((prev) => ({ ...prev, latitude: event.target.value }))}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="any"
-                        placeholder="Longitude"
-                        value={customLocationForm.longitude}
-                        onChange={(event) => setCustomLocationForm((prev) => ({ ...prev, longitude: event.target.value }))}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddCustomLocation}
-                      className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700"
-                    >
-                      Create Location
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                {locationsLoading && (
-                  <div className="flex flex-col items-center justify-center space-y-2 py-6 text-sm text-gray-500">
-                    <RefreshCw className="h-5 w-5 animate-spin text-purple-600" />
-                    <span>Loading locations...</span>
-                  </div>
-                )}
-
-                {!locationsLoading && locationsError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    <p className="font-medium">We couldn't load your locations.</p>
-                    <p className="mt-1 text-xs text-red-600">{locationsError}</p>
-                  </div>
-                )}
-
-                {!locationsLoading && !locationsError && normalizedLocations.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
-                    No locations linked yet.
-                  </div>
-                )}
-
-                {normalizedLocations.map((location) => (
-                  <div
-                    key={location.relationId ?? location.locationId ?? location.label}
-                    className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
-                        <MapPin className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {location.label || 'Location'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Location ID: {location.locationId ?? 'N/A'}
-                        </p>
-                        {location.latitude !== undefined && location.longitude !== undefined && (
-                          <p className="text-xs text-gray-400">
-                            {location.latitude}, {location.longitude}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteLocation(location.relationId ?? location.locationId)}
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
+          <LocationsSection
+            locationAction={locationAction}
+            locationIdInput={locationIdInput}
+            onLocationIdChange={setLocationIdInput}
+            onAddLocation={handleAddLocation}
+            customLocationForm={customLocationForm}
+            onCustomLocationChange={setCustomLocationForm}
+            onAddCustomLocation={handleAddCustomLocation}
+            locationsLoading={locationsLoading}
+            locationsError={locationsError}
+            normalizedLocations={normalizedLocations}
+            onDeleteLocation={handleDeleteLocation}
+            onRefreshLocations={onRefreshLocations}
+          />
         )}
 
       </main>
