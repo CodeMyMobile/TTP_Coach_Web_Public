@@ -80,7 +80,41 @@ const addMinutesToTime = (time, minutes) => {
 function App() {
   const { user, initialising: authInitialising, logout } = useAuth();
   const isAuthenticated = Boolean(user);
-  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+  const basePath = import.meta.env.BASE_URL || '/';
+  const normalizePath = useCallback(
+    (pathname) => {
+      if (!pathname) {
+        return '/';
+      }
+
+      if (basePath === '/') {
+        return pathname;
+      }
+
+      const normalizedBase = basePath.endsWith('/') ? basePath : `${basePath}/`;
+
+      if (!pathname.startsWith(normalizedBase)) {
+        return pathname;
+      }
+
+      const remainder = pathname.slice(normalizedBase.length);
+      return remainder ? `/${remainder}` : '/';
+    },
+    [basePath]
+  );
+  const buildPath = useCallback(
+    (pathname) => {
+      if (basePath === '/') {
+        return pathname;
+      }
+
+      const normalizedBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+      const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+      return `${normalizedBase}${normalizedPath}`;
+    },
+    [basePath]
+  );
+  const [currentPath, setCurrentPath] = useState(() => normalizePath(window.location.pathname));
   const {
     profile: remoteProfile,
     isComplete: remoteProfileComplete,
@@ -176,23 +210,25 @@ function App() {
   }, [isAuthenticated]);
 
   const navigate = useCallback((nextPath, { replace = false } = {}) => {
-    if (window.location.pathname === nextPath) {
+    const targetPath = buildPath(nextPath);
+
+    if (window.location.pathname === targetPath) {
       return;
     }
 
     if (replace) {
-      window.history.replaceState(null, '', nextPath);
+      window.history.replaceState(null, '', targetPath);
     } else {
-      window.history.pushState(null, '', nextPath);
+      window.history.pushState(null, '', targetPath);
     }
-    setCurrentPath(nextPath);
-  }, []);
+    setCurrentPath(normalizePath(targetPath));
+  }, [buildPath, normalizePath]);
 
   useEffect(() => {
-    const handlePopState = () => setCurrentPath(window.location.pathname);
+    const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname));
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [normalizePath]);
 
   useEffect(() => {
     if (authInitialising) {
