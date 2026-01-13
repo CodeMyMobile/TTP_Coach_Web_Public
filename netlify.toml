@@ -1,0 +1,6 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_API_URL,VITE_GOOGLE_API_KEY,VITE_STRIPE_PUBLISHABLE_KEY"
