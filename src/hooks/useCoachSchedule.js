@@ -138,7 +138,7 @@ const normaliseAvailability = (payload) => {
       return;
     }
 
-    const day = slot.dayOfWeek || slot.day;
+    const day = (slot.dayOfWeek || slot.day || slot.day_of_week || '').toString().trim();
     const start = slot.start || slot.startTime || slot.from;
     const end = slot.end || slot.endTime || slot.to;
     const location = slot.location || slot.location_name || slot.court || slot.venue || '';
@@ -293,22 +293,31 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
         getCoachStats()
       ]);
 
+      let fetchError = null;
+
       if (lessonsResult.status === 'fulfilled') {
         setLessons(normaliseLessons(lessonsResult.value));
-      } else {
-        throw lessonsResult.reason;
+      } else if (!fetchError) {
+        fetchError = lessonsResult.reason;
       }
 
       if (availabilityResult.status === 'fulfilled') {
         setAvailability(normaliseAvailability(availabilityResult.value));
-      } else {
-        throw availabilityResult.reason;
+      } else if (!fetchError) {
+        fetchError = availabilityResult.reason;
       }
 
       if (statsResult.status === 'fulfilled') {
         setStats(normaliseStats(statsResult.value));
       } else {
         setStats(null);
+        if (!fetchError) {
+          fetchError = statsResult.reason;
+        }
+      }
+
+      if (fetchError) {
+        throw fetchError;
       }
 
       setError(null);

@@ -559,7 +559,11 @@ const DashboardPage = ({
             currentDate={currentDate}
             onCurrentDateChange={onCurrentDateChange}
             lessons={bookedLessons}
-            availability={availabilityData?.schedule || availabilityData}
+          availability={
+            Array.isArray(availabilityData?.schedule) && availabilityData.schedule.length > 0
+              ? availabilityData.schedule
+              : availabilityData
+          }
             onLessonSelect={onLessonSelect}
             onAvailabilitySelect={handleAvailabilitySelect}
             onEmptySlotSelect={onEmptySlotSelect}

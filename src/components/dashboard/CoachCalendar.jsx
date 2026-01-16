@@ -103,7 +103,8 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
 
   if (Array.isArray(availability)) {
     availability.forEach((slot) => {
-      const dayKey = String(slot?.day || '').toLowerCase();
+      const dayValue = slot?.day || slot?.dayOfWeek || slot?.day_of_week;
+      const dayKey = String(dayValue || '').trim().toLowerCase();
       const dayIndex = DAY_INDEX[dayKey];
       if (dayIndex === undefined) {
         return;
@@ -124,7 +125,7 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
   }
 
   Object.entries(availability.weekly || {}).forEach(([dayKey, slots]) => {
-    const dayIndex = DAY_INDEX[String(dayKey).toLowerCase()];
+    const dayIndex = DAY_INDEX[String(dayKey).trim().toLowerCase()];
     if (dayIndex === undefined || !Array.isArray(slots)) {
       return;
     }

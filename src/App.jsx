@@ -703,7 +703,11 @@ function App() {
         title: '',
         level: 'All',
         duration: start && end ? String(Math.max(0, Math.round((end - start) / 60000))) : '',
-        description: ''
+        description: '',
+        recurrence: {
+          frequency: 'NONE',
+          count: ''
+        }
       },
       price_per_person: '',
       player_limit: ''
@@ -822,6 +826,7 @@ function App() {
         ? Number(form.court)
         : null;
 
+    const recurrence = form.metadata?.recurrence || { frequency: 'NONE', count: '' };
     const payload = {
       start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
       end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
@@ -835,7 +840,8 @@ function App() {
         title: form.metadata?.title || '',
         level: form.metadata?.level || 'All',
         description: form.metadata?.description || '',
-        duration: String(Math.round((resolvedEnd - startMoment) / 60000))
+        duration: String(Math.round((resolvedEnd - startMoment) / 60000)),
+        ...(recurrence?.frequency ? { recurrence } : {})
       }
     };
 
@@ -859,6 +865,15 @@ function App() {
       if (!form.player_limit) {
         setLessonSubmitError('Enter a player limit for open group lessons.');
         return;
+      }
+      if (recurrence?.frequency && recurrence.frequency !== 'NONE') {
+        const countValue = parseInt(recurrence.count, 10);
+        if (!Number.isFinite(countValue) || countValue <= 0) {
+          setLessonSubmitError('Enter a valid recurrence count for open group lessons.');
+          return;
+        }
+        payload.recurrence = { frequency: recurrence.frequency, count: countValue };
+        payload.metadata.recurrence = payload.recurrence;
       }
       payload.price_per_person = Number(form.price_per_person);
       payload.player_limit = Number(form.player_limit);

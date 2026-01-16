@@ -39,6 +39,20 @@ const CreateLessonModal = ({
     }));
   };
 
+  const handleRecurrenceChange = (field, value) => {
+    setForm((prev) => {
+      const prevRecurrence = prev?.metadata?.recurrence || { frequency: 'NONE', count: '' };
+      const nextRecurrence = { ...prevRecurrence, [field]: value };
+      if (field === 'frequency' && value === 'NONE') {
+        nextRecurrence.count = '';
+      }
+      return {
+        ...(prev || {}),
+        metadata: { ...(prev?.metadata || {}), recurrence: nextRecurrence }
+      };
+    });
+  };
+
   const handleDurationChange = (value) => {
     const minutes = parseInt(value, 10);
     setForm((prev) => {
@@ -70,6 +84,7 @@ const CreateLessonModal = ({
 
   const startValue = resolvedForm.start ? moment(resolvedForm.start).format('YYYY-MM-DDTHH:mm') : '';
   const endValue = resolvedForm.end ? moment(resolvedForm.end).format('YYYY-MM-DDTHH:mm') : '';
+  const recurrence = resolvedForm.metadata?.recurrence || { frequency: 'NONE', count: '' };
 
   return (
     <Modal
@@ -204,6 +219,32 @@ const CreateLessonModal = ({
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence</label>
+                <select
+                  value={recurrence.frequency || 'NONE'}
+                  onChange={(event) => handleRecurrenceChange('frequency', event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="NONE">None</option>
+                  <option value="DAILY">Daily</option>
+                  <option value="WEEKLY">Weekly</option>
+                </select>
+              </div>
+              {recurrence.frequency && recurrence.frequency !== 'NONE' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence Count</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={recurrence.count || ''}
+                    onChange={(event) => handleRecurrenceChange('count', event.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
