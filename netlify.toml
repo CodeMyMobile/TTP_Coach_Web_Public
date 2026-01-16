@@ -5,3 +5,8 @@
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "VITE_API_URL,VITE_GOOGLE_API_KEY,VITE_STRIPE_PUBLISHABLE_KEY"
   SECRETS_SCAN_OMIT_PATHS = ".env.example"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
