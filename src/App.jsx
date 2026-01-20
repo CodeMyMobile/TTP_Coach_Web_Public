@@ -121,7 +121,8 @@ function App() {
     loading: profileLoading,
     error: profileError,
     hasFetched: profileFetched,
-    saveProfile
+    saveProfile,
+    refreshProfile
   } = useCoachProfile({ enabled: isAuthenticated });
   const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [profileData, setProfileData] = useState(defaultProfile);
@@ -1119,6 +1120,7 @@ function App() {
         initialData={profileData}
         initialStep={onboardingInitialStep}
         onComplete={handleOnboardingComplete}
+        onRefreshProfile={refreshProfile}
         isMobile={isMobile}
       />
     );

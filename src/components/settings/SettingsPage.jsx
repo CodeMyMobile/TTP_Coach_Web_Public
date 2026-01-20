@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { addCoachProfile, getCoachProfile, updateProfileDetails } from '../../api/CoachApi/profileScreen';
+import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
 import useAuth from '../../hooks/useAuth';
 
 const SettingsPage = ({ onBack }) => {
@@ -27,65 +28,138 @@ const SettingsPage = ({ onBack }) => {
     chargesEnabled: false,
     chargesDisabledReason: ''
   });
+  const [stripeActionLoading, setStripeActionLoading] = useState(false);
+  const [stripeActionError, setStripeActionError] = useState(null);
+  const stripeWindowRef = useRef(null);
+  const stripeWatchRef = useRef(null);
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getCoachProfile();
+      if (!response) {
+        throw new Error('Failed to load profile.');
+      }
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(errorBody?.message || errorBody?.error || 'Failed to load profile.');
+      }
+
+      const payload = await response.json().catch(() => null);
+      setProfileId(payload?.id ?? payload?.profile_id ?? null);
+      setForm({
+        fullName: payload?.full_name || payload?.name || '',
+        aboutMe: payload?.about_me || payload?.bio || '',
+        hourlyRate: payload?.hourly_rate ?? payload?.rate ?? '',
+        email: payload?.email || '',
+        phone: payload?.phone || '',
+        experienceYears: payload?.experience_years ?? '',
+        certifications: payload?.certifications ?? '',
+        pricePrivate: payload?.price_private ?? '',
+        priceSemi: payload?.price_semi ?? '',
+        priceGroup: payload?.price_group ?? '',
+        otherLanguages: payload?.other_languages ?? ''
+      });
+      setStripeStatus({
+        accountId: payload?.stripe_account_id || '',
+        chargesEnabled: Boolean(payload?.charges_enabled),
+        chargesDisabledReason: payload?.charges_disabled_reason || ''
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load profile.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    loadProfile();
+  }, [loadProfile]);
 
-    const loadProfile = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await getCoachProfile();
-        if (!response) {
-          throw new Error('Failed to load profile.');
-        }
-
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => null);
-          throw new Error(errorBody?.message || errorBody?.error || 'Failed to load profile.');
-        }
-
-        const payload = await response.json().catch(() => null);
-        if (!isMounted) {
-          return;
-        }
-
-        setProfileId(payload?.id ?? payload?.profile_id ?? null);
-        setForm({
-          fullName: payload?.full_name || payload?.name || '',
-          aboutMe: payload?.about_me || payload?.bio || '',
-          hourlyRate: payload?.hourly_rate ?? payload?.rate ?? '',
-          email: payload?.email || '',
-          phone: payload?.phone || '',
-          experienceYears: payload?.experience_years ?? '',
-          certifications: payload?.certifications ?? '',
-          pricePrivate: payload?.price_private ?? '',
-          priceSemi: payload?.price_semi ?? '',
-          priceGroup: payload?.price_group ?? '',
-          otherLanguages: payload?.other_languages ?? ''
-        });
-        setStripeStatus({
-          accountId: payload?.stripe_account_id || '',
-          chargesEnabled: Boolean(payload?.charges_enabled),
-          chargesDisabledReason: payload?.charges_disabled_reason || ''
-        });
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load profile.');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+  useEffect(() => {
+    return () => {
+      if (stripeWatchRef.current) {
+        clearInterval(stripeWatchRef.current);
+        stripeWatchRef.current = null;
       }
     };
-
-    loadProfile();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  const watchStripeWindow = useCallback(() => {
+    if (stripeWatchRef.current) {
+      clearInterval(stripeWatchRef.current);
+      stripeWatchRef.current = null;
+    }
+
+    stripeWatchRef.current = window.setInterval(() => {
+      if (!stripeWindowRef.current || stripeWindowRef.current.closed) {
+        stripeWindowRef.current = null;
+        if (stripeWatchRef.current) {
+          clearInterval(stripeWatchRef.current);
+          stripeWatchRef.current = null;
+        }
+        loadProfile();
+      }
+    }, 1000);
+  }, [loadProfile]);
+
+  const openStripeWindow = useCallback(
+    (payload) => {
+      const redirectUrl = (payload?.redirect_url || payload?.url || payload?.onboarding_url || '').trim();
+      if (!redirectUrl || typeof window === 'undefined') {
+        return;
+      }
+
+      const stripeWindow = window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+      stripeWindowRef.current = stripeWindow || null;
+      watchStripeWindow();
+    },
+    [watchStripeWindow]
+  );
+
+  const handleStripeConnect = useCallback(async () => {
+    setStripeActionError(null);
+    setStripeActionLoading(true);
+    try {
+      const response = await createStripeOnboardingLink();
+      if (!response) {
+        throw new Error('Failed to start Stripe onboarding.');
+      }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = payload?.message || payload?.error || 'Failed to start Stripe onboarding.';
+        throw new Error(message);
+      }
+      openStripeWindow(payload || {});
+    } catch (err) {
+      setStripeActionError(err instanceof Error ? err.message : 'Failed to start Stripe onboarding.');
+    } finally {
+      setStripeActionLoading(false);
+    }
+  }, [openStripeWindow]);
+
+  const handleStripeRefresh = useCallback(async () => {
+    setStripeActionError(null);
+    setStripeActionLoading(true);
+    try {
+      const response = await refreshStripeOnboardingLink();
+      if (!response) {
+        throw new Error('Unable to refresh Stripe onboarding.');
+      }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = payload?.message || payload?.error || 'Unable to refresh Stripe onboarding.';
+        throw new Error(message);
+      }
+      openStripeWindow(payload || {});
+    } catch (err) {
+      setStripeActionError(err instanceof Error ? err.message : 'Unable to refresh Stripe onboarding.');
+    } finally {
+      setStripeActionLoading(false);
+    }
+  }, [openStripeWindow]);
 
   const handleSave = async () => {
     setAction(null);
@@ -171,7 +245,7 @@ const SettingsPage = ({ onBack }) => {
       </div>
 
       <main className="mx-auto max-w-5xl px-4 py-6">
-        {(action || error) && (
+        {(action || error || stripeActionError) && (
           <div
             className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
               (action?.type === 'error' || error)
@@ -179,7 +253,7 @@ const SettingsPage = ({ onBack }) => {
                 : 'border-green-200 bg-green-50 text-green-700'
             }`}
           >
-            {action?.message || error}
+            {action?.message || error || stripeActionError}
           </div>
         )}
 
@@ -300,6 +374,39 @@ const SettingsPage = ({ onBack }) => {
                   )}
                 </div>
               )}
+              <div className="rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-sm text-purple-700">
+                <div className="font-medium">Stripe onboarding</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {!stripeStatus.accountId && (
+                    <button
+                      type="button"
+                      onClick={handleStripeConnect}
+                      disabled={stripeActionLoading}
+                      className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-300"
+                    >
+                      {stripeActionLoading ? 'Connecting…' : 'Connect with Stripe'}
+                    </button>
+                  )}
+                  {stripeStatus.accountId && !stripeStatus.chargesEnabled && (
+                    <button
+                      type="button"
+                      onClick={handleStripeRefresh}
+                      disabled={stripeActionLoading}
+                      className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-300"
+                    >
+                      {stripeActionLoading ? 'Opening…' : 'Complete Stripe setup'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={loadProfile}
+                    disabled={stripeActionLoading}
+                    className="rounded-lg border border-purple-200 px-3 py-2 text-sm text-purple-700 transition hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Refresh Stripe status
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

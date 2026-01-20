@@ -42,7 +42,7 @@ const stepsConfig = [
   { title: 'Review', icon: <Eye className="h-4 w-4" /> }
 ];
 
-const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) => {
+const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, onRefreshProfile }) => {
   const [formData, setFormData] = useState(() => ({ ...createInitialState(), ...(initialData || {}) }));
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const [errors, setErrors] = useState({});
@@ -51,6 +51,8 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
   const [stripeLoading, setStripeLoading] = useState(false);
   const [stripeError, setStripeError] = useState(null);
   const [stripeReturnUrl, setStripeReturnUrl] = useState('');
+  const stripeWindowRef = useRef(null);
+  const stripeWatchRef = useRef(null);
   const [availabilityTab, setAvailabilityTab] = useState('private');
   const [selectedDay, setSelectedDay] = useState(DAYS_OF_WEEK[0]);
   const [newTimeSlot, setNewTimeSlot] = useState({ start: '09:00', end: '10:00', location: '' });
@@ -98,6 +100,10 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
       if (uploadObjectUrlRef.current) {
         URL.revokeObjectURL(uploadObjectUrlRef.current);
         uploadObjectUrlRef.current = null;
+      }
+      if (stripeWatchRef.current) {
+        clearInterval(stripeWatchRef.current);
+        stripeWatchRef.current = null;
       }
     };
   }, []);
@@ -397,9 +403,28 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0 }) 
     }
 
     if (redirectUrl && typeof window !== 'undefined') {
-      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+      const stripeWindow = window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+      stripeWindowRef.current = stripeWindow || null;
+
+      if (stripeWatchRef.current) {
+        clearInterval(stripeWatchRef.current);
+        stripeWatchRef.current = null;
+      }
+
+      stripeWatchRef.current = window.setInterval(() => {
+        if (!stripeWindowRef.current || stripeWindowRef.current.closed) {
+          stripeWindowRef.current = null;
+          if (stripeWatchRef.current) {
+            clearInterval(stripeWatchRef.current);
+            stripeWatchRef.current = null;
+          }
+          if (typeof onRefreshProfile === 'function') {
+            onRefreshProfile();
+          }
+        }
+      }, 1000);
     }
-  }, []);
+  }, [onRefreshProfile]);
 
   const initiateStripeOnboarding = useCallback(async () => {
     setStripeError(null);
