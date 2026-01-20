@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
 import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
+import { getCoachProfile } from '../../api/CoachApi/profileScreen';
 import { requestCoachAvatarUploadUrl, uploadCoachAvatar } from '../../api/CoachApi/onboarding';
 
 const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
@@ -394,6 +395,24 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
     });
   };
 
+  const refreshStripeProfile = useCallback(async () => {
+    try {
+      const response = await getCoachProfile();
+      if (!response?.ok) {
+        return;
+      }
+      const payload = await response.json().catch(() => null);
+      setFormData((prev) => ({
+        ...prev,
+        stripe_account_id: payload?.stripe_account_id ?? prev.stripe_account_id,
+        charges_enabled: payload?.charges_enabled ?? prev.charges_enabled,
+        charges_disabled_reason: payload?.charges_disabled_reason ?? prev.charges_disabled_reason
+      }));
+    } catch {
+      // ignore errors, onboarding state will refresh on next load
+    }
+  }, []);
+
   const openStripeOnboardingWindow = useCallback((payload = {}) => {
     const redirectUrl = (payload.redirect_url || payload.url || payload.onboarding_url || '').trim();
     const returnUrl = (payload.return_url || '').trim();
@@ -421,10 +440,15 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
           if (typeof onRefreshProfile === 'function') {
             onRefreshProfile();
           }
+          refreshStripeProfile();
         }
       }, 1000);
     }
-  }, [onRefreshProfile]);
+  }, [onRefreshProfile, refreshStripeProfile]);
+
+  useEffect(() => {
+    refreshStripeProfile();
+  }, [refreshStripeProfile]);
 
   const initiateStripeOnboarding = useCallback(async () => {
     setStripeError(null);
