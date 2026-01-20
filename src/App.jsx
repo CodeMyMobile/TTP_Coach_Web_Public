@@ -130,6 +130,7 @@ function App() {
   const [dashboardTab, setDashboardTab] = useState('calendar');
   const [calendarView, setCalendarView] = useState('week');
   const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [visibleCalendarDates, setVisibleCalendarDates] = useState([]);
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
   const [showLessonDetailModal, setShowLessonDetailModal] = useState(false);
@@ -326,7 +327,53 @@ function App() {
     updateLesson: persistLesson,
     mutationError: scheduleMutationError,
     mutationLoading: scheduleMutationLoading
-  } = useCoachSchedule({ enabled: isProfileComplete && isAuthenticated });
+  } = useCoachSchedule({
+    enabled: isProfileComplete && isAuthenticated,
+    date: currentDate,
+    dates: visibleCalendarDates
+  });
+  const handleCalendarRangeChange = useCallback((range) => {
+    if (!range) {
+      setVisibleCalendarDates([]);
+      return;
+    }
+
+    if (Array.isArray(range)) {
+      setVisibleCalendarDates(range);
+      return;
+    }
+
+    if (range instanceof Date) {
+      setVisibleCalendarDates([range]);
+      return;
+    }
+
+    if (range?.start && range?.end) {
+      const dates = [];
+      const start = new Date(range.start);
+      const end = new Date(range.end);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        setVisibleCalendarDates([]);
+        return;
+      }
+
+      const cursor = new Date(start);
+      cursor.setHours(0, 0, 0, 0);
+      const endCursor = new Date(end);
+      endCursor.setHours(0, 0, 0, 0);
+
+      while (cursor <= endCursor) {
+        dates.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      setVisibleCalendarDates(dates);
+      return;
+    }
+
+    setVisibleCalendarDates([]);
+  }, []);
 
   const fetchPackages = useCallback(
     async ({ force = false } = {}) => {
@@ -1093,6 +1140,7 @@ function App() {
           onCalendarViewChange={setCalendarView}
           currentDate={currentDate}
           onCurrentDateChange={setCurrentDate}
+          onRangeChange={handleCalendarRangeChange}
           studentsData={students}
           studentsLoading={studentsLoading}
           studentsLoadingMore={studentsLoadingMore}

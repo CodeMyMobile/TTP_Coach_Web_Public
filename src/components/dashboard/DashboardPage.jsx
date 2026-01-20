@@ -64,6 +64,7 @@ const DashboardPage = ({
   onCalendarViewChange,
   currentDate,
   onCurrentDateChange,
+  onRangeChange,
   studentsData,
   studentsLoading,
   studentsLoadingMore = false,
@@ -558,12 +559,13 @@ const DashboardPage = ({
             onCalendarViewChange={onCalendarViewChange}
             currentDate={currentDate}
             onCurrentDateChange={onCurrentDateChange}
+            onRangeChange={onRangeChange}
             lessons={bookedLessons}
-          availability={
-            Array.isArray(availabilityData?.schedule) && availabilityData.schedule.length > 0
-              ? availabilityData.schedule
-              : availabilityData
-          }
+            availability={
+              Array.isArray(availabilityData?.schedule) && availabilityData.schedule.length > 0
+                ? availabilityData.schedule
+                : availabilityData
+            }
             onLessonSelect={onLessonSelect}
             onAvailabilitySelect={handleAvailabilitySelect}
             onEmptySlotSelect={onEmptySlotSelect}

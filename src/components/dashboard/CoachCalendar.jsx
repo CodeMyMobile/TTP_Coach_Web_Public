@@ -173,7 +173,8 @@ const CoachCalendar = ({
   showToolbar = true,
   onLessonSelect,
   onAvailabilitySelect,
-  onEmptySlotSelect
+  onEmptySlotSelect,
+  onRangeChange
 }) => {
   const resolvedEvents = useMemo(() => {
     if (Array.isArray(events)) {
@@ -221,6 +222,7 @@ console.log("events",events);
         onView={onViewChange}
         date={currentDate}
         onNavigate={onDateChange}
+        onRangeChange={onRangeChange}
         toolbar={showToolbar}
         selectable
         step={30}

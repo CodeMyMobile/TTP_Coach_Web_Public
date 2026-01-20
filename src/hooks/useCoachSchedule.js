@@ -270,7 +270,23 @@ const normaliseStats = (payload) => {
   return payload;
 };
 
-export const useCoachSchedule = ({ enabled = true } = {}) => {
+const formatLocalDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
   const [lessons, setLessons] = useState([]);
   const [availability, setAvailability] = useState({ ...emptyAvailability });
   const [stats, setStats] = useState(null);
@@ -279,7 +295,7 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
   const [mutationLoading, setMutationLoading] = useState(false);
   const [mutationError, setMutationError] = useState(null);
 
-  const fetchSchedule = useCallback(async () => {
+  const fetchSchedule = useCallback(async (requestedDate, requestedDates) => {
     if (!enabled) {
       setLoading(false);
       return;
@@ -287,8 +303,19 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
 
     setLoading(true);
     try {
+      const resolvedDate = formatLocalDate(requestedDate);
+      const resolvedDates = Array.isArray(requestedDates)
+        ? requestedDates
+            .map((value) => formatLocalDate(value))
+            .filter(Boolean)
+            .filter((value, index, self) => self.indexOf(value) === index)
+        : [];
+      const lessonPromises =
+        resolvedDates.length > 0
+          ? resolvedDates.map((value) => getCoachLessons({ date: value }))
+          : [resolvedDate ? getCoachLessons({ date: resolvedDate }) : getCoachLessons({ perPage: 100, page: 1 })];
       const [lessonsResult, availabilityResult, statsResult] = await Promise.allSettled([
-        getCoachLessons({ perPage: 100, page: 1 }),
+        Promise.allSettled(lessonPromises),
         getCoachAvailability(),
         getCoachStats()
       ]);
@@ -296,7 +323,27 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
       let fetchError = null;
 
       if (lessonsResult.status === 'fulfilled') {
-        setLessons(normaliseLessons(lessonsResult.value));
+        const lessonResults = lessonsResult.value;
+        const lessonPayloads = [];
+        let lessonError = null;
+
+        lessonResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const payload = result.value;
+            if (Array.isArray(payload)) {
+              lessonPayloads.push(...payload);
+            } else if (payload && Array.isArray(payload.lessons)) {
+              lessonPayloads.push(...payload.lessons);
+            }
+          } else if (!lessonError) {
+            lessonError = result.reason;
+          }
+        });
+
+        setLessons(normaliseLessons(lessonPayloads));
+        if (lessonPayloads.length === 0 && lessonError && !fetchError) {
+          fetchError = lessonError;
+        }
       } else if (!fetchError) {
         fetchError = lessonsResult.reason;
       }
@@ -335,10 +382,13 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
       return;
     }
 
-    fetchSchedule();
-  }, [enabled, fetchSchedule]);
+    fetchSchedule(date, dates);
+  }, [date, dates, enabled, fetchSchedule]);
 
-  const refresh = useCallback(() => fetchSchedule(), [fetchSchedule]);
+  const refresh = useCallback(
+    (nextDate, nextDates) => fetchSchedule(nextDate ?? date, nextDates ?? dates),
+    [date, dates, fetchSchedule]
+  );
 
   const addAvailabilitySlot = useCallback(
     async (slot) => {

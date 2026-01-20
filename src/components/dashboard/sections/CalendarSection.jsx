@@ -7,6 +7,7 @@ const CalendarSection = ({
   onCalendarViewChange,
   currentDate,
   onCurrentDateChange,
+  onRangeChange,
   lessons,
   availability,
   onLessonSelect,
@@ -83,6 +84,7 @@ const CalendarSection = ({
           availability={availability}
           currentDate={currentDate}
           onDateChange={onCurrentDateChange}
+          onRangeChange={onRangeChange}
           view={calendarView}
           onViewChange={onCalendarViewChange}
           onLessonSelect={onLessonSelect}
