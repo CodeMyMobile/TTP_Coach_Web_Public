@@ -288,7 +288,7 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
     setLoading(true);
     try {
       const [lessonsResult, availabilityResult, statsResult] = await Promise.allSettled([
-        getCoachLessons(),
+        getCoachLessons({ perPage: 100, page: 1 }),
         getCoachAvailability(),
         getCoachStats()
       ]);
