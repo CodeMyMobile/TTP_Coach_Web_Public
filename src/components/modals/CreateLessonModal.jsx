@@ -41,8 +41,13 @@ const CreateLessonModal = ({
 
   const handleRecurrenceChange = (field, value) => {
     setForm((prev) => {
-      const prevRecurrence = prev?.metadata?.recurrence || { frequency: 'NONE', count: '' };
-      const nextRecurrence = { ...prevRecurrence, [field]: value };
+      const prevRecurrence = prev?.metadata?.recurrence || { frequency: '', count: '' };
+      let nextValue = value;
+      if (field === 'count') {
+        const parsed = parseInt(String(value), 10);
+        nextValue = Number.isFinite(parsed) && parsed > 0 ? parsed : '';
+      }
+      const nextRecurrence = { ...prevRecurrence, [field]: nextValue };
       if (field === 'frequency' && value === 'NONE') {
         nextRecurrence.count = '';
       }
