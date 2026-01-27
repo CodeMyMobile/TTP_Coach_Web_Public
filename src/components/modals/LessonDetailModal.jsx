@@ -1,4 +1,5 @@
 import React from 'react';
+import moment from 'moment';
 import {
   AlertCircle,
   Check,
@@ -24,11 +25,37 @@ const LessonDetailModal = ({
   coachCourts = [],
   formatDuration,
   onAcceptRequest,
-  onDeclineRequest
+  onDeclineRequest,
+  onCreateLesson
 }) => {
   if (!lesson) {
     return null;
   }
+
+  const resolveDateTime = () => {
+    const startRaw = lesson.start_date_time || lesson.startDateTime;
+    const endRaw = lesson.end_date_time || lesson.endDateTime;
+
+    if (startRaw) {
+      const start = moment(String(startRaw).replace(/Z$/, ''));
+      const end = endRaw ? moment(String(endRaw).replace(/Z$/, '')) : null;
+      return {
+        dateLabel: start.format('YYYY-MM-DD'),
+        timeLabel: end ? `${start.format('h:mm A')} - ${end.format('h:mm A')}` : start.format('h:mm A')
+      };
+    }
+
+    if (lesson.date || lesson.time) {
+      return {
+        dateLabel: lesson.date || '',
+        timeLabel: lesson.time || ''
+      };
+    }
+
+    return { dateLabel: '', timeLabel: '' };
+  };
+
+  const { dateLabel, timeLabel } = resolveDateTime();
 
   const title =
     lesson.type === 'group'
@@ -85,11 +112,11 @@ const LessonDetailModal = ({
                   <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div>
                       <span className="text-gray-500">Date:</span>
-                      <span className="ml-2 font-medium">{lesson.date}</span>
+                      <span className="ml-2 font-medium">{dateLabel}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Time:</span>
-                      <span className="ml-2 font-medium">{lesson.time}</span>
+                      <span className="ml-2 font-medium">{timeLabel}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Duration:</span>
@@ -158,11 +185,11 @@ const LessonDetailModal = ({
                   <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div>
                       <span className="text-gray-500">Date:</span>
-                      <span className="ml-2 font-medium">{lesson.date}</span>
+                      <span className="ml-2 font-medium">{dateLabel}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Time:</span>
-                      <span className="ml-2 font-medium">{lesson.time}</span>
+                      <span className="ml-2 font-medium">{timeLabel}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Duration:</span>
@@ -206,11 +233,11 @@ const LessonDetailModal = ({
                     </div>
                     <div>
                       <span className="text-gray-500">Date:</span>
-                      <span className="ml-2 font-medium">{lesson.date}</span>
+                      <span className="ml-2 font-medium">{dateLabel}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Time:</span>
-                      <span className="ml-2 font-medium">{lesson.time}</span>
+                      <span className="ml-2 font-medium">{timeLabel}</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Duration:</span>
@@ -395,6 +422,15 @@ const LessonDetailModal = ({
                   className="flex-1 rounded-lg bg-red-50 px-4 py-2 text-red-600 transition hover:bg-red-100 sm:flex-none"
                 >
                   Cancel Lesson
+                </button>
+              )}
+              {lesson.type === 'available' && (
+                <button
+                  type="button"
+                  onClick={() => onCreateLesson?.(lesson)}
+                  className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-white transition hover:bg-green-700 sm:flex-none"
+                >
+                  Create Lesson
                 </button>
               )}
               <button

@@ -45,22 +45,75 @@ const parseJsonSafely = async (response) => {
   }
 };
 
+import { getAccessToken } from '../utils/tokenHelper';
+
+const normalizeScheduleTime = (value) => {
+  if (!value) {
+    return value;
+  }
+
+  const raw = String(value).trim();
+  if (/^\d{2}:\d{2}$/.test(raw)) {
+    return `${raw}:00`;
+  }
+  return raw;
+};
+
+const buildSchedulePayload = (payload = {}) => {
+  const dayValue = payload.day || payload.dayOfWeek;
+  const dateValue = payload.date;
+  let day = dayValue ? String(dayValue).toUpperCase() : '';
+
+  if (!day && dateValue) {
+    const parsed = new Date(dateValue);
+    if (!Number.isNaN(parsed.getTime())) {
+      day = parsed.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+    }
+  }
+
+  const normalized = {
+    from: normalizeScheduleTime(payload.from || payload.start || payload.startTime),
+    to: normalizeScheduleTime(payload.to || payload.end || payload.endTime || payload.finish),
+    day,
+    location_id:
+      payload.location_id ??
+      payload.locationId ??
+      payload.location?.id ??
+      payload.location?.location_id,
+    court: payload.court ?? payload.courtId ?? payload.court_id ?? null
+  };
+
+  Object.keys(normalized).forEach((key) => {
+    if (normalized[key] === undefined || normalized[key] === '') {
+      delete normalized[key];
+    }
+  });
+
+  return normalized;
+};
+
 const request = async (path, options = {}) => {
   const { headers = {}, body, method = 'GET', ...rest } = options;
+  const accessToken = await getAccessToken();
 
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const payload =
     body && typeof body === 'object' && !isFormData && !(body instanceof ArrayBuffer)
       ? JSON.stringify(body)
       : body;
+  const resolvedHeaders = {
+    ...(payload && !isFormData ? { 'Content-Type': 'application/json' } : {}),
+    ...headers
+  };
+
+  if (accessToken && !('Authorization' in resolvedHeaders) && !('authorization' in resolvedHeaders)) {
+    resolvedHeaders.Authorization = `Bearer ${accessToken}`;
+  }
 
   const response = await fetch(buildUrl(path), {
     method,
     body: payload,
-    headers: {
-      ...(payload && !isFormData ? { 'Content-Type': 'application/json' } : {}),
-      ...headers
-    },
+    headers: resolvedHeaders,
     ...rest
   });
 
@@ -84,9 +137,107 @@ const request = async (path, options = {}) => {
   return parseJsonSafely(response);
 };
 
-export const getCoachStudents = () => request('/coach/students');
+export const getCoachStudents = ({ perPage, page, search } = {}) => {
+  const params = new URLSearchParams();
 
-export const getCoachLessons = () => request('/coach/lessons');
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  if (search) {
+    params.set('search', search);
+  }
+
+  const query = params.toString();
+  const path = query ? `/coach/players?${query}` : '/coach/players';
+  return request(path);
+};
+
+export const getCoachLessons = ({ perPage = 50, page = 1, date } = {}) => {
+  if (date) {
+    return request(`/coach/lessons/${date}`);
+  }
+
+  const params = new URLSearchParams();
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query ? `/coach/lessons?${query}` : '/coach/lessons';
+  return request(path);
+};
+
+export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) => {
+  if (!playerId) {
+    throw new Error('A player id is required to fetch previous lessons.');
+  }
+
+  const params = new URLSearchParams();
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query
+    ? `/coach/player_previous_lessons/${playerId}?${query}`
+    : `/coach/player_previous_lessons/${playerId}`;
+  return request(path);
+};
+
+export const getActivePlayerPackages = ({ playerId, player_id, search, perPage, page } = {}) => {
+  const params = new URLSearchParams();
+  const resolvedPlayerId = playerId ?? player_id;
+
+  if (resolvedPlayerId !== undefined && resolvedPlayerId !== null && resolvedPlayerId !== '') {
+    params.set('playerId', String(resolvedPlayerId));
+  }
+
+  if (search) {
+    params.set('search', search);
+  }
+
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query ? `/players/packages/active?${query}` : '/players/packages/active';
+  return request(path);
+};
+
+export const updateCoachPlayer = ({ playerId, status = 'PENDING', discountPercentage } = {}) => {
+  if (!playerId) {
+    throw new Error('A player id is required to update roster status.');
+  }
+
+  const payload = {
+    status
+  };
+
+  if (typeof discountPercentage === 'number') {
+    payload.discount_percentage = discountPercentage;
+  }
+
+  return request(`/coach/players/${playerId}`, {
+    method: 'PATCH',
+    body: payload
+  });
+};
 
 export const updateCoachLesson = (lessonId, payload) => {
   if (!lessonId) {
@@ -99,20 +250,53 @@ export const updateCoachLesson = (lessonId, payload) => {
   });
 };
 
-export const getCoachAvailability = () => request('/coach/availability');
+export const getCoachAvailability = () => request('/coach/schedule');
 
 export const createCoachAvailability = (payload) =>
-  request('/coach/availability', {
+  request('/coach/schedule', {
     method: 'POST',
-    body: payload
+    body: buildSchedulePayload(payload)
   });
+
+export const createCoachAvailabilityBulk = (payload = []) => {
+  if (!Array.isArray(payload) || payload.length === 0) {
+    return Promise.resolve([]);
+  }
+
+  return request('/coach/schedule/bulk', {
+    method: 'POST',
+    body: payload.map((item) => buildSchedulePayload(item))
+  });
+};
+
+export const updateCoachAvailability = (scheduleId, payload = {}) => {
+  if (!scheduleId) {
+    throw new Error('A schedule id is required to update availability.');
+  }
+
+  return request(`/coach/schedule/${scheduleId}`, {
+    method: 'PATCH',
+    body: buildSchedulePayload(payload)
+  });
+};
+
+export const replaceCoachAvailability = (scheduleId, payload = {}) => {
+  if (!scheduleId) {
+    throw new Error('A schedule id is required to replace availability.');
+  }
+
+  return request(`/coach/schedule/${scheduleId}`, {
+    method: 'PUT',
+    body: buildSchedulePayload(payload)
+  });
+};
 
 export const deleteCoachAvailability = (availabilityId) => {
   if (!availabilityId) {
     throw new Error('An availability id is required to delete a slot.');
   }
 
-  return request(`/coach/availability/${availabilityId}`, {
+  return request(`/coach/schedule/${availabilityId}`, {
     method: 'DELETE'
   });
 };
@@ -122,9 +306,14 @@ export const getCoachStats = () => request('/coach/stats');
 export default {
   getCoachStudents,
   getCoachLessons,
+  getActivePlayerPackages,
+  createCoachAvailability,
+  createCoachAvailabilityBulk,
+  updateCoachAvailability,
+  replaceCoachAvailability,
+  updateCoachPlayer,
   updateCoachLesson,
   getCoachAvailability,
-  createCoachAvailability,
   deleteCoachAvailability,
   getCoachStats
 };

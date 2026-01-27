@@ -14,13 +14,63 @@ const emptyAvailability = {
   blockedSlots: []
 };
 
+const toLessonDateTime = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toTimeString = (date) => {
+  if (!date) {
+    return '';
+  }
+
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+const normaliseLesson = (lesson) => {
+  if (!lesson || typeof lesson !== 'object') {
+    return lesson;
+  }
+
+  if (lesson.date && lesson.time) {
+    return lesson;
+  }
+
+  const start = toLessonDateTime(lesson.start_date_time || lesson.startDateTime || lesson.start);
+  const end = toLessonDateTime(lesson.end_date_time || lesson.endDateTime || lesson.end);
+  const durationMinutes = start && end ? Math.max(0, (end - start) / 60000) : null;
+  const durationSlots = durationMinutes !== null ? Math.max(1, Math.round(durationMinutes / 30)) : 2;
+
+  const typeLabel = lesson.lesson_type_name || lesson.lessonType || lesson.type || '';
+  const statusValue = lesson.status;
+  const lessonStatus = statusValue === 0 ? 'pending' : lesson.lessonStatus || 'scheduled';
+
+  return {
+    ...lesson,
+    id: lesson.id ?? lesson.lesson_id ?? lesson.lessonId,
+    date: start ? start.toISOString().split('T')[0] : lesson.date,
+    time: start ? toTimeString(start) : lesson.time,
+    duration: lesson.duration ?? durationSlots,
+    type: typeof typeLabel === 'string' ? typeLabel.toLowerCase() : lesson.type,
+    student: lesson.student || lesson.full_name || lesson.player_name || lesson.playerName || '',
+    location: lesson.location || lesson.court || lesson.venue || '',
+    lessonStatus
+  };
+};
+
 const normaliseLessons = (payload) => {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload.map(normaliseLesson);
   }
 
   if (payload && Array.isArray(payload.lessons)) {
-    return payload.lessons;
+    return payload.lessons.map(normaliseLesson);
   }
 
   return [];
@@ -88,10 +138,10 @@ const normaliseAvailability = (payload) => {
       return;
     }
 
-    const day = slot.dayOfWeek || slot.day;
-    const start = slot.start || slot.startTime;
-    const end = slot.end || slot.endTime;
-    const location = slot.location || slot.court || slot.venue || '';
+    const day = (slot.dayOfWeek || slot.day || slot.day_of_week || '').toString().trim();
+    const start = slot.start || slot.startTime || slot.from;
+    const end = slot.end || slot.endTime || slot.to;
+    const location = slot.location || slot.location_name || slot.court || slot.venue || '';
 
     addWeeklySlot(availability, day, start, end, location);
   };
@@ -134,6 +184,7 @@ const normaliseAvailability = (payload) => {
         registerWeeklySlot(slot);
       }
     });
+    availability.schedule = payload;
     return availability;
   }
 
@@ -219,7 +270,23 @@ const normaliseStats = (payload) => {
   return payload;
 };
 
-export const useCoachSchedule = ({ enabled = true } = {}) => {
+const formatLocalDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
   const [lessons, setLessons] = useState([]);
   const [availability, setAvailability] = useState({ ...emptyAvailability });
   const [stats, setStats] = useState(null);
@@ -228,7 +295,7 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
   const [mutationLoading, setMutationLoading] = useState(false);
   const [mutationError, setMutationError] = useState(null);
 
-  const fetchSchedule = useCallback(async () => {
+  const fetchSchedule = useCallback(async (requestedDate, requestedDates) => {
     if (!enabled) {
       setLoading(false);
       return;
@@ -236,28 +303,68 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
 
     setLoading(true);
     try {
+      const resolvedDate = formatLocalDate(requestedDate);
+      const resolvedDates = Array.isArray(requestedDates)
+        ? requestedDates
+            .map((value) => formatLocalDate(value))
+            .filter(Boolean)
+            .filter((value, index, self) => self.indexOf(value) === index)
+        : [];
+      const lessonPromises =
+        resolvedDates.length > 0
+          ? resolvedDates.map((value) => getCoachLessons({ date: value }))
+          : [resolvedDate ? getCoachLessons({ date: resolvedDate }) : getCoachLessons({ perPage: 100, page: 1 })];
       const [lessonsResult, availabilityResult, statsResult] = await Promise.allSettled([
-        getCoachLessons(),
+        Promise.allSettled(lessonPromises),
         getCoachAvailability(),
         getCoachStats()
       ]);
 
+      let fetchError = null;
+
       if (lessonsResult.status === 'fulfilled') {
-        setLessons(normaliseLessons(lessonsResult.value));
-      } else {
-        throw lessonsResult.reason;
+        const lessonResults = lessonsResult.value;
+        const lessonPayloads = [];
+        let lessonError = null;
+
+        lessonResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const payload = result.value;
+            if (Array.isArray(payload)) {
+              lessonPayloads.push(...payload);
+            } else if (payload && Array.isArray(payload.lessons)) {
+              lessonPayloads.push(...payload.lessons);
+            }
+          } else if (!lessonError) {
+            lessonError = result.reason;
+          }
+        });
+
+        setLessons(normaliseLessons(lessonPayloads));
+        if (lessonPayloads.length === 0 && lessonError && !fetchError) {
+          fetchError = lessonError;
+        }
+      } else if (!fetchError) {
+        fetchError = lessonsResult.reason;
       }
 
       if (availabilityResult.status === 'fulfilled') {
         setAvailability(normaliseAvailability(availabilityResult.value));
-      } else {
-        throw availabilityResult.reason;
+      } else if (!fetchError) {
+        fetchError = availabilityResult.reason;
       }
 
       if (statsResult.status === 'fulfilled') {
         setStats(normaliseStats(statsResult.value));
       } else {
         setStats(null);
+        if (!fetchError) {
+          fetchError = statsResult.reason;
+        }
+      }
+
+      if (fetchError) {
+        throw fetchError;
       }
 
       setError(null);
@@ -275,10 +382,13 @@ export const useCoachSchedule = ({ enabled = true } = {}) => {
       return;
     }
 
-    fetchSchedule();
-  }, [enabled, fetchSchedule]);
+    fetchSchedule(date, dates);
+  }, [date, dates, enabled, fetchSchedule]);
 
-  const refresh = useCallback(() => fetchSchedule(), [fetchSchedule]);
+  const refresh = useCallback(
+    (nextDate, nextDates) => fetchSchedule(nextDate ?? date, nextDates ?? dates),
+    [date, dates, fetchSchedule]
+  );
 
   const addAvailabilitySlot = useCallback(
     async (slot) => {
