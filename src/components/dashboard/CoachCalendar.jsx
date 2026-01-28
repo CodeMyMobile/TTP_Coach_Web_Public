@@ -235,6 +235,24 @@ const CoachCalendar = ({
 console.log("events",events);
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-xs font-medium text-gray-600">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#e63946]" />
+          Private
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#f4a261]" />
+          Semi-Private
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#2a9d8f]" />
+          Open Group
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#8ecae6]" />
+          Availability
+        </span>
+      </div>
       <Calendar
         localizer={localizer}
         events={resolvedEvents}
