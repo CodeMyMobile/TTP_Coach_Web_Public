@@ -903,12 +903,19 @@ function App() {
         return;
       }
       payload.player_id = Number(form.playerIds[0]);
+      delete payload.recurrence;
     } else if (payload.lessontype_id === 2) {
       if (!Array.isArray(form.playerIds) || form.playerIds.length === 0) {
         setLessonSubmitError('Select at least one player for a semi-private lesson.');
         return;
       }
+      if (!form.price_per_person) {
+        setLessonSubmitError('Enter a price per person for a semi-private lesson.');
+        return;
+      }
       payload.player_ids_arr = form.playerIds.map((id) => ({ player_id: Number(id) }));
+      payload.price_per_person = Number(form.price_per_person);
+      delete payload.recurrence;
     } else if (payload.lessontype_id === 3) {
       if (!form.price_per_person) {
         setLessonSubmitError('Enter a price per person for open group lessons.');
