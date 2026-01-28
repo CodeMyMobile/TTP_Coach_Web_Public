@@ -42,17 +42,39 @@ const getWeekStart = (date) => {
   return start;
 };
 
+const parseLessonDateTime = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed =  moment(String(value).replace(/Z$/, '')).toDate();
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  const fallback = moment(String(value)).toDate();
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+};
+
 const buildLessonEvents = (lessons) =>
   (Array.isArray(lessons) ? lessons : []).flatMap((lesson) => {
-    const startDateTime = lesson.start_date_time || lesson.startDateTime;
-    const endDateTime = lesson.end_date_time || lesson.endDateTime;
+    const startDateTime =
+      lesson.start_date_time ||
+      lesson.start_date_time_tz ||
+      lesson.startDateTime ||
+      lesson.startDateTimeTz ||
+      lesson.start;
+    const endDateTime =
+      lesson.end_date_time ||
+      lesson.end_date_time_tz ||
+      lesson.endDateTime ||
+      lesson.endDateTimeTz ||
+      lesson.end;
 
     const start = startDateTime
-      ? moment(String(startDateTime).replace(/Z$/, '')).toDate()
+      ? parseLessonDateTime(startDateTime)
       : toDateTime(lesson.date, lesson.time);
-    let end = endDateTime
-      ? moment(String(endDateTime).replace(/Z$/, '')).toDate()
-      : null;
+    let end = endDateTime ? parseLessonDateTime(endDateTime) : null;
 
     if (!start || Number.isNaN(start.getTime())) {
       return [];
@@ -68,6 +90,7 @@ const buildLessonEvents = (lessons) =>
       end,
       title: lesson.metadata?.title || lesson.lesson_type_name || lesson.type || 'Lesson',
       resource: lesson,
+      lessonType: lesson.lessontype_id || lesson.lesson_type_id || lesson.lessonTypeId,
       type: 'lesson'
     }];
   });
@@ -266,6 +289,27 @@ console.log("events",events);
         }}
         eventPropGetter={(event) => {
           if (event.type === 'lesson') {
+            const lessonType = Number(event.lessonType ?? event.resource?.lessontype_id ?? event.resource?.lesson_type_id);
+            if (lessonType === 2) {
+              return {
+                style: {
+                  backgroundColor: '#f4a261',
+                  borderColor: '#e76f51',
+                  borderRadius: '4px',
+                  color: 'white'
+                }
+              };
+            }
+            if (lessonType === 3) {
+              return {
+                style: {
+                  backgroundColor: '#2a9d8f',
+                  borderColor: '#1f7a69',
+                  borderRadius: '4px',
+                  color: 'white'
+                }
+              };
+            }
             return {
               style: {
                 backgroundColor: '#e63946',
