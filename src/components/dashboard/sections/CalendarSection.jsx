@@ -10,6 +10,7 @@ const CalendarSection = ({
   onRangeChange,
   lessons,
   availability,
+  googleEvents,
   onLessonSelect,
   onAvailabilitySelect,
   onEmptySlotSelect,
@@ -82,6 +83,7 @@ const CalendarSection = ({
         <CoachCalendar
           lessons={lessons}
           availability={availability}
+          googleEvents={googleEvents}
           currentDate={currentDate}
           onDateChange={onCurrentDateChange}
           onRangeChange={onRangeChange}

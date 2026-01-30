@@ -4,6 +4,7 @@ import {
   getCoachAvailability,
   getCoachLessons,
   getCoachStats,
+  getGoogleCalendarSyncedEvents,
   updateCoachLesson
 } from '../services/coach';
 
@@ -290,6 +291,7 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
   const [lessons, setLessons] = useState([]);
   const [availability, setAvailability] = useState({ ...emptyAvailability });
   const [stats, setStats] = useState(null);
+  const [googleEvents, setGoogleEvents] = useState([]);
   const [loading, setLoading] = useState(Boolean(enabled));
   const [error, setError] = useState(null);
   const [mutationLoading, setMutationLoading] = useState(false);
@@ -314,10 +316,16 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
         resolvedDates.length > 0
           ? resolvedDates.map((value) => getCoachLessons({ date: value }))
           : [resolvedDate ? getCoachLessons({ date: resolvedDate }) : getCoachLessons({ perPage: 100, page: 1 })];
-      const [lessonsResult, availabilityResult, statsResult] = await Promise.allSettled([
+      const rangeDates = resolvedDates.length > 0 ? [...resolvedDates].sort() : (resolvedDate ? [resolvedDate] : []);
+      const rangeMin = rangeDates.length > 0 ? `${rangeDates[0]}T00:00:00.000Z` : null;
+      const rangeMax = rangeDates.length > 0 ? `${rangeDates[rangeDates.length - 1]}T23:59:59.999Z` : null;
+      const [lessonsResult, availabilityResult, statsResult, googleResult] = await Promise.allSettled([
         Promise.allSettled(lessonPromises),
         getCoachAvailability(),
-        getCoachStats()
+        getCoachStats(),
+        rangeMin && rangeMax
+          ? getGoogleCalendarSyncedEvents({ timeMin: rangeMin, timeMax: rangeMax })
+          : Promise.resolve([])
       ]);
 
       let fetchError = null;
@@ -361,6 +369,16 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
         if (!fetchError) {
           fetchError = statsResult.reason;
         }
+      }
+
+      if (googleResult.status === 'fulfilled') {
+        const payload = googleResult.value;
+        const items = Array.isArray(payload)
+          ? payload
+          : payload?.events || payload?.items || [];
+        setGoogleEvents(items);
+      } else {
+        setGoogleEvents([]);
       }
 
       if (fetchError) {
@@ -454,6 +472,7 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
     lessons,
     availability,
     stats,
+    googleEvents,
     loading,
     error,
     refresh,

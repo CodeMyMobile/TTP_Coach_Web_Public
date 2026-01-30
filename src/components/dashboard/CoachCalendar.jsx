@@ -188,6 +188,7 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
 const CoachCalendar = ({
   lessons = [],
   availability = null,
+  googleEvents = [],
   events = null,
   currentDate,
   onDateChange,
@@ -206,8 +207,79 @@ const CoachCalendar = ({
 
     const lessonEvents = buildLessonEvents(lessons);
     const availabilityEvents = buildAvailabilityEvents(availability, currentDate || new Date());
-    return [...availabilityEvents, ...lessonEvents];
-  }, [events, lessons, availability, currentDate]);
+    const busyEvents = (Array.isArray(googleEvents) ? googleEvents : []).map((event) => {
+      const startValue =
+        event.start_datetime ||
+        event.start?.dateTime ||
+        event.start?.date ||
+        event.raw_payload?.start?.dateTime ||
+        event.raw_payload?.start?.date;
+      const endValue =
+        event.end_datetime ||
+        event.end?.dateTime ||
+        event.end?.date ||
+        event.raw_payload?.end?.dateTime ||
+        event.raw_payload?.end?.date;
+      const start = startValue ? new Date(startValue) : null;
+      const end = endValue ? new Date(endValue) : null;
+      return {
+        start,
+        end,
+        allDay: Boolean(event.all_day) || Boolean(event.start?.date && !event.start?.dateTime),
+        source: event
+      };
+    }).filter((event) => event.start && event.end);
+
+    const subtractBusy = (slots, busy) => {
+      const byDay = new Map();
+      busy.forEach((event) => {
+        const key = event.start.toLocaleDateString('en-CA');
+        if (!byDay.has(key)) {
+          byDay.set(key, []);
+        }
+        byDay.get(key).push(event);
+      });
+
+      return slots.flatMap((slot) => {
+        const key = slot.start.toLocaleDateString('en-CA');
+        const busyList = byDay.get(key) || [];
+        if (busyList.length === 0) {
+          return [slot];
+        }
+
+        let segments = [{ start: slot.start, end: slot.end }];
+        busyList.forEach((event) => {
+          if (event.allDay) {
+            segments = [];
+            return;
+          }
+          segments = segments.flatMap((segment) => {
+            if (event.end <= segment.start || event.start >= segment.end) {
+              return [segment];
+            }
+            const updated = [];
+            if (event.start > segment.start) {
+              updated.push({ start: segment.start, end: event.start });
+            }
+            if (event.end < segment.end) {
+              updated.push({ start: event.end, end: segment.end });
+            }
+            return updated;
+          });
+        });
+
+        return segments.map((segment) => ({
+          ...slot,
+          start: segment.start,
+          end: segment.end,
+          title: slot.title
+        }));
+      });
+    };
+
+    const availabilityMinusBusy = subtractBusy(availabilityEvents, busyEvents);
+    return [...availabilityMinusBusy, ...lessonEvents];
+  }, [events, lessons, availability, currentDate, googleEvents]);
 
   useEffect(() => {
     const lessonEvents = resolvedEvents.filter((event) => event.type === 'lesson');
