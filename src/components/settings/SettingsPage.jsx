@@ -491,9 +491,22 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
                   </div>
                 )}
                 {googleEvents.map((event, index) => {
-                  const startValue = event.start?.dateTime || event.start?.date;
-                  const endValue = event.end?.dateTime || event.end?.date;
-                  const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
+                  const startValue =
+                    event.start_datetime ||
+                    event.start?.dateTime ||
+                    event.start?.date ||
+                    event.raw_payload?.start?.dateTime ||
+                    event.raw_payload?.start?.date;
+                  const endValue =
+                    event.end_datetime ||
+                    event.end?.dateTime ||
+                    event.end?.date ||
+                    event.raw_payload?.end?.dateTime ||
+                    event.raw_payload?.end?.date;
+                  const isAllDay =
+                    Boolean(event.all_day) ||
+                    Boolean(event.start?.date && !event.start?.dateTime) ||
+                    Boolean(event.raw_payload?.start?.date && !event.raw_payload?.start?.dateTime);
                   return (
                     <div key={`${event.id || event.summary || 'event'}-${index}`} className="rounded-xl border border-slate-200 p-4">
                       <div className="flex items-center justify-between">
