@@ -341,6 +341,7 @@ function App() {
     lessons,
     availability: scheduleAvailability,
     stats: scheduleStats,
+    googleEvents: scheduleGoogleEvents,
     loading: scheduleLoading,
     error: scheduleError,
     refresh: refreshSchedule,
@@ -1186,6 +1187,7 @@ function App() {
           studentsPerPage={studentsPerPage}
           lessonsData={lessons}
           availabilityData={scheduleAvailability}
+          googleEvents={scheduleGoogleEvents}
           statsData={scheduleStats}
           scheduleLoading={scheduleLoading}
           scheduleError={scheduleError}

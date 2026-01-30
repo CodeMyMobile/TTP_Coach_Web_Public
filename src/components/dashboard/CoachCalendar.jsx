@@ -226,7 +226,9 @@ const CoachCalendar = ({
         start,
         end,
         allDay: Boolean(event.all_day) || Boolean(event.start?.date && !event.start?.dateTime),
-        source: event
+        title: event.summary || event.raw_payload?.summary || 'Busy',
+        resource: event,
+        type: 'busy'
       };
     }).filter((event) => event.start && event.end);
 
@@ -278,7 +280,7 @@ const CoachCalendar = ({
     };
 
     const availabilityMinusBusy = subtractBusy(availabilityEvents, busyEvents);
-    return [...availabilityMinusBusy, ...lessonEvents];
+    return [...availabilityMinusBusy, ...lessonEvents, ...busyEvents];
   }, [events, lessons, availability, currentDate, googleEvents]);
 
   useEffect(() => {
@@ -323,6 +325,10 @@ console.log("events",events);
         <span className="inline-flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-sm bg-[#8ecae6]" />
           Availability
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#334155]" />
+          Busy (Google)
         </span>
       </div>
       <Calendar
@@ -406,6 +412,17 @@ console.log("events",events);
                 borderColor: '#a62030',
                 borderRadius: '4px',
                 color: 'white'
+              }
+            };
+          }
+          if (event.type === 'busy') {
+            return {
+              style: {
+                backgroundColor: '#334155',
+                borderColor: '#0f172a',
+                borderRadius: '6px',
+                color: 'white',
+                opacity: 0.85
               }
             };
           }
