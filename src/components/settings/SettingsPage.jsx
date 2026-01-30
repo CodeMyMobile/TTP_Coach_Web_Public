@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addCoachProfile, getCoachProfile, updateProfileDetails } from '../../api/CoachApi/profileScreen';
 import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
+import { useGoogleCalendarSync } from '../../hooks/useGoogleCalendarSync';
 import useAuth from '../../hooks/useAuth';
 
 const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
@@ -27,6 +28,20 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
     accountId: '',
     chargesEnabled: false,
     chargesDisabledReason: ''
+  });
+  const { getAuthUrl, syncEvents, getSyncedEvents } = useGoogleCalendarSync();
+  const authToken = user?.session?.access_token || localStorage.getItem('token') || '';
+  const [googleError, setGoogleError] = useState(null);
+  const [googleStatus, setGoogleStatus] = useState('unknown');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleSyncLoading, setGoogleSyncLoading] = useState(false);
+  const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
+  const [googleSyncResult, setGoogleSyncResult] = useState(null);
+  const [googleEvents, setGoogleEvents] = useState([]);
+  const [lastGoogleSyncAt, setLastGoogleSyncAt] = useState(() => localStorage.getItem('google_calendar_last_sync') || '');
+  const [activeMonth, setActiveMonth] = useState(() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() };
   });
   const [stripeActionLoading, setStripeActionLoading] = useState(false);
   const [stripeActionError, setStripeActionError] = useState(null);
@@ -77,6 +92,26 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (lastGoogleSyncAt) {
+      localStorage.setItem('google_calendar_last_sync', lastGoogleSyncAt);
+    }
+  }, [lastGoogleSyncAt]);
+
+  const monthLabel = useMemo(() => {
+    const date = new Date(activeMonth.year, activeMonth.month, 1);
+    return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
+  }, [activeMonth.month, activeMonth.year]);
+
+  const timeRange = useMemo(() => {
+    const start = new Date(activeMonth.year, activeMonth.month, 1, 0, 0, 0, 0);
+    const end = new Date(activeMonth.year, activeMonth.month + 1, 0, 23, 59, 59, 999);
+    return {
+      timeMin: start.toISOString(),
+      timeMax: end.toISOString()
+    };
+  }, [activeMonth.month, activeMonth.year]);
 
   useEffect(() => {
     return () => {
@@ -160,6 +195,97 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
       setStripeActionLoading(false);
     }
   }, [openStripeWindow]);
+
+  const handleGoogleConnect = useCallback(async () => {
+    setGoogleError(null);
+    setGoogleLoading(true);
+    try {
+      if (!authToken) {
+        throw new Error('Unauthorized. Please sign in again.');
+      }
+      const payload = await getAuthUrl({ token: authToken });
+      const redirectUrl =
+        payload?.redirect_url || payload?.url || payload?.auth_url || payload?.authorization_url;
+      if (!redirectUrl) {
+        throw new Error('No Google auth URL returned.');
+      }
+      window.location.assign(redirectUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect Google Calendar.';
+      setGoogleError(message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [authToken, getAuthUrl]);
+
+  const handleGoogleSync = useCallback(async () => {
+    setGoogleError(null);
+    setGoogleSyncResult(null);
+    setGoogleSyncLoading(true);
+    try {
+      if (!authToken) {
+        throw new Error('Unauthorized. Please sign in again.');
+      }
+      const payload = await syncEvents({
+        token: authToken,
+        timeMin: timeRange.timeMin,
+        timeMax: timeRange.timeMax
+      });
+      setGoogleSyncResult(payload);
+      setLastGoogleSyncAt(new Date().toISOString());
+      setGoogleStatus('connected');
+    } catch (err) {
+      const status = err?.status;
+      if (status === 404) {
+        setGoogleStatus('not_connected');
+        setGoogleError('Google Calendar not connected.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to sync Google Calendar.';
+        setGoogleError(message);
+      }
+    } finally {
+      setGoogleSyncLoading(false);
+    }
+  }, [authToken, syncEvents, timeRange.timeMax, timeRange.timeMin]);
+
+  const handleLoadSyncedEvents = useCallback(async () => {
+    setGoogleError(null);
+    setGoogleEventsLoading(true);
+    try {
+      if (!authToken) {
+        throw new Error('Unauthorized. Please sign in again.');
+      }
+      const payload = await getSyncedEvents({
+        token: authToken,
+        timeMin: timeRange.timeMin,
+        timeMax: timeRange.timeMax
+      });
+      const items = Array.isArray(payload) ? payload : payload?.events || payload?.items || [];
+      setGoogleEvents(items);
+      setGoogleStatus('connected');
+    } catch (err) {
+      const status = err?.status;
+      if (status === 404) {
+        setGoogleStatus('not_connected');
+        setGoogleError('Google Calendar not connected.');
+      } else if (status === 401 || status === 403) {
+        setGoogleError('Unauthorized. Please sign in again.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to load synced events.';
+        setGoogleError(message);
+      }
+      setGoogleEvents([]);
+    } finally {
+      setGoogleEventsLoading(false);
+    }
+  }, [authToken, getSyncedEvents, timeRange.timeMax, timeRange.timeMin]);
+
+  const shiftGoogleMonth = (offset) => {
+    setActiveMonth((prev) => {
+      const date = new Date(prev.year, prev.month + offset, 1);
+      return { year: date.getFullYear(), month: date.getMonth() };
+    });
+  };
 
   const handleSave = async () => {
     setAction(null);
@@ -273,6 +399,124 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
             {action?.message || error || stripeActionError}
           </div>
         )}
+
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Google Calendar Sync</h2>
+              <p className="text-sm text-slate-500">
+                Sync Google events to block availability automatically.
+              </p>
+            </div>
+            {googleStatus === 'connected' && lastGoogleSyncAt && (
+              <div className="text-xs text-slate-400">
+                Last synced {new Date(lastGoogleSyncAt).toLocaleString()}
+              </div>
+            )}
+          </div>
+
+          {googleError && (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              {googleError}
+            </div>
+          )}
+
+          {googleStatus === 'not_connected' && (
+            <button
+              type="button"
+              onClick={handleGoogleConnect}
+              disabled={googleLoading}
+              className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+            >
+              {googleLoading ? 'Connecting…' : 'Connect Google Calendar'}
+            </button>
+          )}
+
+          {googleStatus !== 'not_connected' && (
+            <div className="mt-4 space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => shiftGoogleMonth(-1)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50"
+                >
+                  Prev
+                </button>
+                <span className="font-medium">{monthLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => shiftGoogleMonth(1)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50"
+                >
+                  Next
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleGoogleSync}
+                  disabled={googleSyncLoading}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                >
+                  {googleSyncLoading ? 'Syncing…' : 'Sync Now'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadSyncedEvents}
+                  disabled={googleEventsLoading}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {googleEventsLoading ? 'Loading…' : 'View Synced Events'}
+                </button>
+              </div>
+
+              {googleSyncResult && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  Synced events. Fetched: {googleSyncResult.fetched ?? 0}, Upserted: {googleSyncResult.upserted ?? 0},
+                  Deleted: {googleSyncResult.deleted ?? 0}.
+                </div>
+              )}
+
+              {googleEvents.length > 0 && (
+                <div className="text-xs text-slate-500">
+                  These events block availability automatically.
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {googleEvents.length === 0 && !googleEventsLoading && (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                    No synced events in this month.
+                  </div>
+                )}
+                {googleEvents.map((event, index) => {
+                  const startValue = event.start?.dateTime || event.start?.date;
+                  const endValue = event.end?.dateTime || event.end?.date;
+                  const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
+                  return (
+                    <div key={`${event.id || event.summary || 'event'}-${index}`} className="rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold text-slate-900">
+                          {event.summary || 'Untitled event'}
+                        </div>
+                        {isAllDay && (
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">All day</span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-500">
+                        {startValue ? new Date(startValue).toLocaleString() : 'TBD'} → {endValue ? new Date(endValue).toLocaleString() : 'TBD'}
+                      </div>
+                      {event.location && (
+                        <div className="mt-1 text-xs text-slate-400">{event.location}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           {loading ? (

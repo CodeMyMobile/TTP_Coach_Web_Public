@@ -1,13 +1,4 @@
-const resolveBaseUrl = () => {
-  const meta = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
-  const candidate = meta.VITE_API_BASE_URL || meta.VITE_API_URL || meta.API_BASE_URL || '';
-  if (!candidate) {
-    return '';
-  }
-  return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate;
-};
-
-const API_BASE_URL = resolveBaseUrl();
+const API_BASE_URL = 'http://localhost:3000';
 
 const buildUrl = (path) => {
   if (!path) {
@@ -31,9 +22,9 @@ const parseJsonSafely = async (response) => {
   }
 };
 
-const request = async (path, token) => {
+const request = async (path, token, method = 'GET') => {
   const response = await fetch(buildUrl(path), {
-    method: 'GET',
+    method,
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -57,26 +48,10 @@ export const useGoogleCalendarSync = () => {
     if (!token) {
       throw new Error('Auth token is required.');
     }
-    return request('/coach/google-calendar/auth-url', token);
+    return request('/api/coach/google-calendar/auth-url', token);
   };
 
-  const exchangeAuthCode = async ({ token, code, state }) => {
-    if (!token) {
-      throw new Error('Auth token is required.');
-    }
-    if (!code) {
-      throw new Error('Authorization code is required.');
-    }
-    const params = new URLSearchParams();
-    params.set('code', code);
-    if (state) {
-      params.set('state', state);
-    }
-    const path = `/coach/google-calendar/callback?${params.toString()}`;
-    return request(path, token);
-  };
-
-  const getEvents = async ({ token, timeMin, timeMax }) => {
+  const syncEvents = async ({ token, timeMin, timeMax }) => {
     if (!token) {
       throw new Error('Auth token is required.');
     }
@@ -89,15 +64,33 @@ export const useGoogleCalendarSync = () => {
     }
     const query = params.toString();
     const path = query
-      ? `/coach/google-calendar/events?${query}`
-      : '/coach/google-calendar/events';
+      ? `/api/coach/google-calendar/sync?${query}`
+      : '/api/coach/google-calendar/sync';
+    return request(path, token, 'POST');
+  };
+
+  const getSyncedEvents = async ({ token, timeMin, timeMax }) => {
+    if (!token) {
+      throw new Error('Auth token is required.');
+    }
+    const params = new URLSearchParams();
+    if (timeMin) {
+      params.set('timeMin', timeMin);
+    }
+    if (timeMax) {
+      params.set('timeMax', timeMax);
+    }
+    const query = params.toString();
+    const path = query
+      ? `/api/coach/google-calendar/synced-events?${query}`
+      : '/api/coach/google-calendar/synced-events';
     return request(path, token);
   };
 
   return {
     getAuthUrl,
-    exchangeAuthCode,
-    getEvents
+    syncEvents,
+    getSyncedEvents
   };
 };
 
