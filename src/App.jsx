@@ -21,6 +21,7 @@ import {
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
 import SettingsPage from './components/settings/SettingsPage';
+import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
@@ -172,6 +173,8 @@ function App() {
   const isDashboardRoute = currentPath === '/dashboard';
   const isSettingsRoute = currentPath === '/settings';
   const isNotificationsRoute = currentPath === '/notifications';
+  const isGoogleCalendarRoute = currentPath === '/google-calendar';
+  const isGoogleRedirectRoute = currentPath === '/redirect';
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -242,10 +245,27 @@ function App() {
       return;
     }
 
-    if (isAuthenticated && !isDashboardRoute && !isSettingsRoute && !isNotificationsRoute) {
+    if (
+      isAuthenticated &&
+      !isDashboardRoute &&
+      !isSettingsRoute &&
+      !isNotificationsRoute &&
+      !isGoogleCalendarRoute &&
+      !isGoogleRedirectRoute
+    ) {
       navigate('/dashboard', { replace: true });
     }
-  }, [authInitialising, isAuthenticated, isLoginRoute, isDashboardRoute, isSettingsRoute, isNotificationsRoute, navigate]);
+  }, [
+    authInitialising,
+    isAuthenticated,
+    isLoginRoute,
+    isDashboardRoute,
+    isSettingsRoute,
+    isNotificationsRoute,
+    isGoogleCalendarRoute,
+    isGoogleRedirectRoute,
+    navigate
+  ]);
 
   const {
     students,
@@ -1136,7 +1156,12 @@ function App() {
   return (
     <>
       {isSettingsRoute ? (
-        <SettingsPage onBack={() => navigate('/dashboard')} />
+        <SettingsPage
+          onBack={() => navigate('/dashboard')}
+          onOpenGoogleCalendar={() => navigate('/google-calendar')}
+        />
+      ) : isGoogleCalendarRoute || isGoogleRedirectRoute ? (
+        <GoogleCalendarSyncPage onBack={() => navigate('/settings')} />
       ) : isNotificationsRoute ? (
         <NotificationsPage onBack={() => navigate('/dashboard')} />
       ) : (
