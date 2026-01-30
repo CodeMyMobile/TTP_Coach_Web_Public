@@ -303,6 +303,21 @@ export const deleteCoachAvailability = (availabilityId) => {
 
 export const getCoachStats = () => request('/coach/stats');
 
+export const getGoogleCalendarSyncedEvents = ({ timeMin, timeMax } = {}) => {
+  const params = new URLSearchParams();
+  if (timeMin) {
+    params.set('timeMin', timeMin);
+  }
+  if (timeMax) {
+    params.set('timeMax', timeMax);
+  }
+  const query = params.toString();
+  const path = query
+    ? `/coach/google-calendar/synced-events?${query}`
+    : '/coach/google-calendar/synced-events';
+  return request(path);
+};
+
 export default {
   getCoachStudents,
   getCoachLessons,
@@ -315,5 +330,6 @@ export default {
   updateCoachLesson,
   getCoachAvailability,
   deleteCoachAvailability,
-  getCoachStats
+  getCoachStats,
+  getGoogleCalendarSyncedEvents
 };

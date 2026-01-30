@@ -76,6 +76,7 @@ const DashboardPage = ({
   studentsPerPage = 5,
   lessonsData,
   availabilityData,
+  googleEvents,
   statsData,
   scheduleLoading,
   scheduleError,
@@ -566,6 +567,7 @@ const DashboardPage = ({
                 ? availabilityData.schedule
                 : availabilityData
             }
+            googleEvents={googleEvents}
             onLessonSelect={onLessonSelect}
             onAvailabilitySelect={handleAvailabilitySelect}
             onEmptySlotSelect={onEmptySlotSelect}
