@@ -306,6 +306,28 @@ const CoachCalendar = ({
       console.log('[CoachCalendar] availability event', event.start, event.end, event.title);
     });
   }, [resolvedEvents]);
+
+  useEffect(() => {
+    if (!onRangeChange) {
+      return;
+    }
+    const baseDate = currentDate || new Date();
+    if (view === 'day') {
+      onRangeChange([baseDate]);
+      return;
+    }
+    if (view === 'week') {
+      const start = getWeekStart(baseDate);
+      const range = Array.from({ length: 7 }, (_, index) => {
+        const next = new Date(start);
+        next.setDate(start.getDate() + index);
+        return next;
+      });
+      onRangeChange(range);
+      return;
+    }
+    onRangeChange([baseDate]);
+  }, [currentDate, onRangeChange, view]);
 console.log("events",events);
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
