@@ -1,4 +1,13 @@
-const API_BASE_URL = 'http://localhost:3000';
+const resolveBaseUrl = () => {
+  const meta = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
+  const candidate = meta.VITE_API_BASE_URL || meta.VITE_API_URL || meta.API_BASE_URL || '';
+  if (!candidate) {
+    return '';
+  }
+  return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate;
+};
+
+const API_BASE_URL = resolveBaseUrl();
 
 const buildUrl = (path) => {
   if (!path) {
