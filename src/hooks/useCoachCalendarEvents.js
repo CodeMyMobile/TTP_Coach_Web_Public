@@ -53,12 +53,12 @@ export const useCoachCalendarEvents = () => {
     }
     const query = params.toString();
     const path = query
-      ? `/api/coach/google-calendar/events?${query}`
-      : '/api/coach/google-calendar/events';
+      ? `/coach/google-calendar/events?${query}`
+      : '/coach/google-calendar/events';
     return request(path, token);
   };
 
-  const getAuthUrl = async ({ token }) => request('/api/coach/google-calendar/auth-url', token);
+  const getAuthUrl = async ({ token }) => request('/coach/google-calendar/auth-url', token);
 
   return {
     getEvents,
