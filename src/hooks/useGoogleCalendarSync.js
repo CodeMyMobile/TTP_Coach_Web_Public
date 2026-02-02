@@ -57,7 +57,7 @@ export const useGoogleCalendarSync = () => {
     if (!token) {
       throw new Error('Auth token is required.');
     }
-    return request('/api/coach/google-calendar/auth-url', token);
+    return request('/coach/google-calendar/auth-url', token);
   };
 
   const syncEvents = async ({ token, timeMin, timeMax }) => {
@@ -73,8 +73,8 @@ export const useGoogleCalendarSync = () => {
     }
     const query = params.toString();
     const path = query
-      ? `/api/coach/google-calendar/sync?${query}`
-      : '/api/coach/google-calendar/sync';
+      ? `/coach/google-calendar/sync?${query}`
+      : '/coach/google-calendar/sync';
     return request(path, token, 'POST');
   };
 
@@ -91,8 +91,8 @@ export const useGoogleCalendarSync = () => {
     }
     const query = params.toString();
     const path = query
-      ? `/api/coach/google-calendar/synced-events?${query}`
-      : '/api/coach/google-calendar/synced-events';
+      ? `/coach/google-calendar/synced-events?${query}`
+      : '/coach/google-calendar/synced-events';
     return request(path, token);
   };
 
