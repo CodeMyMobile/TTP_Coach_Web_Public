@@ -1,15 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity,
   AlertCircle,
   Bell,
   Calendar,
-  Clock,
   DollarSign,
   Menu,
   LogOut,
   Package,
-  RefreshCw,
   Settings,
   Shield,
   Users,
@@ -22,6 +19,7 @@ import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
 import LocationsSection from './sections/LocationsSection';
+import './DashboardPage.css';
 
 const parseNumber = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -206,6 +204,10 @@ const DashboardPage = ({
     longitude: ''
   });
   const [locationAction, setLocationAction] = useState(null);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [showFabMenu, setShowFabMenu] = useState(false);
+  const [dismissedActionBar, setDismissedActionBar] = useState(false);
+  const notificationRef = useRef(null);
 
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
@@ -409,7 +411,50 @@ const DashboardPage = ({
     };
   }, [dashboardTab, studentSearchQuery, studentsPage, studentsPerPage]);
 
+  useEffect(() => {
+    if (!showNotificationsDropdown) {
+      return;
+    }
+
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotificationsDropdown(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotificationsDropdown]);
+
   const pendingLessons = bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending');
+  const rosterRequests = normalizedStudents.filter(
+    (student) => student.isPlayerRequest && !student.isConfirmed
+  );
+  const actionItems = [
+    ...rosterRequests.map((student) => ({
+      id: `roster-${student.id}`,
+      type: 'roster',
+      name: student.name || 'Student',
+      detail: 'roster request',
+      onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
+      onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
+    })),
+    ...pendingLessons.map((lesson, index) => ({
+      id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
+      type: 'lesson',
+      name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
+      detail: lesson.start_date_time ? 'lesson request' : 'lesson pending',
+      onAccept: null,
+      onDecline: null
+    }))
+  ];
+  const notificationItems = actionItems;
+
+  useEffect(() => {
+    if (actionItems.length > 0) {
+      setDismissedActionBar(false);
+    }
+  }, [actionItems.length]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -422,59 +467,107 @@ const DashboardPage = ({
         </div>
       )}
 
-      <nav className="border-b border-gray-200 bg-white shadow-sm">
+      <nav className="dashboard-header border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
               <button
                 type="button"
                 onClick={() => onToggleMobileMenu(!showMobileMenu)}
-                className="touch-target p-2 text-gray-500 transition hover:text-gray-700 md:hidden"
+                className="touch-target p-2 text-gray-500 transition hover:text-gray-700 md:hidden dashboard-mobile-toggle"
               >
                 <Menu className="h-6 w-6" />
               </button>
-              <div className="flex items-center">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-purple-700">
-                  <Activity className="h-5 w-5 text-white" />
+              <div className="flex items-center dashboard-brand">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 text-lg">
+                  🎾
                 </div>
-                <span className="ml-3 hidden text-lg font-semibold text-gray-900 sm:block">Coach Dashboard</span>
+                <div className="ml-3 text-lg font-semibold text-gray-900 dashboard-brand-text">
+                  The Tennis <span className="text-purple-600">Plan</span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              {pendingLessons.length > 0 && (
-                <button className="relative flex items-center justify-center rounded-lg border border-yellow-200 bg-yellow-50 p-2 text-yellow-700 hover:bg-yellow-100">
-                  <Clock className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-                    {pendingLessons.length}
-                  </span>
+            <div className="flex items-center space-x-2 dashboard-header-actions">
+              <div className="hidden items-center gap-2 text-xs text-emerald-600 md:flex">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Synced just now
+              </div>
+              <div className="relative" ref={notificationRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowNotificationsDropdown((prev) => !prev)}
+                  className="dashboard-header-btn"
+                >
+                  <Bell className="h-5 w-5" />
+                  {notificationItems.length > 0 && (
+                    <span className="notification-badge">{notificationItems.length}</span>
+                  )}
                 </button>
-              )}
+                {showNotificationsDropdown && (
+                  <div className="notification-dropdown">
+                    <div className="notification-dropdown-header">
+                      <span className="notification-dropdown-title">Notifications</span>
+                      <button type="button" className="notification-mark-read">
+                        Mark all read
+                      </button>
+                    </div>
+                    <div className="notification-dropdown-body">
+                      {notificationItems.length === 0 && (
+                        <div className="notification-empty">You&apos;re all caught up.</div>
+                      )}
+                      {notificationItems.map((item) => (
+                        <div key={item.id} className="notification-item notification-item-unread">
+                          <div className={`notification-icon notification-icon-${item.type}`}>
+                            {item.type === 'roster' ? '👤' : '📅'}
+                          </div>
+                          <div className="notification-content">
+                            <div className="notification-text">
+                              <strong>{item.name}</strong> {item.detail}
+                            </div>
+                            <div className="notification-actions">
+                              <button
+                                type="button"
+                                className="notification-btn approve"
+                                onClick={item.onAccept || undefined}
+                              >
+                                {item.type === 'lesson' ? 'Confirm' : 'Accept'}
+                              </button>
+                              <button
+                                type="button"
+                                className="notification-btn decline"
+                                onClick={item.onDecline || undefined}
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="notification-dropdown-footer">
+                      <button type="button" className="notification-view-all" onClick={onOpenNotifications}>
+                        View all notifications
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={onOpenNotifications}
-                className="relative rounded-lg p-2 text-gray-500 hover:text-gray-700"
+                onClick={onOpenSettings}
+                className="dashboard-header-btn"
               >
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+                <Settings className="h-5 w-5" />
+                <span className="sr-only">Open settings</span>
               </button>
-              <div className="flex items-center space-x-1">
-                <button
-                  type="button"
-                  onClick={onOpenSettings}
-                  className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
-                >
-                  <Settings className="h-5 w-5" />
-                  <span className="sr-only">Open settings</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="rounded-lg p-2 text-gray-500 hover:text-gray-700"
-                >
-                  <LogOut className="h-5 w-5" />
-                  <span className="sr-only">Log out</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="dashboard-header-btn dashboard-logout-btn"
+              >
+                <LogOut className="h-5 w-5" />
+                <span className="sr-only">Log out</span>
+              </button>
             </div>
           </div>
         </div>
@@ -522,9 +615,9 @@ const DashboardPage = ({
 
       <StatsSummary stats={stats} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+      <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
+        <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap dashboard-tabs">
             {[
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
@@ -548,11 +641,54 @@ const DashboardPage = ({
             ))}
           </div>
 
-          <div className="flex w-full flex-col items-start gap-1 text-sm text-gray-500 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+          <div className="flex w-full flex-col items-start gap-1 text-sm text-gray-500 sm:w-auto sm:flex-row sm:items-center sm:gap-2 dashboard-secure-note">
             <Shield className="h-4 w-4 text-green-500" />
             <span>Secure portal • Last synced moments ago</span>
           </div>
         </div>
+
+        {actionItems.length > 0 && !dismissedActionBar && (
+          <div className="action-alert-bar">
+            <div className="action-alert-left">
+              <span className="action-alert-icon">⚡</span>
+              <span className="action-alert-text">
+                <strong>{actionItems.length} items</strong> need attention
+              </span>
+            </div>
+            <div className="action-alert-items">
+              {actionItems.map((item) => (
+                <div key={item.id} className="action-alert-item">
+                  <span>
+                    {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
+                  </span>
+                  <div className="action-alert-buttons">
+                    <button
+                      type="button"
+                      className="action-alert-btn approve"
+                      onClick={item.onAccept || undefined}
+                    >
+                      {item.type === 'lesson' ? 'Confirm' : 'Accept'}
+                    </button>
+                    <button
+                      type="button"
+                      className="action-alert-btn decline"
+                      onClick={item.onDecline || undefined}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="action-alert-dismiss"
+              onClick={() => setDismissedActionBar(true)}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {dashboardTab === 'calendar' && (
           <CalendarSection
@@ -629,6 +765,43 @@ const DashboardPage = ({
         )}
 
       </main>
+
+      <div className="dashboard-fab-container">
+        {showFabMenu && (
+          <div className="dashboard-fab-menu">
+            <button type="button" className="dashboard-fab-menu-item">Set Availability</button>
+            <button type="button" className="dashboard-fab-menu-item">Add Lesson</button>
+            <button type="button" className="dashboard-fab-menu-item">Block Time</button>
+          </div>
+        )}
+        <button
+          type="button"
+          className="dashboard-fab"
+          onClick={() => setShowFabMenu((prev) => !prev)}
+        >
+          +
+        </button>
+      </div>
+
+      <nav className="dashboard-bottom-nav">
+        {[
+          { key: 'calendar', label: 'Calendar', icon: '📅' },
+          { key: 'students', label: 'Students', icon: '👥' },
+          { key: 'earnings', label: 'Earnings', icon: '💵' },
+          { key: 'packages', label: 'Packages', icon: '📦' },
+          { key: 'locations', label: 'Locations', icon: '📍' }
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onDashboardTabChange(tab.key)}
+            className={`dashboard-bottom-nav-item ${dashboardTab === tab.key ? 'active' : ''}`}
+          >
+            <span className="dashboard-bottom-nav-icon">{tab.icon}</span>
+            <span className="dashboard-bottom-nav-label">{tab.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 };
