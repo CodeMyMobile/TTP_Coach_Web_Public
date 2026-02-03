@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import moment from 'moment';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import './CoachCalendar.css';
 
 const localizer = momentLocalizer(moment);
 
@@ -328,9 +329,8 @@ const CoachCalendar = ({
     }
     onRangeChange([baseDate]);
   }, [currentDate, onRangeChange, view]);
-console.log("events",events);
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="coach-calendar rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center gap-3 text-xs font-medium text-gray-600">
         <span className="inline-flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-sm bg-[#e63946]" />

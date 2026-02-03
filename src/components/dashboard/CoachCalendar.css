@@ -1,0 +1,151 @@
+.coach-calendar {
+  --calendar-border: #e2e8f0;
+  --calendar-muted: #64748b;
+  --calendar-text: #0f172a;
+  --calendar-soft: #f8fafc;
+  --calendar-highlight: #ede9fe;
+}
+
+.coach-calendar .rbc-toolbar {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--calendar-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
+}
+
+.coach-calendar .rbc-toolbar .rbc-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+.coach-calendar .rbc-toolbar button {
+  background: #ffffff;
+  border: 1px solid var(--calendar-border);
+  border-radius: 10px;
+  color: var(--calendar-text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  transition: all 0.2s ease;
+}
+
+.coach-calendar .rbc-toolbar button:hover {
+  border-color: #c7d2fe;
+  color: #4f46e5;
+  background: #eef2ff;
+}
+
+.coach-calendar .rbc-toolbar button.rbc-active {
+  background: #8b5cf6;
+  border-color: #7c3aed;
+  color: #ffffff;
+}
+
+.coach-calendar .rbc-toolbar .rbc-toolbar-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--calendar-text);
+}
+
+.coach-calendar .rbc-time-view,
+.coach-calendar .rbc-month-view {
+  border: 1px solid var(--calendar-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.coach-calendar .rbc-time-header {
+  border-bottom: 1px solid var(--calendar-border);
+  background: #fdfcff;
+}
+
+.coach-calendar .rbc-time-header-content {
+  border-left: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-header {
+  padding: 10px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--calendar-muted);
+  border-bottom: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-header + .rbc-header {
+  border-left: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-date-cell {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--calendar-text);
+  padding: 4px 8px 6px;
+}
+
+.coach-calendar .rbc-header.rbc-today,
+.coach-calendar .rbc-day-bg.rbc-today {
+  background: var(--calendar-highlight);
+}
+
+.coach-calendar .rbc-timeslot-group {
+  border-bottom: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-time-content {
+  border-top: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-time-content > * + * > * {
+  border-left: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-time-gutter {
+  background: #ffffff;
+  color: var(--calendar-muted);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.coach-calendar .rbc-time-slot {
+  color: var(--calendar-muted);
+}
+
+.coach-calendar .rbc-day-bg {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.coach-calendar .rbc-event {
+  border-radius: 8px;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.coach-calendar .rbc-event-label {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.coach-calendar .rbc-current-time-indicator {
+  background-color: #f97316;
+}
+
+.coach-calendar .rbc-time-header-gutter {
+  background: #f8fafc;
+  border-right: 1px solid var(--calendar-border);
+}
+
+.coach-calendar .rbc-allday-cell {
+  border-bottom: 1px solid var(--calendar-border);
+  background: #f8fafc;
+}
+
+.coach-calendar .rbc-show-more {
+  color: #4f46e5;
+  font-weight: 600;
+}
