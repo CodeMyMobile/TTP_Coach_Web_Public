@@ -4,16 +4,20 @@
   --calendar-text: #0f172a;
   --calendar-soft: #f8fafc;
   --calendar-highlight: #ede9fe;
+  --calendar-purple: #7c3aed;
+  --calendar-purple-soft: #f3e8ff;
+  --calendar-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
 .coach-calendar .rbc-toolbar {
   align-items: center;
   background: #ffffff;
   border: 1px solid var(--calendar-border);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 14px;
+  padding: 12px 14px;
   margin-bottom: 12px;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--calendar-shadow);
+  gap: 10px;
 }
 
 .coach-calendar .rbc-toolbar .rbc-btn-group {
@@ -24,7 +28,7 @@
 .coach-calendar .rbc-toolbar button {
   background: #ffffff;
   border: 1px solid var(--calendar-border);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--calendar-text);
   font-size: 12px;
   font-weight: 600;
@@ -34,18 +38,19 @@
 
 .coach-calendar .rbc-toolbar button:hover {
   border-color: #c7d2fe;
-  color: #4f46e5;
-  background: #eef2ff;
+  color: var(--calendar-purple);
+  background: #f5f3ff;
 }
 
 .coach-calendar .rbc-toolbar button.rbc-active {
-  background: #8b5cf6;
-  border-color: #7c3aed;
+  background: var(--calendar-purple);
+  border-color: var(--calendar-purple);
   color: #ffffff;
+  box-shadow: 0 6px 12px rgba(124, 58, 237, 0.2);
 }
 
 .coach-calendar .rbc-toolbar .rbc-toolbar-label {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--calendar-text);
 }
@@ -59,7 +64,7 @@
 
 .coach-calendar .rbc-time-header {
   border-bottom: 1px solid var(--calendar-border);
-  background: #fdfcff;
+  background: #faf7ff;
 }
 
 .coach-calendar .rbc-time-header-content {
@@ -68,7 +73,7 @@
 
 .coach-calendar .rbc-header {
   padding: 10px 0 8px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -80,8 +85,13 @@
   border-left: 1px solid var(--calendar-border);
 }
 
+.coach-calendar .rbc-header span {
+  display: block;
+  line-height: 1.2;
+}
+
 .coach-calendar .rbc-date-cell {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--calendar-text);
   padding: 4px 8px 6px;
@@ -89,7 +99,8 @@
 
 .coach-calendar .rbc-header.rbc-today,
 .coach-calendar .rbc-day-bg.rbc-today {
-  background: var(--calendar-highlight);
+  background: var(--calendar-purple-soft);
+  color: var(--calendar-purple);
 }
 
 .coach-calendar .rbc-timeslot-group {
@@ -108,7 +119,8 @@
   background: #ffffff;
   color: var(--calendar-muted);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10px;
+  text-transform: uppercase;
 }
 
 .coach-calendar .rbc-time-slot {
@@ -116,14 +128,16 @@
 }
 
 .coach-calendar .rbc-day-bg {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f7f8fc 100%);
 }
 
 .coach-calendar .rbc-event {
-  border-radius: 8px;
-  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
   font-size: 11px;
-  padding: 4px 6px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-left: 4px solid rgba(15, 23, 42, 0.1);
 }
 
 .coach-calendar .rbc-event-label {
@@ -146,6 +160,53 @@
 }
 
 .coach-calendar .rbc-show-more {
-  color: #4f46e5;
+  color: var(--calendar-purple);
   font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .coach-calendar {
+    padding: 0;
+  }
+
+  .coach-calendar .rbc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .coach-calendar .rbc-toolbar .rbc-toolbar-label {
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .coach-calendar .rbc-toolbar .rbc-btn-group {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .coach-calendar .rbc-toolbar button {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .coach-calendar .rbc-time-view,
+  .coach-calendar .rbc-month-view {
+    border-radius: 16px;
+  }
+
+  .coach-calendar .rbc-header {
+    font-size: 9px;
+    padding: 8px 0 6px;
+  }
+
+  .coach-calendar .rbc-date-cell {
+    font-size: 16px;
+  }
+
+  .coach-calendar .rbc-event {
+    font-size: 10px;
+    padding: 6px;
+  }
 }
