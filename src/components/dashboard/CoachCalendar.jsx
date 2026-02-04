@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import moment from 'moment';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -199,90 +199,132 @@ const CoachCalendar = ({
   onLessonSelect,
   onAvailabilitySelect,
   onEmptySlotSelect,
-  onRangeChange
+  onRangeChange,
+  onOpenAddAvailability
 }) => {
+  const [mobileView, setMobileView] = useState(view === 'day' ? 'day' : 'week');
+  const calendarRef = useRef(null);
+
+  const lessonEvents = useMemo(() => buildLessonEvents(lessons), [lessons]);
+  const availabilityEvents = useMemo(
+    () => buildAvailabilityEvents(availability, currentDate || new Date()),
+    [availability, currentDate]
+  );
+  const busyEvents = useMemo(
+    () =>
+      (Array.isArray(googleEvents) ? googleEvents : [])
+        .map((event) => {
+          const startValue =
+            event.start_datetime ||
+            event.start?.dateTime ||
+            event.start?.date ||
+            event.raw_payload?.start?.dateTime ||
+            event.raw_payload?.start?.date;
+          const endValue =
+            event.end_datetime ||
+            event.end?.dateTime ||
+            event.end?.date ||
+            event.raw_payload?.end?.dateTime ||
+            event.raw_payload?.end?.date;
+          const start = startValue ? new Date(startValue) : null;
+          const end = endValue ? new Date(endValue) : null;
+          return {
+            start,
+            end,
+            allDay: Boolean(event.all_day) || Boolean(event.start?.date && !event.start?.dateTime),
+            title: event.summary || event.raw_payload?.summary || 'Busy',
+            resource: event,
+            type: 'busy'
+          };
+        })
+        .filter((event) => event.start && event.end),
+    [googleEvents]
+  );
+
+  const availabilityMinusBusy = useMemo(() => {
+    const byDay = new Map();
+    busyEvents.forEach((event) => {
+      const key = event.start.toLocaleDateString('en-CA');
+      if (!byDay.has(key)) {
+        byDay.set(key, []);
+      }
+      byDay.get(key).push(event);
+    });
+
+    return availabilityEvents.flatMap((slot) => {
+      const key = slot.start.toLocaleDateString('en-CA');
+      const busyList = byDay.get(key) || [];
+      if (busyList.length === 0) {
+        return [slot];
+      }
+
+      let segments = [{ start: slot.start, end: slot.end }];
+      busyList.forEach((event) => {
+        if (event.allDay) {
+          segments = [];
+          return;
+        }
+        segments = segments.flatMap((segment) => {
+          if (event.end <= segment.start || event.start >= segment.end) {
+            return [segment];
+          }
+          const updated = [];
+          if (event.start > segment.start) {
+            updated.push({ start: segment.start, end: event.start });
+          }
+          if (event.end < segment.end) {
+            updated.push({ start: event.end, end: segment.end });
+          }
+          return updated;
+        });
+      });
+
+      return segments.map((segment) => ({
+        ...slot,
+        start: segment.start,
+        end: segment.end,
+        title: slot.title
+      }));
+    });
+  }, [availabilityEvents, busyEvents]);
+
   const resolvedEvents = useMemo(() => {
     if (Array.isArray(events)) {
       return events;
     }
 
-    const lessonEvents = buildLessonEvents(lessons);
-    const availabilityEvents = buildAvailabilityEvents(availability, currentDate || new Date());
-    const busyEvents = (Array.isArray(googleEvents) ? googleEvents : []).map((event) => {
-      const startValue =
-        event.start_datetime ||
-        event.start?.dateTime ||
-        event.start?.date ||
-        event.raw_payload?.start?.dateTime ||
-        event.raw_payload?.start?.date;
-      const endValue =
-        event.end_datetime ||
-        event.end?.dateTime ||
-        event.end?.date ||
-        event.raw_payload?.end?.dateTime ||
-        event.raw_payload?.end?.date;
-      const start = startValue ? new Date(startValue) : null;
-      const end = endValue ? new Date(endValue) : null;
-      return {
-        start,
-        end,
-        allDay: Boolean(event.all_day) || Boolean(event.start?.date && !event.start?.dateTime),
-        title: event.summary || event.raw_payload?.summary || 'Busy',
-        resource: event,
-        type: 'busy'
-      };
-    }).filter((event) => event.start && event.end);
+    return [...availabilityMinusBusy, ...lessonEvents, ...busyEvents];
+  }, [availabilityMinusBusy, busyEvents, events, lessonEvents]);
 
-    const subtractBusy = (slots, busy) => {
-      const byDay = new Map();
-      busy.forEach((event) => {
-        const key = event.start.toLocaleDateString('en-CA');
-        if (!byDay.has(key)) {
-          byDay.set(key, []);
-        }
-        byDay.get(key).push(event);
-      });
+  useEffect(() => {
+    setMobileView(view === 'day' ? 'day' : 'week');
+  }, [view]);
 
-      return slots.flatMap((slot) => {
-        const key = slot.start.toLocaleDateString('en-CA');
-        const busyList = byDay.get(key) || [];
-        if (busyList.length === 0) {
-          return [slot];
-        }
-
-        let segments = [{ start: slot.start, end: slot.end }];
-        busyList.forEach((event) => {
-          if (event.allDay) {
-            segments = [];
-            return;
-          }
-          segments = segments.flatMap((segment) => {
-            if (event.end <= segment.start || event.start >= segment.end) {
-              return [segment];
-            }
-            const updated = [];
-            if (event.start > segment.start) {
-              updated.push({ start: segment.start, end: event.start });
-            }
-            if (event.end < segment.end) {
-              updated.push({ start: event.end, end: segment.end });
-            }
-            return updated;
-          });
-        });
-
-        return segments.map((segment) => ({
-          ...slot,
-          start: segment.start,
-          end: segment.end,
-          title: slot.title
-        }));
-      });
+  useEffect(() => {
+    const updateMetrics = () => {
+      if (!calendarRef.current) {
+        return;
+      }
+      const header = calendarRef.current.querySelector('.rbc-time-header');
+      const gutter = calendarRef.current.querySelector('.rbc-time-header-gutter');
+      if (header) {
+        calendarRef.current.style.setProperty(
+          '--coach-time-header-height',
+          `${header.getBoundingClientRect().height}px`
+        );
+      }
+      if (gutter) {
+        calendarRef.current.style.setProperty(
+          '--coach-time-gutter-width',
+          `${gutter.getBoundingClientRect().width}px`
+        );
+      }
     };
 
-    const availabilityMinusBusy = subtractBusy(availabilityEvents, busyEvents);
-    return [...availabilityMinusBusy, ...lessonEvents, ...busyEvents];
-  }, [events, lessons, availability, currentDate, googleEvents]);
+    updateMetrics();
+    window.addEventListener('resize', updateMetrics);
+    return () => window.removeEventListener('resize', updateMetrics);
+  }, [view, resolvedEvents.length]);
 
   useEffect(() => {
     const lessonEvents = resolvedEvents.filter((event) => event.type === 'lesson');
@@ -329,137 +371,327 @@ const CoachCalendar = ({
     }
     onRangeChange([baseDate]);
   }, [currentDate, onRangeChange, view]);
+
+  const availabilityByDay = useMemo(() => {
+    const map = new Map();
+    availabilityEvents.forEach((slot) => {
+      const key = slot.start.toLocaleDateString('en-CA');
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(slot);
+    });
+    return map;
+  }, [availabilityEvents]);
+
+  const lessonsByDay = useMemo(() => {
+    const map = new Map();
+    [...lessonEvents, ...busyEvents].forEach((slot) => {
+      const key = slot.start.toLocaleDateString('en-CA');
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(slot);
+    });
+    map.forEach((items, key) => {
+      map.set(
+        key,
+        items.sort((a, b) => a.start.getTime() - b.start.getTime())
+      );
+    });
+    return map;
+  }, [busyEvents, lessonEvents]);
+
+  const mobileDays = useMemo(() => {
+    const baseDate = currentDate || new Date();
+    if (mobileView === 'week') {
+      const start = getWeekStart(baseDate);
+      return Array.from({ length: 7 }, (_, index) => {
+        const next = new Date(start);
+        next.setDate(start.getDate() + index);
+        return next;
+      });
+    }
+    const count = mobileView === '3day' ? 3 : 1;
+    return Array.from({ length: count }, (_, index) => {
+      const next = new Date(baseDate);
+      next.setDate(baseDate.getDate() + index);
+      return next;
+    });
+  }, [currentDate, mobileView]);
+
+  const weekDays = useMemo(() => {
+    const start = getWeekStart(currentDate || new Date());
+    return Array.from({ length: 7 }, (_, index) => {
+      const next = new Date(start);
+      next.setDate(start.getDate() + index);
+      return next;
+    });
+  }, [currentDate]);
+
+  const formatCompact = (value) => {
+    const date = moment(value);
+    return date.minutes() === 0 ? date.format('ha') : date.format('h:mma');
+  };
+
+  const formatLong = (value) => moment(value).format('h:mm A');
+
+  const handleMobileNav = (direction) => {
+    const baseDate = currentDate || new Date();
+    const offset = mobileView === '3day' ? 3 : mobileView === 'week' ? 7 : 1;
+    const next = new Date(baseDate);
+    next.setDate(baseDate.getDate() + offset * direction);
+    onDateChange?.(next);
+  };
+
   return (
     <div className="coach-calendar rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center gap-3 text-xs font-medium text-gray-600">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#e63946]" />
+      <div className="coach-calendar-legend">
+        <span className="legend-item">
+          <span className="legend-dot private" />
           Private
         </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#f4a261]" />
+        <span className="legend-item">
+          <span className="legend-dot semi-private" />
           Semi-Private
         </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#2a9d8f]" />
+        <span className="legend-item">
+          <span className="legend-dot open-group" />
           Open Group
         </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#8ecae6]" />
-          Availability
+        <span className="legend-item">
+          <span className="legend-dot availability" />
+          Available
         </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[#334155]" />
-          Busy (Google)
+        <span className="legend-item">
+          <span className="legend-dot busy" />
+          Busy
         </span>
       </div>
-      <Calendar
-        localizer={localizer}
-        events={resolvedEvents}
-        startAccessor="start"
-        endAccessor="end"
-        views={['week', 'day']}
-        view={view}
-        onView={onViewChange}
-        date={currentDate}
-        onNavigate={onDateChange}
-        onRangeChange={onRangeChange}
-        toolbar={showToolbar}
-        selectable
-        step={30}
-        timeslots={2}
-        style={{ height: 620 }}
-        onSelectEvent={(event) => {
-          if (event.type === 'lesson') {
-            onLessonSelect?.(event.resource || event);
-          } else if (event.type === 'availability') {
-            onAvailabilitySelect?.(event.resource || event);
-          }
-        }}
-        onSelectSlot={({ start, end }) => {
-          const dateKey = start.toISOString().split('T')[0];
-          const startTime = start.toTimeString().slice(0, 5);
-          const endTime = end.toTimeString().slice(0, 5);
 
-          const availabilityEvent = resolvedEvents.find(
-            (event) =>
-              event.type === 'availability' &&
-              event.start <= start &&
-              event.end >= end
-          );
+      <div className="coach-calendar-mobile">
+        <div className="coach-calendar-mobile-controls">
+          <div className="mobile-view-toggle">
+            {['day', '3day', 'week'].map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`mobile-view-btn ${mobileView === option ? 'active' : ''}`}
+                onClick={() => setMobileView(option)}
+              >
+                {option === 'day' ? 'D' : option === '3day' ? '3D' : 'W'}
+              </button>
+            ))}
+          </div>
+          <div className="mobile-date-nav">
+            <button type="button" className="mobile-nav-btn" onClick={() => handleMobileNav(-1)}>
+              ‹
+            </button>
+            <button type="button" className="mobile-today-btn" onClick={() => onDateChange?.(new Date())}>
+              Today
+            </button>
+            <button type="button" className="mobile-nav-btn" onClick={() => handleMobileNav(1)}>
+              ›
+            </button>
+          </div>
+        </div>
+        <div className="coach-calendar-day-cards">
+          {mobileDays.map((day) => {
+            const key = day.toLocaleDateString('en-CA');
+            const isToday = day.toDateString() === new Date().toDateString();
+            const dayAvailability = availabilityByDay.get(key) || [];
+            const dayLessons = lessonsByDay.get(key) || [];
+            const lessonCount = dayLessons.filter((lesson) => lesson.type !== 'busy').length;
 
-          if (availabilityEvent) {
-            onAvailabilitySelect?.({
-              ...(availabilityEvent.resource || {}),
+            return (
+              <div key={key} className="day-card">
+                <div className={`day-card-header ${isToday ? 'today' : ''}`}>
+                  <div className="day-card-header-left">
+                    <span className={`day-card-date ${isToday ? 'today' : ''}`}>{moment(day).format('D')}</span>
+                    <div className="day-card-meta">
+                      <span className="day-card-day">{moment(day).format('ddd')}</span>
+                      <span className="day-card-month">{moment(day).format('MMM')}</span>
+                    </div>
+                  </div>
+                  {lessonCount > 0 && <span className="day-card-count">{lessonCount} lessons</span>}
+                </div>
+
+                {dayAvailability.length > 0 ? (
+                  dayAvailability.map((slot, index) => (
+                    <div
+                      key={`${key}-avail-${index}`}
+                      className={`availability-banner ${index > 0 ? 'stacked' : ''}`}
+                    >
+                      <div className="availability-banner-left">
+                        <span className="availability-dot">🟢</span>
+                        <div>
+                          <div className="availability-time">
+                            {formatLong(slot.start)} – {formatLong(slot.end)}
+                          </div>
+                          <div className="availability-location">{slot.title || 'Location'}</div>
+                        </div>
+                      </div>
+                      <span className="availability-edit">✏️</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="availability-empty">+ Set availability</div>
+                )}
+
+                <div className="day-card-lessons">
+                  {dayLessons.length === 0 && (
+                    <div className="lessons-empty">
+                      <span className="lessons-empty-title">No lessons booked</span>
+                      <span className="lessons-empty-subtitle">Available hours shown above</span>
+                    </div>
+                  )}
+                  {dayLessons.map((lesson, index) => {
+                    const lessonTypeId = Number(
+                      lesson.lessonType ?? lesson.resource?.lessontype_id ?? lesson.resource?.lesson_type_id
+                    );
+                    const lessonKind =
+                      lesson.type === 'busy'
+                        ? 'busy'
+                        : lessonTypeId === 2
+                          ? 'semi-private'
+                          : lessonTypeId === 3
+                            ? 'open-group'
+                            : 'private';
+                    const title = lesson.resource?.metadata?.title || lesson.title || 'Lesson';
+                    const subtitle = lesson.resource?.location || lesson.resource?.metadata?.subtitle || '';
+
+                    return (
+                      <div key={`${key}-lesson-${index}`} className={`lesson-card ${lessonKind}`}>
+                        <div className="lesson-card-header">
+                          <span className={`lesson-card-type ${lessonKind}`}>
+                            {lessonKind.replace('-', ' ').toUpperCase()}
+                          </span>
+                          <span className="lesson-card-time">
+                            {formatLong(lesson.start)} – {formatLong(lesson.end)}
+                          </span>
+                        </div>
+                        <div className="lesson-card-title">{title}</div>
+                        {subtitle && <div className="lesson-card-subtitle">{subtitle}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        className={`coach-calendar-desktop ${view === 'week' ? 'has-availability-strip' : ''}`}
+        ref={calendarRef}
+      >
+        {view === 'week' && (
+          <div className="coach-calendar-availability-strip">
+            <div className="availability-strip-label">📍 Avail</div>
+            {weekDays.map((day) => {
+              const key = day.toLocaleDateString('en-CA');
+              const slots = availabilityByDay.get(key) || [];
+              if (slots.length === 0) {
+                return (
+                  <div key={key} className="availability-strip-cell empty">
+                    <button type="button" className="availability-add-btn" onClick={onOpenAddAvailability}>
+                      + Add
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <div key={key} className="availability-strip-cell">
+                  {slots.map((slot, index) => (
+                    <button
+                      type="button"
+                      key={`${key}-${index}`}
+                      className="availability-strip-badge"
+                      onClick={() => onAvailabilitySelect?.(slot.resource || slot)}
+                    >
+                      <span className="availability-strip-time">
+                        {formatCompact(slot.start)}–{formatCompact(slot.end)}
+                      </span>
+                      <span className="availability-strip-location">{slot.title || 'Location'}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <Calendar
+          localizer={localizer}
+          events={resolvedEvents}
+          startAccessor="start"
+          endAccessor="end"
+          views={['week', 'day']}
+          view={view}
+          onView={onViewChange}
+          date={currentDate}
+          onNavigate={onDateChange}
+          onRangeChange={onRangeChange}
+          toolbar={showToolbar}
+          selectable
+          step={30}
+          timeslots={2}
+          style={{ height: 620 }}
+          onSelectEvent={(event) => {
+            if (event.type === 'lesson') {
+              onLessonSelect?.(event.resource || event);
+            } else if (event.type === 'availability') {
+              onAvailabilitySelect?.(event.resource || event);
+            }
+          }}
+          onSelectSlot={({ start, end }) => {
+            const dateKey = start.toISOString().split('T')[0];
+            const startTime = start.toTimeString().slice(0, 5);
+            const endTime = end.toTimeString().slice(0, 5);
+
+            const availabilityEvent = resolvedEvents.find(
+              (event) => event.type === 'availability' && event.start <= start && event.end >= end
+            );
+
+            if (availabilityEvent) {
+              onAvailabilitySelect?.({
+                ...(availabilityEvent.resource || {}),
+                date: dateKey,
+                start: startTime,
+                end: endTime
+              });
+              return;
+            }
+
+            onEmptySlotSelect?.({
               date: dateKey,
               start: startTime,
-              end: endTime
+              end: endTime,
+              location: ''
             });
-            return;
-          }
-
-          onEmptySlotSelect?.({
-            date: dateKey,
-            start: startTime,
-            end: endTime,
-            location: ''
-          });
-        }}
-        eventPropGetter={(event) => {
-          if (event.type === 'lesson') {
-            const lessonType = Number(event.lessonType ?? event.resource?.lessontype_id ?? event.resource?.lesson_type_id);
-            if (lessonType === 2) {
+          }}
+          eventPropGetter={(event) => {
+            if (event.type === 'lesson') {
+              const lessonType = Number(
+                event.lessonType ?? event.resource?.lessontype_id ?? event.resource?.lesson_type_id
+              );
+              const lessonKind =
+                lessonType === 2 ? 'semi-private' : lessonType === 3 ? 'open-group' : 'private';
               return {
-                style: {
-                  backgroundColor: '#f4a261',
-                  borderColor: '#e76f51',
-                  borderRadius: '4px',
-                  color: 'white'
-                }
+                className: `lesson-card-event lesson-${lessonKind}`
               };
             }
-            if (lessonType === 3) {
+            if (event.type === 'busy') {
               return {
-                style: {
-                  backgroundColor: '#2a9d8f',
-                  borderColor: '#1f7a69',
-                  borderRadius: '4px',
-                  color: 'white'
-                }
+                className: 'lesson-card-event lesson-busy'
               };
             }
             return {
-              style: {
-                backgroundColor: '#e63946',
-                borderColor: '#a62030',
-                borderRadius: '4px',
-                color: 'white'
-              }
+              className: 'availability-bg-event'
             };
-          }
-          if (event.type === 'busy') {
-            return {
-              style: {
-                backgroundColor: '#334155',
-                borderColor: '#0f172a',
-                borderRadius: '6px',
-                color: 'white',
-                opacity: 0.85
-              }
-            };
-          }
-          return {
-            style: {
-              backgroundColor: '#8ecae6',
-              borderColor: '#023047',
-              borderRadius: '6px',
-              opacity: 0.85,
-              color: '#0f172a',
-              fontWeight: 600
-            }
-          };
-        }}
-      />
+          }}
+        />
+      </div>
     </div>
   );
 };
