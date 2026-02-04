@@ -322,6 +322,10 @@
     background: #e2e8f0;
   }
 
+  .dashboard-tabs-row {
+    display: none;
+  }
+
   .dashboard-tabs {
     display: none;
   }
