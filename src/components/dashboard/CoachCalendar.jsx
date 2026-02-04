@@ -307,6 +307,7 @@ const CoachCalendar = ({
       }
       const header = calendarRef.current.querySelector('.rbc-time-header');
       const gutter = calendarRef.current.querySelector('.rbc-time-header-gutter');
+      const strip = calendarRef.current.querySelector('.coach-calendar-availability-strip');
       if (header) {
         calendarRef.current.style.setProperty(
           '--coach-time-header-height',
@@ -317,6 +318,12 @@ const CoachCalendar = ({
         calendarRef.current.style.setProperty(
           '--coach-time-gutter-width',
           `${gutter.getBoundingClientRect().width}px`
+        );
+      }
+      if (strip) {
+        calendarRef.current.style.setProperty(
+          '--coach-availability-strip-height',
+          `${strip.getBoundingClientRect().height}px`
         );
       }
     };
@@ -523,7 +530,7 @@ const CoachCalendar = ({
                       className={`availability-banner ${index > 0 ? 'stacked' : ''}`}
                     >
                       <div className="availability-banner-left">
-                        <span className="availability-dot">🟢</span>
+                        <span className="availability-dot">🔵</span>
                         <div>
                           <div className="availability-time">
                             {formatLong(slot.start)} – {formatLong(slot.end)}
@@ -588,7 +595,7 @@ const CoachCalendar = ({
       >
         {view === 'week' && (
           <div className="coach-calendar-availability-strip">
-            <div className="availability-strip-label">📍 Avail</div>
+            <div className="availability-strip-label">🕐 Avail</div>
             {weekDays.map((day) => {
               const key = day.toLocaleDateString('en-CA');
               const slots = availabilityByDay.get(key) || [];

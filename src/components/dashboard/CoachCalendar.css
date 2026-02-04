@@ -182,11 +182,11 @@
   left: 0;
   right: 0;
   top: var(--coach-time-header-height, 48px);
-  height: var(--coach-availability-strip-height);
+  min-height: 42px;
   display: grid;
   grid-template-columns: var(--coach-time-gutter-width, 55px) repeat(7, 1fr);
-  background: #f0fdf4;
-  border-bottom: 2px solid #86efac;
+  background: #eff6ff;
+  border-bottom: 2px solid #93c5fd;
   z-index: 5;
 }
 
@@ -202,7 +202,7 @@
   padding: 6px 2px;
   font-size: 8px;
   font-weight: 700;
-  color: #166534;
+  color: #1e40af;
   text-transform: uppercase;
   display: flex;
   align-items: center;
@@ -211,10 +211,11 @@
 
 .availability-strip-cell {
   padding: 4px;
-  border-left: 1px solid #bbf7d0;
+  border-left: 1px solid #bfdbfe;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-height: 42px;
 }
 
 .availability-strip-cell.empty {
@@ -224,8 +225,8 @@
 }
 
 .availability-strip-badge {
-  background: #dcfce7;
-  border: 1px solid #86efac;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
   border-radius: 4px;
   padding: 3px 5px;
   font-size: 9px;
@@ -237,16 +238,16 @@
 }
 
 .availability-strip-badge:hover {
-  background: #bbf7d0;
+  background: #bfdbfe;
 }
 
 .availability-strip-time {
   font-weight: 600;
-  color: #166534;
+  color: #1e40af;
 }
 
 .availability-strip-location {
-  color: #15803d;
+  color: #2563eb;
   font-size: 8px;
   white-space: nowrap;
   overflow: hidden;
@@ -401,12 +402,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: #f0fdf4;
-  border-bottom: 1px solid #86efac;
+  background: #eff6ff;
+  border-bottom: 1px solid #93c5fd;
 }
 
 .availability-banner.stacked {
-  border-top: 1px solid #bbf7d0;
+  border-top: 1px solid #bfdbfe;
 }
 
 .availability-banner-left {
@@ -418,12 +419,12 @@
 .availability-time {
   font-size: 13px;
   font-weight: 600;
-  color: #166534;
+  color: #1e40af;
 }
 
 .availability-location {
   font-size: 11px;
-  color: #15803d;
+  color: #2563eb;
 }
 
 .availability-edit {
