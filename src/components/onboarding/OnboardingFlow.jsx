@@ -53,7 +53,8 @@ const OnboardingFlow = ({
   onRefreshProfile,
   isSettingsMode = false,
   onBack,
-  onOpenGoogleCalendar
+  onOpenGoogleCalendar,
+  onPreviewPublicProfile
 }) => {
   const [formData, setFormData] = useState(() => ({ ...createInitialState(), ...(initialData || {}) }));
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
@@ -672,6 +673,34 @@ const OnboardingFlow = ({
     return Math.round((completedCount / activeSteps.length) * 100);
   }, [activeSteps, stepCompletionByIndex]);
 
+  const handlePreviewPublicProfile = useCallback(() => {
+    const explicitUrl =
+      formData?.public_profile_url ||
+      formData?.publicProfileUrl ||
+      formData?.profile_url ||
+      formData?.profileUrl ||
+      '';
+
+    if (typeof onPreviewPublicProfile === 'function') {
+      onPreviewPublicProfile({ formData, explicitUrl });
+      return;
+    }
+
+    let resolvedUrl = (explicitUrl || '').trim();
+    if (!resolvedUrl && formData?.id) {
+      resolvedUrl = `/coach/${formData.id}`;
+    }
+
+    if (!resolvedUrl || typeof window === 'undefined') {
+      setSubmissionError('Public profile preview is not available yet. Please save your profile first.');
+      return;
+    }
+
+    const isAbsoluteUrl = /^https?:\/\//i.test(resolvedUrl);
+    const finalUrl = isAbsoluteUrl ? resolvedUrl : `${window.location.origin}${resolvedUrl.startsWith('/') ? '' : '/'}${resolvedUrl}`;
+    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+  }, [formData, onPreviewPublicProfile]);
+
   return (
     <div className={`min-h-screen ${isSettingsMode ? 'bg-slate-50' : 'bg-gradient-to-br from-green-50 to-white'}`}>
       <div className="border-b border-gray-200 bg-white shadow-sm">
@@ -768,6 +797,7 @@ const OnboardingFlow = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={handlePreviewPublicProfile}
                     className="rounded-lg bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-700"
                   >
                     👁 Preview public profile
