@@ -154,6 +154,8 @@
 }
 
 .coach-calendar .rbc-time-content {
+  position: relative;
+  z-index: 1;
   border-top: 1px solid var(--calendar-border);
 }
 
@@ -202,7 +204,7 @@
   grid-template-columns: var(--coach-time-gutter-width, 55px) repeat(7, 1fr);
   background: #eff6ff;
   border-bottom: 2px solid #93c5fd;
-  z-index: 4;
+  z-index: 10;
 }
 
 .coach-calendar-desktop {
