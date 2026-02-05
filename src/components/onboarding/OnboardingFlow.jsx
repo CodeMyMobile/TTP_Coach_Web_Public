@@ -43,7 +43,18 @@ const stepsConfig = [
   { title: 'Review', icon: <Eye className="h-4 w-4" /> }
 ];
 
-const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, onRefreshProfile }) => {
+const settingsStepsConfig = stepsConfig.slice(0, 8);
+
+const OnboardingFlow = ({
+  initialData,
+  onComplete,
+  isMobile,
+  initialStep = 0,
+  onRefreshProfile,
+  isSettingsMode = false,
+  onBack,
+  onOpenGoogleCalendar
+}) => {
   const [formData, setFormData] = useState(() => ({ ...createInitialState(), ...(initialData || {}) }));
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const [errors, setErrors] = useState({});
@@ -123,7 +134,12 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
     setStripeStatus(deriveStripeStatus());
   }, [deriveStripeStatus]);
 
-  const progress = useMemo(() => ((currentStep + 1) / stepsConfig.length) * 100, [currentStep]);
+  const activeSteps = isSettingsMode ? settingsStepsConfig : stepsConfig;
+  const progress = useMemo(() => ((currentStep + 1) / activeSteps.length) * 100, [activeSteps.length, currentStep]);
+
+  useEffect(() => {
+    setCurrentStep((step) => Math.min(step, activeSteps.length - 1));
+  }, [activeSteps.length]);
 
   const clearProfileImageError = useCallback(() => {
     setErrors((previousErrors) => {
@@ -344,7 +360,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
   };
 
   const nextStep = () => {
-    if (validateStep() && currentStep < stepsConfig.length - 1) {
+    if (validateStep() && currentStep < activeSteps.length - 1) {
       setCurrentStep((step) => step + 1);
     }
   };
@@ -643,6 +659,15 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
       <div className="border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:flex-nowrap">
           <div className="flex items-center space-x-3">
+            {isSettingsMode && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Back
+              </button>
+            )}
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
               <span className="text-sm font-bold text-white">TP</span>
             </div>
@@ -651,6 +676,15 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
               <p className="text-xs text-gray-600 sm:text-sm">Coach Portal</p>
             </div>
           </div>
+          {isSettingsMode && (
+            <button
+              type="button"
+              onClick={onOpenGoogleCalendar}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              Open Google Calendar Sync
+            </button>
+          )}
           {isMobile && (
             <button
               type="button"
@@ -666,12 +700,12 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
       {showStepsMenu && isMobile && (
         <div className="border-b bg-white shadow-lg">
           <div className="max-h-64 space-y-1 overflow-y-auto px-4 py-2">
-            {stepsConfig.map((step, index) => (
+            {activeSteps.map((step, index) => (
               <button
                 key={step.title}
                 type="button"
                 onClick={() => {
-                  if (index < currentStep || validateStep()) {
+                  if (isSettingsMode || index < currentStep || validateStep()) {
                     setCurrentStep(index);
                     setShowStepsMenu(false);
                   }
@@ -681,9 +715,11 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
                     ? 'bg-green-50 text-green-600'
                     : index < currentStep
                       ? 'text-gray-700 hover:bg-gray-50'
-                      : 'cursor-not-allowed text-gray-400'
+                      : isSettingsMode
+                        ? 'text-gray-700 hover:bg-gray-50'
+                        : 'cursor-not-allowed text-gray-400'
                 }`}
-                disabled={index > currentStep}
+                disabled={!isSettingsMode && index > currentStep}
               >
                 {index < currentStep ? <Check className="h-4 w-4 text-green-500" /> : step.icon}
                 <span className="font-medium">{step.title}</span>
@@ -699,10 +735,10 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-500">Profile Completion</p>
-                <h2 className="text-xl font-bold text-gray-900">{stepsConfig[currentStep].title}</h2>
+                <h2 className="text-xl font-bold text-gray-900">{activeSteps[currentStep].title}</h2>
               </div>
               <span className="text-sm font-medium text-gray-600">
-                Step {currentStep + 1} of {stepsConfig.length}
+                Step {currentStep + 1} of {activeSteps.length}
               </span>
             </div>
             <div className="mt-3 h-2 rounded-full bg-gray-100">
@@ -714,7 +750,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {stepsConfig.map((step, index) => (
+            {activeSteps.map((step, index) => (
               <div
                 key={step.title}
                 className={`flex flex-col items-center rounded-xl border px-3 py-2 text-xs ${
@@ -1629,21 +1665,23 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
         </div>
 
         <div className="mt-6 flex flex-col justify-between gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={prevStep}
-            disabled={currentStep === 0 || isSubmitting}
-            className={`flex w-full items-center justify-center space-x-2 rounded-lg border px-6 py-3 text-sm font-medium transition sm:w-auto ${
-              currentStep === 0 || isSubmitting
-                ? 'cursor-not-allowed border-gray-200 text-gray-400'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span>Back</span>
-          </button>
+          {!isSettingsMode && (
+            <button
+              type="button"
+              onClick={prevStep}
+              disabled={currentStep === 0 || isSubmitting}
+              className={`flex w-full items-center justify-center space-x-2 rounded-lg border px-6 py-3 text-sm font-medium transition sm:w-auto ${
+                currentStep === 0 || isSubmitting
+                  ? 'cursor-not-allowed border-gray-200 text-gray-400'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Back</span>
+            </button>
+          )}
 
-          {currentStep < stepsConfig.length - 1 ? (
+          {!isSettingsMode && currentStep < activeSteps.length - 1 ? (
             <button
               type="button"
               onClick={nextStep}
@@ -1661,7 +1699,7 @@ const OnboardingFlow = ({ initialData, onComplete, isMobile, initialStep = 0, on
               className="flex w-full items-center justify-center space-x-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:from-green-600 hover:to-emerald-700 sm:w-auto"
             >
               <Save className="h-4 w-4" />
-              <span>{isSubmitting ? 'Saving...' : 'Submit'}</span>
+              <span>{isSubmitting ? 'Saving...' : isSettingsMode ? 'Save Profile' : 'Submit'}</span>
             </button>
           )}
         </div>
