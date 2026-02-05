@@ -1044,40 +1044,6 @@ function App() {
     setIsProfileComplete(false);
   };
 
-  const handlePreviewPublicProfile = useCallback(({ formData, explicitUrl }) => {
-    const directUrl = (explicitUrl || '').trim();
-    if (directUrl && typeof window !== 'undefined') {
-      const isAbsolute = /^https?:\/\//i.test(directUrl);
-      const finalUrl = isAbsolute
-        ? directUrl
-        : `${window.location.origin}${directUrl.startsWith('/') ? '' : '/'}${directUrl}`;
-      window.open(finalUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    const baseUrl = (import.meta.env.VITE_PUBLIC_PROFILE_BASE_URL || '').trim();
-    const slug =
-      formData?.public_slug ||
-      formData?.publicSlug ||
-      formData?.slug ||
-      formData?.username ||
-      profileData?.public_slug ||
-      profileData?.publicSlug ||
-      profileData?.slug ||
-      profileData?.username ||
-      '';
-    const profileId = formData?.id || profileData?.id || '';
-
-    if (typeof window !== 'undefined' && baseUrl && (slug || profileId)) {
-      const identifier = slug || profileId;
-      const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      window.open(`${normalizedBase}/${identifier}`, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    window.alert('Public profile preview URL is not available yet. Please save your profile first.');
-  }, [profileData]);
-
   const handleCloseLessonDetail = () => {
     setShowLessonDetailModal(false);
     setIsEditingLesson(false);
@@ -1199,7 +1165,6 @@ function App() {
           isSettingsMode
           onBack={() => navigate('/dashboard')}
           onOpenGoogleCalendar={() => navigate('/google-calendar')}
-          onPreviewPublicProfile={handlePreviewPublicProfile}
         />
       ) : isGoogleCalendarRoute || isGoogleRedirectRoute ? (
         <GoogleCalendarSyncPage onBack={() => navigate('/settings')} />
