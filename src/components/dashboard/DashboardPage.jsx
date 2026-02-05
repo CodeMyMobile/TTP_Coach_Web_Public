@@ -641,9 +641,9 @@ const DashboardPage = ({
             ))}
           </div>
 
-          <div className="flex w-full flex-col items-start gap-1 text-sm text-gray-500 sm:w-auto sm:flex-row sm:items-center sm:gap-2 dashboard-secure-note">
+          <div className="flex w-full items-center gap-2 text-xs text-gray-500 sm:w-auto sm:text-sm dashboard-secure-note">
             <Shield className="h-4 w-4 text-green-500" />
-            <span>Secure portal • Last synced moments ago</span>
+            <span className="whitespace-nowrap">Secure portal • Last synced moments ago</span>
           </div>
         </div>
 
