@@ -7,10 +7,7 @@ import './CoachCalendar.css';
 const localizer = momentLocalizer(moment);
 
 const WeekHeader = ({ date }) => (
-  <div className="coach-calendar-week-header">
-    <span className="coach-calendar-weekday">{moment(date).format('ddd')}</span>
-    <span className="coach-calendar-day">{moment(date).format('DD')}</span>
-  </div>
+  <div className="coach-calendar-week-header">{moment(date).format('ddd DD')}</div>
 );
 
 const DAY_INDEX = {
