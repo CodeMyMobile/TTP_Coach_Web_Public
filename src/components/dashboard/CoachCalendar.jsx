@@ -6,6 +6,13 @@ import './CoachCalendar.css';
 
 const localizer = momentLocalizer(moment);
 
+const WeekHeader = ({ date }) => (
+  <div className="coach-calendar-week-header">
+    <span className="coach-calendar-weekday">{moment(date).format('ddd')}</span>
+    <span className="coach-calendar-day">{moment(date).format('DD')}</span>
+  </div>
+);
+
 const DAY_INDEX = {
   sunday: 0,
   monday: 1,
@@ -696,6 +703,11 @@ const CoachCalendar = ({
             return {
               className: 'availability-bg-event'
             };
+          }}
+          components={{
+            week: {
+              header: WeekHeader
+            }
           }}
         />
       </div>
