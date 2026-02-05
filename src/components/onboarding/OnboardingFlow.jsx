@@ -654,8 +654,26 @@ const OnboardingFlow = ({
     profileImagePreview ||
     (typeof formData.profileImage === 'string' && formData.profileImage ? formData.profileImage : '');
 
+  const stepCompletionByIndex = useMemo(() => ({
+    0: Boolean(formData.profileImage && formData.name?.trim() && formData.email?.trim() && formData.bio?.trim() && formData.experience_years),
+    1: Array.isArray(formData.home_courts) && formData.home_courts.length > 0,
+    2: Array.isArray(formData.levels) && formData.levels.length > 0,
+    3: Array.isArray(formData.specialties) && formData.specialties.length > 0,
+    4: Array.isArray(formData.formats) && formData.formats.length > 0,
+    5: Boolean(formData.price_private) &&
+      (!formData.formats.includes('semi') || Boolean(formData.price_semi)) &&
+      (!formData.formats.includes('group') || Boolean(formData.price_group)),
+    6: Boolean(formData.stripe_account_id),
+    7: (Array.isArray(formData.languages) && formData.languages.length > 0) || Boolean(formData.otherLanguage?.trim())
+  }), [formData]);
+
+  const settingsCompletionPercent = useMemo(() => {
+    const completedCount = activeSteps.reduce((count, _, index) => (stepCompletionByIndex[index] ? count + 1 : count), 0);
+    return Math.round((completedCount / activeSteps.length) * 100);
+  }, [activeSteps, stepCompletionByIndex]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
+    <div className={`min-h-screen ${isSettingsMode ? 'bg-slate-50' : 'bg-gradient-to-br from-green-50 to-white'}`}>
       <div className="border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:flex-nowrap">
           <div className="flex items-center space-x-3">
@@ -729,8 +747,62 @@ const OnboardingFlow = ({
         </div>
       )}
 
-      <div className="mx-auto max-w-4xl px-4 py-4 sm:py-6">
-        <div className="mb-4 space-y-4 rounded-2xl bg-white p-4 shadow-lg sm:p-6">
+      <div className={`mx-auto px-4 py-4 sm:py-6 ${isSettingsMode ? 'max-w-7xl' : 'max-w-4xl'}`}>
+        {isSettingsMode && (
+          <>
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-lg font-semibold text-slate-700 md:text-2xl">
+              The 10 onboarding steps become 7 sidebar sections under "Edit Profile" + Payments in Settings.
+              Coaches click any section to jump directly to it. No wizard, no stepping through.
+            </div>
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-6 py-6">
+                <div className="flex items-start gap-4">
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xl text-slate-600 transition hover:bg-slate-50"
+                  >
+                    ‹
+                  </button>
+                  <div>
+                    <h1 className="text-3xl font-semibold text-slate-900 md:text-4xl">Edit Profile</h1>
+                    <p className="text-lg text-slate-400 md:text-2xl">Changes are visible to students after saving</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-700"
+                  >
+                    👁 Preview public profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
+                  >
+                    {isSubmitting ? 'Saving...' : 'Save Profile'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-b border-slate-200 px-6 py-4">
+                <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-700">
+                  <span>Profile completion</span>
+                  <span className="text-emerald-600">{settingsCompletionPercent}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-100">
+                  <div className="h-2 rounded-full bg-emerald-500 transition-all" style={{ width: `${settingsCompletionPercent}%` }} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {!isSettingsMode && (
+          <div className="mb-4 space-y-4 rounded-2xl bg-white p-4 shadow-lg sm:p-6">
           <div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -780,7 +852,51 @@ const OnboardingFlow = ({
               </div>
             ))}
           </div>
-        </div>
+          </div>
+        )}
+
+        <div className={isSettingsMode ? 'mt-6 grid gap-6 lg:grid-cols-[260px_1fr]' : ''}>
+          {isSettingsMode && (
+            <aside className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Public Profile</p>
+              <div className="space-y-2">
+                {[0, 1, 2, 3, 4, 5, 7].map((index) => (
+                  <button
+                    key={activeSteps[index]?.title || index}
+                    type="button"
+                    onClick={() => setCurrentStep(index)}
+                    className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm ${
+                      currentStep === index
+                        ? 'border-violet-300 bg-violet-50 text-violet-700'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className="text-slate-400">{activeSteps[index]?.icon}</span>
+                      {activeSteps[index]?.title}
+                    </span>
+                    <span className={stepCompletionByIndex[index] ? 'text-emerald-500' : 'text-slate-300'}>✓</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mb-4 mt-6 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Business</p>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(6)}
+                className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm ${
+                  currentStep === 6
+                    ? 'border-violet-300 bg-violet-50 text-violet-700'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <span className="text-slate-400">{activeSteps[6]?.icon}</span>
+                  {activeSteps[6]?.title}
+                </span>
+                <span className={stepCompletionByIndex[6] ? 'text-emerald-500' : 'text-slate-300'}>✓</span>
+              </button>
+            </aside>
+          )}
 
         <div className="space-y-6 rounded-2xl bg-white p-4 shadow-lg sm:p-6">
           {currentStep === 0 && (
@@ -1709,6 +1825,7 @@ const OnboardingFlow = ({
             {submissionError}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
