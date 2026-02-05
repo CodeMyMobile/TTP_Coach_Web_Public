@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarPlus, Edit, Grid, List } from 'lucide-react';
+import { CalendarPlus, Edit } from 'lucide-react';
 import CoachCalendar from '../CoachCalendar';
 
 const CalendarSection = ({
@@ -19,43 +19,8 @@ const CalendarSection = ({
 }) => (
   <section className="mt-6 space-y-6 calendar-section">
     <div className="rounded-2xl bg-white p-4 shadow-sm calendar-section-card">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between calendar-section-header">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Weekly Schedule</h2>
-          <p className="text-sm text-gray-500">Manage lessons, availability, and requests</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-            {[
-              { key: 'day', label: 'Day', icon: Grid },
-              { key: 'week', label: 'Week', icon: List }
-            ].map((view) => (
-              <button
-                key={view.key}
-                type="button"
-                onClick={() => onCalendarViewChange(view.key)}
-                className={`flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium ${
-                  calendarView === view.key
-                    ? 'bg-white text-purple-600 shadow'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <view.icon className="h-4 w-4" />
-                <span>{view.label}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => onCurrentDateChange(new Date())}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-          >
-            Today
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4 calendar-section-body">
+      <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 calendar-section-body">
+        <p className="text-sm text-gray-500">Manage lessons, availability, and requests</p>
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between calendar-section-controls">
           <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-gray-500">
             <span>Calendar view</span>
