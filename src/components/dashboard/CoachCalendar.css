@@ -99,6 +99,8 @@
 }
 
 .coach-calendar .rbc-time-header {
+  position: relative;
+  z-index: 6;
   border-bottom: 1px solid var(--calendar-border);
   background: var(--calendar-soft);
 }
@@ -115,6 +117,19 @@
   letter-spacing: 0.04em;
   color: var(--calendar-muted);
   border-bottom: 1px solid var(--calendar-border);
+}
+
+.coach-calendar-week-header {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  min-height: 18px;
+  color: var(--calendar-text);
+  white-space: nowrap;
 }
 
 .coach-calendar .rbc-header + .rbc-header {
@@ -139,6 +154,8 @@
 }
 
 .coach-calendar .rbc-time-content {
+  position: relative;
+  z-index: 1;
   border-top: 1px solid var(--calendar-border);
 }
 
@@ -168,8 +185,7 @@
 }
 
 .coach-calendar .rbc-allday-cell {
-  border-bottom: 1px solid var(--calendar-border);
-  background: #f8fafc;
+  display: none;
 }
 
 .coach-calendar .rbc-show-more {
@@ -181,17 +197,18 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: var(--coach-time-header-height, 48px);
+  top: var(--coach-availability-top, 120px);
   min-height: 42px;
   display: grid;
   grid-template-columns: var(--coach-time-gutter-width, 55px) repeat(7, 1fr);
   background: #eff6ff;
   border-bottom: 2px solid #93c5fd;
-  z-index: 5;
+  z-index: 10;
 }
 
 .coach-calendar-desktop {
   position: relative;
+  isolation: isolate;
 }
 
 .coach-calendar-desktop.has-availability-strip .rbc-time-content {
@@ -457,7 +474,7 @@
   border-left: 3px solid;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .lesson-card.private {

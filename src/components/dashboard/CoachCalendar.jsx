@@ -6,6 +6,12 @@ import './CoachCalendar.css';
 
 const localizer = momentLocalizer(moment);
 
+const WeekHeader = ({ date, label }) => {
+  const parsedDate = moment(date);
+  const text = parsedDate.isValid() ? parsedDate.format('ddd DD') : label || '';
+  return <div className="coach-calendar-week-header">{text}</div>;
+};
+
 const DAY_INDEX = {
   sunday: 0,
   monday: 1,
@@ -241,6 +247,12 @@ const CoachCalendar = ({
     [googleEvents]
   );
 
+
+  const busyEventsForDisplay = useMemo(
+    () => busyEvents.filter((event) => !event.allDay),
+    [busyEvents]
+  );
+
   const availabilityMinusBusy = useMemo(() => {
     const byDay = new Map();
     busyEvents.forEach((event) => {
@@ -293,8 +305,8 @@ const CoachCalendar = ({
       return events;
     }
 
-    return [...availabilityMinusBusy, ...lessonEvents, ...busyEvents];
-  }, [availabilityMinusBusy, busyEvents, events, lessonEvents]);
+    return [...availabilityMinusBusy, ...lessonEvents, ...busyEventsForDisplay];
+  }, [availabilityMinusBusy, busyEventsForDisplay, events, lessonEvents]);
 
   useEffect(() => {
     setMobileView(view === 'day' ? 'day' : 'week');
@@ -306,6 +318,8 @@ const CoachCalendar = ({
         return;
       }
       const header = calendarRef.current.querySelector('.rbc-time-header');
+      const headerContent = calendarRef.current.querySelector('.rbc-time-header-content');
+      const timeView = calendarRef.current.querySelector('.rbc-time-view');
       const gutter = calendarRef.current.querySelector('.rbc-time-header-gutter');
       const strip = calendarRef.current.querySelector('.coach-calendar-availability-strip');
       if (header) {
@@ -313,6 +327,10 @@ const CoachCalendar = ({
           '--coach-time-header-height',
           `${header.getBoundingClientRect().height}px`
         );
+      }
+      if (timeView && headerContent) {
+        const availabilityTop = timeView.offsetTop + headerContent.getBoundingClientRect().height;
+        calendarRef.current.style.setProperty('--coach-availability-top', `${availabilityTop}px`);
       }
       if (gutter) {
         calendarRef.current.style.setProperty(
@@ -331,7 +349,7 @@ const CoachCalendar = ({
     updateMetrics();
     window.addEventListener('resize', updateMetrics);
     return () => window.removeEventListener('resize', updateMetrics);
-  }, [view, resolvedEvents.length]);
+  }, [currentDate, view, resolvedEvents.length]);
 
   useEffect(() => {
     const lessonEvents = resolvedEvents.filter((event) => event.type === 'lesson');
@@ -696,6 +714,11 @@ const CoachCalendar = ({
             return {
               className: 'availability-bg-event'
             };
+          }}
+          components={{
+            week: {
+              header: WeekHeader
+            }
           }}
         />
       </div>
