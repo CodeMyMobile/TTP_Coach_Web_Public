@@ -205,7 +205,6 @@ const DashboardPage = ({
   });
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
-  const [showFabMenu, setShowFabMenu] = useState(false);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const notificationRef = useRef(null);
 
@@ -765,23 +764,6 @@ const DashboardPage = ({
         )}
 
       </main>
-
-      <div className="dashboard-fab-container">
-        {showFabMenu && (
-          <div className="dashboard-fab-menu">
-            <button type="button" className="dashboard-fab-menu-item">Set Availability</button>
-            <button type="button" className="dashboard-fab-menu-item">Add Lesson</button>
-            <button type="button" className="dashboard-fab-menu-item">Block Time</button>
-          </div>
-        )}
-        <button
-          type="button"
-          className="dashboard-fab"
-          onClick={() => setShowFabMenu((prev) => !prev)}
-        >
-          +
-        </button>
-      </div>
 
       <nav className="dashboard-bottom-nav">
         {[
