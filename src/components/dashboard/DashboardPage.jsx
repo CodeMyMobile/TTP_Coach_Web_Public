@@ -617,7 +617,7 @@ const DashboardPage = ({
 
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap dashboard-tabs">
+          <div className="hidden w-full flex-wrap gap-2 sm:flex sm:w-auto sm:flex-nowrap dashboard-tabs">
             {[
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
