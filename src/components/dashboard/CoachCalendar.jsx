@@ -6,9 +6,11 @@ import './CoachCalendar.css';
 
 const localizer = momentLocalizer(moment);
 
-const WeekHeader = ({ date }) => (
-  <div className="coach-calendar-week-header">{moment(date).format('ddd DD')}</div>
-);
+const WeekHeader = ({ date, label }) => {
+  const parsedDate = moment(date);
+  const text = parsedDate.isValid() ? parsedDate.format('ddd DD') : label || '';
+  return <div className="coach-calendar-week-header">{text}</div>;
+};
 
 const DAY_INDEX = {
   sunday: 0,
@@ -245,6 +247,12 @@ const CoachCalendar = ({
     [googleEvents]
   );
 
+
+  const busyEventsForDisplay = useMemo(
+    () => busyEvents.filter((event) => !event.allDay),
+    [busyEvents]
+  );
+
   const availabilityMinusBusy = useMemo(() => {
     const byDay = new Map();
     busyEvents.forEach((event) => {
@@ -297,8 +305,8 @@ const CoachCalendar = ({
       return events;
     }
 
-    return [...availabilityMinusBusy, ...lessonEvents, ...busyEvents];
-  }, [availabilityMinusBusy, busyEvents, events, lessonEvents]);
+    return [...availabilityMinusBusy, ...lessonEvents, ...busyEventsForDisplay];
+  }, [availabilityMinusBusy, busyEventsForDisplay, events, lessonEvents]);
 
   useEffect(() => {
     setMobileView(view === 'day' ? 'day' : 'week');
@@ -335,7 +343,7 @@ const CoachCalendar = ({
     updateMetrics();
     window.addEventListener('resize', updateMetrics);
     return () => window.removeEventListener('resize', updateMetrics);
-  }, [view, resolvedEvents.length]);
+  }, [currentDate, view, resolvedEvents.length]);
 
   useEffect(() => {
     const lessonEvents = resolvedEvents.filter((event) => event.type === 'lesson');

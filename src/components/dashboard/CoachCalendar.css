@@ -99,6 +99,8 @@
 }
 
 .coach-calendar .rbc-time-header {
+  position: relative;
+  z-index: 6;
   border-bottom: 1px solid var(--calendar-border);
   background: var(--calendar-soft);
 }
@@ -125,6 +127,7 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
+  min-height: 18px;
   color: var(--calendar-text);
   white-space: nowrap;
 }
@@ -199,7 +202,7 @@
   grid-template-columns: var(--coach-time-gutter-width, 55px) repeat(7, 1fr);
   background: #eff6ff;
   border-bottom: 2px solid #93c5fd;
-  z-index: 5;
+  z-index: 4;
 }
 
 .coach-calendar-desktop {
