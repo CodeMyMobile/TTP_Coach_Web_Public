@@ -750,11 +750,6 @@ const OnboardingFlow = ({
       <div className={`mx-auto px-4 py-4 sm:py-6 ${isSettingsMode ? 'max-w-7xl' : 'max-w-4xl'}`}>
         {isSettingsMode && (
           <>
-            <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-lg font-semibold text-slate-700 md:text-2xl">
-              The 10 onboarding steps become 7 sidebar sections under "Edit Profile" + Payments in Settings.
-              Coaches click any section to jump directly to it. No wizard, no stepping through.
-            </div>
-
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-6 py-6">
                 <div className="flex items-start gap-4">
