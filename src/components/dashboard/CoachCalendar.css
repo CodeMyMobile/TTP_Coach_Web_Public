@@ -185,8 +185,7 @@
 }
 
 .coach-calendar .rbc-allday-cell {
-  border-bottom: 1px solid var(--calendar-border);
-  background: #f8fafc;
+  display: none;
 }
 
 .coach-calendar .rbc-show-more {
@@ -198,7 +197,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: var(--coach-time-header-height, 48px);
+  top: var(--coach-time-header-height, 42px);
   min-height: 42px;
   display: grid;
   grid-template-columns: var(--coach-time-gutter-width, 55px) repeat(7, 1fr);
@@ -209,6 +208,7 @@
 
 .coach-calendar-desktop {
   position: relative;
+  isolation: isolate;
 }
 
 .coach-calendar-desktop.has-availability-strip .rbc-time-content {
