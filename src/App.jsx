@@ -20,7 +20,6 @@ import {
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
-import SettingsPage from './components/settings/SettingsPage';
 import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
@@ -1157,7 +1156,13 @@ function App() {
   return (
     <>
       {isSettingsRoute ? (
-        <SettingsPage
+        <OnboardingFlow
+          initialData={profileData}
+          initialStep={0}
+          onComplete={handleOnboardingComplete}
+          onRefreshProfile={refreshProfile}
+          isMobile={isMobile}
+          isSettingsMode
           onBack={() => navigate('/dashboard')}
           onOpenGoogleCalendar={() => navigate('/google-calendar')}
         />

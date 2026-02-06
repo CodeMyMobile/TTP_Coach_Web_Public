@@ -205,7 +205,6 @@ const DashboardPage = ({
   });
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
-  const [showFabMenu, setShowFabMenu] = useState(false);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const notificationRef = useRef(null);
 
@@ -617,7 +616,7 @@ const DashboardPage = ({
 
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap dashboard-tabs">
+          <div className="hidden w-full flex-wrap gap-2 sm:flex sm:w-auto sm:flex-nowrap dashboard-tabs">
             {[
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
@@ -641,9 +640,9 @@ const DashboardPage = ({
             ))}
           </div>
 
-          <div className="flex w-full flex-col items-start gap-1 text-sm text-gray-500 sm:w-auto sm:flex-row sm:items-center sm:gap-2 dashboard-secure-note">
+          <div className="flex w-full items-center gap-2 text-xs text-gray-500 sm:w-auto sm:text-sm dashboard-secure-note">
             <Shield className="h-4 w-4 text-green-500" />
-            <span>Secure portal • Last synced moments ago</span>
+            <span className="whitespace-nowrap">Secure portal • Last synced moments ago</span>
           </div>
         </div>
 
@@ -765,23 +764,6 @@ const DashboardPage = ({
         )}
 
       </main>
-
-      <div className="dashboard-fab-container">
-        {showFabMenu && (
-          <div className="dashboard-fab-menu">
-            <button type="button" className="dashboard-fab-menu-item">Set Availability</button>
-            <button type="button" className="dashboard-fab-menu-item">Add Lesson</button>
-            <button type="button" className="dashboard-fab-menu-item">Block Time</button>
-          </div>
-        )}
-        <button
-          type="button"
-          className="dashboard-fab"
-          onClick={() => setShowFabMenu((prev) => !prev)}
-        >
-          +
-        </button>
-      </div>
 
       <nav className="dashboard-bottom-nav">
         {[
