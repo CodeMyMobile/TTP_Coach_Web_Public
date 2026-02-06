@@ -784,6 +784,32 @@ function App() {
     setShowCreateLessonModal(true);
   };
 
+  const handleCreateLessonOpen = () => {
+    const defaultLocation = resolveDefaultLocation();
+    setLessonDraft({
+      start: null,
+      end: null,
+      location_id: defaultLocation.location_id ?? null,
+      court: null,
+      lessontype_id: 1,
+      playerIds: [],
+      metadata: {
+        title: '',
+        level: 'All',
+        duration: '',
+        description: '',
+        recurrence: {
+          frequency: '',
+          count: ''
+        }
+      },
+      price_per_person: '',
+      player_limit: ''
+    });
+    setShowLessonDetailModal(false);
+    setShowCreateLessonModal(true);
+  };
+
   const handleCloseStudentDetail = () => {
     setShowStudentDetailModal(false);
     setSelectedStudent(null);
@@ -1203,6 +1229,7 @@ function App() {
           onAvailabilitySlotSelect={handleAvailabilitySlotSelect}
           onEmptySlotSelect={handleEmptySlotSelect}
           onOpenAddAvailability={handleAddAvailabilityOpen}
+          onOpenCreateLesson={handleCreateLessonOpen}
           onOpenCreatePackage={() => setShowCreatePackageModal(true)}
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
