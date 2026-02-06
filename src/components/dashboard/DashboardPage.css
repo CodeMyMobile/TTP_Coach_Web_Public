@@ -21,6 +21,91 @@
   color: #1e293b;
 }
 
+.dashboard-quick-action-btn {
+  background: #8b5cf6;
+  color: #ffffff;
+}
+
+.dashboard-quick-action-btn:hover {
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+.dashboard-quick-action-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.dashboard-quick-action-active svg {
+  transform: rotate(45deg);
+}
+
+.dashboard-quick-actions-dropdown {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  width: 240px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 60;
+}
+
+.dashboard-quick-actions-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 10px;
+  text-align: left;
+  color: #0f172a;
+}
+
+.dashboard-quick-actions-item:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.dashboard-quick-actions-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #ede9fe;
+  color: #6d28d9;
+  flex-shrink: 0;
+}
+
+.dashboard-quick-actions-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.dashboard-quick-actions-subtitle {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.dashboard-quick-actions-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  border: none;
+  z-index: 40;
+}
+
 .notification-badge {
   position: absolute;
   top: -4px;
@@ -280,6 +365,10 @@
 
   .notification-dropdown {
     display: none;
+  }
+
+  .dashboard-quick-actions-dropdown {
+    width: 210px;
   }
 
   .stats-summary-desktop {
