@@ -210,6 +210,7 @@ const DashboardPage = ({
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
@@ -476,6 +477,10 @@ const DashboardPage = ({
     }
   }, [actionItems.length]);
 
+  useEffect(() => {
+    setCarouselIndex(0);
+  }, [actionItems.length]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {mutationError && (
@@ -734,46 +739,141 @@ const DashboardPage = ({
         </div>
 
         {actionItems.length > 0 && !dismissedActionBar && (
-          <div className="action-alert-bar">
-            <div className="action-alert-left">
-              <span className="action-alert-icon">⚡</span>
-              <span className="action-alert-text">
-                <strong>{actionItems.length} items</strong> need attention
-              </span>
+          <>
+            <div className="action-alert-bar">
+              <div className="action-alert-left">
+                <span className="action-alert-icon">⚡</span>
+                <span className="action-alert-text">
+                  <strong>{actionItems.length} items</strong> need attention
+                </span>
+              </div>
+              <div className="action-alert-items">
+                {actionItems.map((item) => (
+                  <div key={item.id} className="action-alert-item">
+                    <span>
+                      {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
+                    </span>
+                    <div className="action-alert-buttons">
+                      <button
+                        type="button"
+                        className="action-alert-btn approve"
+                        onClick={item.onAccept || undefined}
+                        disabled={!item.onAccept}
+                      >
+                        {item.type === 'lesson' ? 'Confirm' : 'Accept'}
+                      </button>
+                      <button
+                        type="button"
+                        className="action-alert-btn decline"
+                        onClick={item.onDecline || undefined}
+                        disabled={!item.onDecline}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="action-alert-dismiss"
+                onClick={() => setDismissedActionBar(true)}
+              >
+                ×
+              </button>
             </div>
-            <div className="action-alert-items">
-              {actionItems.map((item) => (
-                <div key={item.id} className="action-alert-item">
-                  <span>
-                    {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
-                  </span>
-                  <div className="action-alert-buttons">
+            <div className="notification-carousel">
+              <div className="notification-carousel-header">
+                <div className="notification-carousel-title">
+                  <span className="notification-carousel-icon">⚡</span>
+                  <span>{actionItems.length} items need attention</span>
+                </div>
+                <button
+                  type="button"
+                  className="notification-carousel-dismiss"
+                  onClick={() => setDismissedActionBar(true)}
+                >
+                  ×
+                </button>
+              </div>
+              {actionItems.length > 0 && (
+                <div className="notification-carousel-card">
+                  <div className="notification-carousel-meta">
+                    <div className="notification-carousel-avatar">
+                      {(actionItems[carouselIndex]?.name || 'N')
+                        .split(' ')
+                        .map((part) => part[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="notification-carousel-name">
+                        {actionItems[carouselIndex]?.name}
+                      </div>
+                      <div className="notification-carousel-detail">
+                        {actionItems[carouselIndex]?.detail}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="notification-carousel-actions">
                     <button
                       type="button"
-                      className="action-alert-btn approve"
-                      onClick={item.onAccept || undefined}
+                      className="notification-carousel-btn approve"
+                      onClick={actionItems[carouselIndex]?.onAccept || undefined}
+                      disabled={!actionItems[carouselIndex]?.onAccept}
                     >
-                      {item.type === 'lesson' ? 'Confirm' : 'Accept'}
+                      {actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept'}
                     </button>
                     <button
                       type="button"
-                      className="action-alert-btn decline"
-                      onClick={item.onDecline || undefined}
+                      className="notification-carousel-btn decline"
+                      onClick={actionItems[carouselIndex]?.onDecline || undefined}
+                      disabled={!actionItems[carouselIndex]?.onDecline}
                     >
                       Decline
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
+              <div className="notification-carousel-controls">
+                <button
+                  type="button"
+                  className="notification-carousel-nav"
+                  onClick={() =>
+                    setCarouselIndex((prev) =>
+                      prev === 0 ? actionItems.length - 1 : prev - 1
+                    )
+                  }
+                >
+                  ‹
+                </button>
+                <div className="notification-carousel-dots">
+                  {actionItems.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`notification-carousel-dot ${
+                        index === carouselIndex ? 'active' : ''
+                      }`}
+                      onClick={() => setCarouselIndex(index)}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="notification-carousel-nav"
+                  onClick={() =>
+                    setCarouselIndex((prev) =>
+                      prev === actionItems.length - 1 ? 0 : prev + 1
+                    )
+                  }
+                >
+                  ›
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              className="action-alert-dismiss"
-              onClick={() => setDismissedActionBar(true)}
-            >
-              ×
-            </button>
-          </div>
+          </>
         )}
 
         {dashboardTab === 'calendar' && (
