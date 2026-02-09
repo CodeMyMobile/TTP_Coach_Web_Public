@@ -57,6 +57,36 @@ const formatValidityLabel = (months) => {
   return `${months} months`;
 };
 
+const formatLessonInfo = (lesson) => {
+  if (!lesson) {
+    return '';
+  }
+
+  const startRaw = lesson.start_date_time || lesson.startDateTime || lesson.start_time;
+  const endRaw = lesson.end_date_time || lesson.endDateTime || lesson.end_time;
+  const startDate = startRaw ? new Date(startRaw) : null;
+  const endDate = endRaw ? new Date(endRaw) : null;
+  const hasStart = startDate instanceof Date && !Number.isNaN(startDate?.getTime?.());
+  const hasEnd = endDate instanceof Date && !Number.isNaN(endDate?.getTime?.());
+
+  const dateLabel = hasStart
+    ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '';
+  const startTime = hasStart
+    ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const endTime = hasEnd
+    ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startTime;
+
+  const locationLabel = lesson.court
+    ? `${lesson.location || ''} · Court ${lesson.court}`
+    : lesson.location || lesson.courtName || '';
+
+  return [dateLabel, timeRange, locationLabel].filter(Boolean).join(' • ');
+};
+
 const DashboardPage = ({
   profile,
   dashboardTab,
@@ -457,6 +487,7 @@ const DashboardPage = ({
       type: 'roster',
       name: student.name || 'Student',
       detail: 'roster request',
+      info: student.email || student.phone || '',
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
@@ -465,6 +496,7 @@ const DashboardPage = ({
       type: 'lesson',
       name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
       detail: lesson.start_date_time ? 'lesson request' : 'lesson pending',
+      info: formatLessonInfo(lesson),
       onAccept: null,
       onDecline: null
     }))
@@ -814,6 +846,11 @@ const DashboardPage = ({
                       <div className="notification-carousel-detail">
                         {actionItems[carouselIndex]?.detail}
                       </div>
+                      {actionItems[carouselIndex]?.info && (
+                        <div className="notification-carousel-info">
+                          {actionItems[carouselIndex]?.info}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="notification-carousel-actions">
