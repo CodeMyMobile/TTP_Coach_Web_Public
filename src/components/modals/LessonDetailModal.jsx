@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertCircle,
   Calendar,
-  Check,
   MapPin,
   MessageCircle,
   Tag,
@@ -81,23 +80,49 @@ const LessonDetailModal = ({
     }
 
     const normalizeStatus = (value) => {
+      if (value === 0 || value === '0') {
+        return 'pending';
+      }
+      if (value === 2 || value === '2') {
+        return 'cancelled';
+      }
       if (!value) {
         return 'confirmed';
       }
       const normalized = String(value).toLowerCase();
-      if (normalized.includes('pending')) {
+      if (normalized.includes('pending') || normalized.includes('request') || normalized.includes('await')) {
         return 'pending';
       }
       if (normalized.includes('cancel')) {
         return 'cancelled';
       }
+      if (normalized.includes('confirm') || normalized.includes('schedule')) {
+        return 'confirmed';
+      }
       return normalized;
     };
 
-    const status = normalizeStatus(lesson.status || lesson.lessonStatus);
+    const status = normalizeStatus(lesson.status || lesson.lessonStatus || lesson.lesson_status);
 
-    const type = lesson.type === 'semi' ? 'semi-private' : lesson.type || 'private';
-    const lessonType = ['private', 'semi-private', 'group'].includes(type) ? type : 'private';
+    const resolveType = () => {
+      const typeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+      if (typeId === 2) {
+        return 'semi-private';
+      }
+      if (typeId === 3) {
+        return 'group';
+      }
+      const raw = lesson.lesson_type_name || lesson.lessonType || lesson.type || '';
+      const normalized = String(raw).toLowerCase();
+      if (normalized.includes('semi')) {
+        return 'semi-private';
+      }
+      if (normalized.includes('group') || normalized.includes('open')) {
+        return 'group';
+      }
+      return 'private';
+    };
+    const lessonType = resolveType();
 
     const startRaw = lesson.start_date_time || lesson.startDateTime;
     const endRaw = lesson.end_date_time || lesson.endDateTime;
@@ -114,7 +139,34 @@ const LessonDetailModal = ({
       status,
       dateLabel,
       startTimeLabel,
-      endTimeLabel
+      endTimeLabel,
+      studentName:
+        lesson.student ||
+        lesson.full_name ||
+        lesson.player_name ||
+        lesson.student_name ||
+        lesson.studentName ||
+        lesson.playerName ||
+        lesson.metadata?.player_name ||
+        '',
+      studentLevel: lesson.level || lesson.metadata?.level || lesson.skill_level || 'Intermediate',
+      lessonsCompleted: lesson.lessonsCompleted || lesson.lessons_completed || 0,
+      studentMessage:
+        lesson.studentMessage ||
+        lesson.message ||
+        lesson.metadata?.message ||
+        lesson.metadata?.student_message ||
+        '',
+      cancellationReason:
+        lesson.cancellationReason ||
+        lesson.cancellation_reason ||
+        lesson.cancel_reason ||
+        '',
+      requestedAt: lesson.requestedAt || lesson.requested_at || lesson.request_time || '',
+      cancelledAt: lesson.cancelledAt || lesson.cancelled_at || lesson.cancelled_time || '',
+      cancelledBy: lesson.cancelledBy || lesson.cancelled_by || '',
+      locationName: lesson.location?.name || lesson.location_name || lesson.location,
+      locationAddress: lesson.location?.address || lesson.location_address || lesson.court || ''
     };
   }, [lesson]);
 
@@ -131,18 +183,18 @@ const LessonDetailModal = ({
 
   const studentList = resolvedLesson.students?.length
     ? resolvedLesson.students
-    : resolvedLesson.student
+    : resolvedLesson.studentName
       ? [
           {
             id: resolvedLesson.id,
-            name: resolvedLesson.student,
-            initials: resolvedLesson.student
+            name: resolvedLesson.studentName,
+            initials: resolvedLesson.studentName
               .split(' ')
               .map((part) => part[0])
               .join('')
               .slice(0, 2)
               .toUpperCase(),
-            level: resolvedLesson.level || 'Intermediate',
+            level: resolvedLesson.studentLevel || 'Intermediate',
             lessonsCompleted: resolvedLesson.lessonsCompleted || 0
           }
         ]
@@ -154,7 +206,12 @@ const LessonDetailModal = ({
       ? `${formatDuration?.(resolvedLesson.durationMinutes || resolvedLesson.duration) || resolvedLesson.durationMinutes || resolvedLesson.duration}`
       : '1 hour';
 
-  const pricePerHour = resolvedLesson.pricePerHour || resolvedLesson.rate || resolvedLesson.price || 0;
+  const pricePerHour =
+    resolvedLesson.pricePerHour ||
+    resolvedLesson.price_per_hour ||
+    resolvedLesson.rate ||
+    resolvedLesson.price ||
+    0;
   const priceLabel = pricePerHour ? `$${pricePerHour}` : '—';
 
   const typeBadgeClass =
@@ -235,6 +292,10 @@ const LessonDetailModal = ({
     );
   };
 
+  const cancelledByLabel = resolvedLesson.cancelledBy
+    ? `${resolvedLesson.cancelledBy}`.charAt(0).toUpperCase() + `${resolvedLesson.cancelledBy}`.slice(1)
+    : 'Student';
+
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && closeModal()}>
       <AnimatePresence>
@@ -311,7 +372,7 @@ const LessonDetailModal = ({
                             <div className="text-2xl">🚫</div>
                             <div className="space-y-1">
                               <p className="text-sm font-semibold text-red-800">
-                                Cancelled by {resolvedLesson.cancelledBy || 'Student'}
+                                Cancelled by {cancelledByLabel}
                               </p>
                               <p className="text-xs text-red-600">
                                 {resolvedLesson.cancelledAt || 'Recently'}
@@ -346,24 +407,20 @@ const LessonDetailModal = ({
                       )}
 
                       {resolvedLesson.status === 'pending' && resolvedLesson.studentMessage && (
-                        <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <div className="rounded-xl border border-slate-100 border-l-4 border-l-purple-500 bg-slate-50 p-4">
                           <p className="text-xs font-semibold uppercase text-slate-400">
                             Message from Student
                           </p>
-                          <p className="mt-2 border-l-4 border-purple-500 pl-3 text-sm text-slate-600">
-                            {resolvedLesson.studentMessage}
-                          </p>
+                          <p className="mt-2 text-sm text-slate-600">{resolvedLesson.studentMessage}</p>
                         </div>
                       )}
 
                       {resolvedLesson.status === 'cancelled' && resolvedLesson.cancellationReason && (
-                        <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+                        <div className="rounded-xl border border-red-100 border-l-4 border-l-red-500 bg-red-50 p-4">
                           <p className="text-xs font-semibold uppercase text-slate-400">
                             Cancellation Reason
                           </p>
-                          <p className="mt-2 border-l-4 border-red-500 pl-3 text-sm text-slate-600">
-                            {resolvedLesson.cancellationReason}
-                          </p>
+                          <p className="mt-2 text-sm text-slate-600">{resolvedLesson.cancellationReason}</p>
                         </div>
                       )}
 
@@ -392,10 +449,10 @@ const LessonDetailModal = ({
                             Location
                           </div>
                           <p className="mt-2 text-base font-semibold text-slate-900">
-                            {resolvedLesson.location?.name || resolvedLesson.location || 'TBD'}
+                            {resolvedLesson.locationName || 'TBD'}
                           </p>
                           <p className="text-sm text-slate-500">
-                            {resolvedLesson.location?.address || resolvedLesson.court || ''}
+                            {resolvedLesson.locationAddress || ''}
                           </p>
                         </div>
 
