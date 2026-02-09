@@ -303,7 +303,7 @@ const LessonDetailModal = ({
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
               <motion.div
-                className="fixed inset-0 z-40 bg-black/40"
+                className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -312,10 +312,10 @@ const LessonDetailModal = ({
 
             <Dialog.Content asChild>
               <motion.div
-                className={`fixed z-50 flex w-full flex-col overflow-hidden bg-white shadow-2xl ${
+                className={`z-50 flex w-full flex-col overflow-hidden bg-white shadow-2xl ${
                   isMobile
-                    ? 'bottom-0 left-0 right-0 max-h-[78vh] rounded-t-3xl'
-                    : 'left-1/2 top-1/2 w-[360px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl'
+                    ? 'max-h-[78vh] rounded-t-3xl'
+                    : 'max-h-[90vh] w-[360px] max-w-[90vw] rounded-2xl'
                 }`}
                 initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
                 animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
