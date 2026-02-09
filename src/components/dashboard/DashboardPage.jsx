@@ -3,12 +3,15 @@ import {
   AlertCircle,
   Bell,
   Calendar,
+  CalendarPlus,
   DollarSign,
   Menu,
   LogOut,
   Package,
+  Plus,
   Settings,
   Shield,
+  Edit,
   Users,
   MapPin
 } from 'lucide-react';
@@ -54,6 +57,36 @@ const formatValidityLabel = (months) => {
   return `${months} months`;
 };
 
+const formatLessonInfo = (lesson) => {
+  if (!lesson) {
+    return '';
+  }
+
+  const startRaw = lesson.start_date_time || lesson.startDateTime || lesson.start_time;
+  const endRaw = lesson.end_date_time || lesson.endDateTime || lesson.end_time;
+  const startDate = startRaw ? new Date(startRaw) : null;
+  const endDate = endRaw ? new Date(endRaw) : null;
+  const hasStart = startDate instanceof Date && !Number.isNaN(startDate?.getTime?.());
+  const hasEnd = endDate instanceof Date && !Number.isNaN(endDate?.getTime?.());
+
+  const dateLabel = hasStart
+    ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '';
+  const startTime = hasStart
+    ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const endTime = hasEnd
+    ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startTime;
+
+  const locationLabel = lesson.court
+    ? `${lesson.location || ''} · Court ${lesson.court}`
+    : lesson.location || lesson.courtName || '';
+
+  return [dateLabel, timeRange, locationLabel].filter(Boolean).join(' • ');
+};
+
 const DashboardPage = ({
   profile,
   dashboardTab,
@@ -86,6 +119,7 @@ const DashboardPage = ({
   onEmptySlotSelect,
   onOpenAddAvailability,
   onOpenCreatePackage,
+  onOpenCreateLesson,
   onRequestAvailabilityOnboarding,
   onOpenSettings,
   onOpenNotifications = () => {},
@@ -205,8 +239,11 @@ const DashboardPage = ({
   });
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const notificationRef = useRef(null);
+  const quickActionsRef = useRef(null);
 
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
@@ -425,6 +462,21 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showNotificationsDropdown]);
 
+  useEffect(() => {
+    if (!showQuickActions) {
+      return;
+    }
+
+    const handleClickOutside = (event) => {
+      if (quickActionsRef.current && !quickActionsRef.current.contains(event.target)) {
+        setShowQuickActions(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [showQuickActions]);
+
   const pendingLessons = bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending');
   const rosterRequests = normalizedStudents.filter(
     (student) => student.isPlayerRequest && !student.isConfirmed
@@ -435,6 +487,7 @@ const DashboardPage = ({
       type: 'roster',
       name: student.name || 'Student',
       detail: 'roster request',
+      info: student.email || student.phone || '',
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
@@ -443,6 +496,7 @@ const DashboardPage = ({
       type: 'lesson',
       name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
       detail: lesson.start_date_time ? 'lesson request' : 'lesson pending',
+      info: formatLessonInfo(lesson),
       onAccept: null,
       onDecline: null
     }))
@@ -453,6 +507,10 @@ const DashboardPage = ({
     if (actionItems.length > 0) {
       setDismissedActionBar(false);
     }
+  }, [actionItems.length]);
+
+  useEffect(() => {
+    setCarouselIndex(0);
   }, [actionItems.length]);
 
   return (
@@ -490,6 +548,63 @@ const DashboardPage = ({
               <div className="hidden items-center gap-2 text-xs text-emerald-600 md:flex">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 Synced just now
+              </div>
+              <div className="relative" ref={quickActionsRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickActions((prev) => !prev);
+                    setShowNotificationsDropdown(false);
+                  }}
+                  className={`dashboard-header-btn dashboard-quick-action-btn ${
+                    showQuickActions ? 'dashboard-quick-action-active' : ''
+                  }`}
+                  aria-expanded={showQuickActions}
+                  aria-haspopup="true"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span className="sr-only">Open quick actions</span>
+                </button>
+                {showQuickActions && (
+                  <div className="dashboard-quick-actions-dropdown">
+                    <button
+                      type="button"
+                      className="dashboard-quick-actions-item"
+                      onClick={() => {
+                        onOpenCreateLesson?.();
+                        setShowQuickActions(false);
+                      }}
+                    >
+                      <span className="dashboard-quick-actions-icon">
+                        <CalendarPlus className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="dashboard-quick-actions-title">Add Lesson</span>
+                        <span className="dashboard-quick-actions-subtitle">
+                          Book a lesson with a student
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-quick-actions-item"
+                      onClick={() => {
+                        onRequestAvailabilityOnboarding?.();
+                        setShowQuickActions(false);
+                      }}
+                    >
+                      <span className="dashboard-quick-actions-icon">
+                        <Edit className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="dashboard-quick-actions-title">Set Availability</span>
+                        <span className="dashboard-quick-actions-subtitle">
+                          Edit recurring days and times
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="relative" ref={notificationRef}>
                 <button
@@ -572,6 +687,15 @@ const DashboardPage = ({
         </div>
       </nav>
 
+      {showQuickActions && (
+        <button
+          type="button"
+          aria-label="Close quick actions"
+          className="dashboard-quick-actions-overlay"
+          onClick={() => setShowQuickActions(false)}
+        />
+      )}
+
       {showMobileMenu && (
         <div className="border-b bg-white shadow-lg md:hidden">
           <div className="space-y-2 px-4 py-4">
@@ -647,46 +771,149 @@ const DashboardPage = ({
         </div>
 
         {actionItems.length > 0 && !dismissedActionBar && (
-          <div className="action-alert-bar">
-            <div className="action-alert-left">
-              <span className="action-alert-icon">⚡</span>
-              <span className="action-alert-text">
-                <strong>{actionItems.length} items</strong> need attention
-              </span>
+          <>
+            <div className="action-alert-bar">
+              <div className="action-alert-left">
+                <span className="action-alert-icon">⚡</span>
+                <span className="action-alert-text">
+                  <strong>{actionItems.length} items</strong> need attention
+                </span>
+              </div>
+              <div className="action-alert-items">
+                {actionItems.map((item) => (
+                  <div key={item.id} className="action-alert-item">
+                    <div className="action-alert-text-group">
+                      <span className="action-alert-primary">
+                        {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
+                      </span>
+                      {item.info && <span className="action-alert-info">{item.info}</span>}
+                    </div>
+                    <div className="action-alert-buttons">
+                      <button
+                        type="button"
+                        className="action-alert-btn approve"
+                        onClick={item.onAccept || undefined}
+                        disabled={!item.onAccept}
+                      >
+                        {item.type === 'lesson' ? 'Confirm' : 'Accept'}
+                      </button>
+                      <button
+                        type="button"
+                        className="action-alert-btn decline"
+                        onClick={item.onDecline || undefined}
+                        disabled={!item.onDecline}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="action-alert-dismiss"
+                onClick={() => setDismissedActionBar(true)}
+              >
+                ×
+              </button>
             </div>
-            <div className="action-alert-items">
-              {actionItems.map((item) => (
-                <div key={item.id} className="action-alert-item">
-                  <span>
-                    {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
-                  </span>
-                  <div className="action-alert-buttons">
+            <div className="notification-carousel">
+              <div className="notification-carousel-header">
+                <div className="notification-carousel-title">
+                  <span className="notification-carousel-icon">⚡</span>
+                  <span>{actionItems.length} items need attention</span>
+                </div>
+                <button
+                  type="button"
+                  className="notification-carousel-dismiss"
+                  onClick={() => setDismissedActionBar(true)}
+                >
+                  ×
+                </button>
+              </div>
+              {actionItems.length > 0 && (
+                <div className="notification-carousel-card">
+                  <div className="notification-carousel-meta">
+                    <div className="notification-carousel-avatar">
+                      {(actionItems[carouselIndex]?.name || 'N')
+                        .split(' ')
+                        .map((part) => part[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="notification-carousel-name">
+                        {actionItems[carouselIndex]?.name}
+                      </div>
+                      <div className="notification-carousel-detail">
+                        {actionItems[carouselIndex]?.detail}
+                      </div>
+                      {actionItems[carouselIndex]?.info && (
+                        <div className="notification-carousel-info">
+                          {actionItems[carouselIndex]?.info}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="notification-carousel-actions">
                     <button
                       type="button"
-                      className="action-alert-btn approve"
-                      onClick={item.onAccept || undefined}
+                      className="notification-carousel-btn approve"
+                      onClick={actionItems[carouselIndex]?.onAccept || undefined}
+                      disabled={!actionItems[carouselIndex]?.onAccept}
                     >
-                      {item.type === 'lesson' ? 'Confirm' : 'Accept'}
+                      {actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept'}
                     </button>
                     <button
                       type="button"
-                      className="action-alert-btn decline"
-                      onClick={item.onDecline || undefined}
+                      className="notification-carousel-btn decline"
+                      onClick={actionItems[carouselIndex]?.onDecline || undefined}
+                      disabled={!actionItems[carouselIndex]?.onDecline}
                     >
                       Decline
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
+              <div className="notification-carousel-controls">
+                <button
+                  type="button"
+                  className="notification-carousel-nav"
+                  onClick={() =>
+                    setCarouselIndex((prev) =>
+                      prev === 0 ? actionItems.length - 1 : prev - 1
+                    )
+                  }
+                >
+                  ‹
+                </button>
+                <div className="notification-carousel-dots">
+                  {actionItems.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`notification-carousel-dot ${
+                        index === carouselIndex ? 'active' : ''
+                      }`}
+                      onClick={() => setCarouselIndex(index)}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="notification-carousel-nav"
+                  onClick={() =>
+                    setCarouselIndex((prev) =>
+                      prev === actionItems.length - 1 ? 0 : prev + 1
+                    )
+                  }
+                >
+                  ›
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              className="action-alert-dismiss"
-              onClick={() => setDismissedActionBar(true)}
-            >
-              ×
-            </button>
-          </div>
+          </>
         )}
 
         {dashboardTab === 'calendar' && (
@@ -707,7 +934,6 @@ const DashboardPage = ({
             onAvailabilitySelect={handleAvailabilitySelect}
             onEmptySlotSelect={onEmptySlotSelect}
             onOpenAddAvailability={onOpenAddAvailability}
-            onRequestAvailabilityOnboarding={onRequestAvailabilityOnboarding}
           />
         )}
 
