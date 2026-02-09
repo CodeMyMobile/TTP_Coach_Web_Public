@@ -782,9 +782,12 @@ const DashboardPage = ({
               <div className="action-alert-items">
                 {actionItems.map((item) => (
                   <div key={item.id} className="action-alert-item">
-                    <span>
-                      {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
-                    </span>
+                    <div className="action-alert-text-group">
+                      <span className="action-alert-primary">
+                        {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
+                      </span>
+                      {item.info && <span className="action-alert-info">{item.info}</span>}
+                    </div>
                     <div className="action-alert-buttons">
                       <button
                         type="button"

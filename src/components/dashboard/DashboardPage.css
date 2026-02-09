@@ -285,6 +285,23 @@
   color: #1e293b;
 }
 
+.action-alert-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.action-alert-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-alert-info {
+  font-size: 11px;
+  color: #64748b;
+}
+
 .action-alert-buttons {
   display: flex;
   gap: 6px;
