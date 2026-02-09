@@ -314,8 +314,8 @@ const LessonDetailModal = ({
               <motion.div
                 className={`fixed z-50 flex w-full flex-col overflow-hidden bg-white shadow-2xl ${
                   isMobile
-                    ? 'bottom-0 left-0 right-0 max-h-[85vh] rounded-t-3xl'
-                    : 'left-1/2 top-1/2 w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-2xl'
+                    ? 'bottom-0 left-0 right-0 max-h-[80vh] rounded-t-3xl'
+                    : 'left-1/2 top-1/2 w-[440px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl'
                 }`}
                 initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
                 animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
