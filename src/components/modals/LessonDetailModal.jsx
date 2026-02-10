@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
-import * as Dialog from '@radix-ui/react-dialog';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertCircle,
   Calendar,
@@ -10,6 +8,7 @@ import {
   Tag,
   X
 } from 'lucide-react';
+import Modal from './Modal';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -296,6 +295,7 @@ const LessonDetailModal = ({
     ? `${resolvedLesson.cancelledBy}`.charAt(0).toUpperCase() + `${resolvedLesson.cancelledBy}`.slice(1)
     : 'Student';
 
+
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && closeModal()}>
       <AnimatePresence>
@@ -344,214 +344,193 @@ const LessonDetailModal = ({
                     </button>
                   </Dialog.Close>
                 </div>
+              </div>
+            )}
 
-                <div className="flex-1 overflow-y-auto px-5 pb-6 pt-5 sm:px-6">
-                  {!isEditing ? (
-                    <div className="space-y-5">
-                      {resolvedLesson.status === 'pending' && (
-                        <div className="rounded-xl border border-yellow-200 bg-gradient-to-r from-[#FEF3C7] to-[#FDE68A] p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="text-2xl">⏳</div>
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold text-yellow-900">
-                                Awaiting Your Confirmation
-                              </p>
-                              <p className="text-xs text-yellow-800">
-                                Requested {resolvedLesson.requestedAt || 'recently'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {resolvedLesson.status === 'cancelled' && (
-                        <div className="rounded-xl border border-red-200 bg-[#FEE2E2] p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="text-2xl">🚫</div>
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold text-red-800">
-                                Cancelled by {cancelledByLabel}
-                              </p>
-                              <p className="text-xs text-red-600">
-                                {resolvedLesson.cancelledAt || 'Recently'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className={`inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold uppercase ${typeBadgeClass}`}>
-                        🎾 {typeLabelMap[resolvedLesson.lessonType]}
-                      </div>
-
-                      {primaryStudent && (
-                        <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-300 text-sm font-bold text-white">
-                            {primaryStudent.initials}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-base font-semibold text-slate-900">{primaryStudent.name}</p>
-                            <p className="text-sm text-slate-500">
-                              {primaryStudent.level} · {primaryStudent.lessonsCompleted} lessons
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-purple-600"
-                          >
-                            <MessageCircle className="h-5 w-5" />
-                          </button>
-                        </div>
-                      )}
-
-                      {resolvedLesson.status === 'pending' && resolvedLesson.studentMessage && (
-                        <div className="rounded-xl border border-slate-100 border-l-4 border-l-purple-500 bg-slate-50 p-4">
-                          <p className="text-xs font-semibold uppercase text-slate-400">
-                            Message from Student
-                          </p>
-                          <p className="mt-2 text-sm text-slate-600">{resolvedLesson.studentMessage}</p>
-                        </div>
-                      )}
-
-                      {resolvedLesson.status === 'cancelled' && resolvedLesson.cancellationReason && (
-                        <div className="rounded-xl border border-red-100 border-l-4 border-l-red-500 bg-red-50 p-4">
-                          <p className="text-xs font-semibold uppercase text-slate-400">
-                            Cancellation Reason
-                          </p>
-                          <p className="mt-2 text-sm text-slate-600">{resolvedLesson.cancellationReason}</p>
-                        </div>
-                      )}
-
-                      <div className="space-y-4 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0">
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                            <Calendar className="h-4 w-4" />
-                            {resolvedLesson.status === 'pending' ? 'Requested Time' : 'Date & Time'}
-                          </div>
-                          <p
-                            className={`mt-2 text-base font-semibold ${
-                              resolvedLesson.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-900'
-                            }`}
-                          >
-                            {resolvedLesson.dateLabel}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {resolvedLesson.startTimeLabel}
-                            {resolvedLesson.endTimeLabel ? ` – ${resolvedLesson.endTimeLabel}` : ''} ({durationLabel})
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                            <MapPin className="h-4 w-4" />
-                            Location
-                          </div>
-                          <p className="mt-2 text-base font-semibold text-slate-900">
-                            {resolvedLesson.locationName || 'TBD'}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {resolvedLesson.locationAddress || ''}
-                          </p>
-                        </div>
-
-                        {resolvedLesson.status === 'confirmed' && (
-                          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                              <Tag className="h-4 w-4" />
-                              Status
-                            </div>
-                            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                              {statusLabels.confirmed}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                            <AlertCircle className="h-4 w-4" />
-                            Lesson Fee
-                          </div>
-                          <p
-                            className={`mt-2 text-lg font-semibold ${
-                              resolvedLesson.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-900'
-                            }`}
-                          >
-                            {priceLabel} <span className="text-sm font-normal text-slate-400">/ hour</span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Time</label>
-                        <input
-                          type="time"
-                          value={editData?.time}
-                          onChange={(event) => handleFieldChange('time', event.target.value)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
-                        <select
-                          value={editData?.location}
-                          onChange={(event) => handleFieldChange('location', event.target.value)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        >
-                          {coachCourts.map((court) => (
-                            <option key={court} value={court}>
-                              {court}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Court</label>
-                        <input
-                          type="text"
-                          value={editData?.court}
-                          onChange={(event) => handleFieldChange('court', event.target.value)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
-                    </div>
-                  )}
+            {resolvedLesson.status === 'cancelled' && (
+              <div className="rounded-xl border border-red-200 bg-[#FEE2E2] p-4">
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl">🚫</div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-red-800">
+                      Cancelled by {cancelledByLabel}
+                    </p>
+                    <p className="text-xs text-red-600">
+                      {resolvedLesson.cancelledAt || 'Recently'}
+                    </p>
+                  </div>
                 </div>
+              </div>
+            )}
 
-                <div className="border-t border-slate-100 bg-white px-5 py-5 sm:px-6">
-                  {!isEditing ? (
-                    <div className="flex flex-col gap-3 sm:flex-row">{actionButtons()}</div>
-                  ) : (
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <button
-                        type="button"
-                        onClick={onCancelEdit}
-                        className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={onSaveEdit}
-                        disabled={mutationLoading}
-                        className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
-                          mutationLoading ? 'cursor-wait bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
-                        }`}
-                      >
-                        {mutationLoading ? 'Saving…' : 'Save Changes'}
-                      </button>
-                    </div>
-                  )}
+            <div className={`inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold uppercase ${typeBadgeClass}`}>
+              🎾 {typeLabelMap[resolvedLesson.lessonType]}
+            </div>
+
+            {primaryStudent && (
+              <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-300 text-sm font-bold text-white">
+                  {primaryStudent.initials}
                 </div>
-              </motion.div>
-            </Dialog.Content>
-          </Dialog.Portal>
+                <div className="flex-1">
+                  <p className="text-base font-semibold text-slate-900">{primaryStudent.name}</p>
+                  <p className="text-sm text-slate-500">
+                    {primaryStudent.level} · {primaryStudent.lessonsCompleted} lessons
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-purple-600"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                </button>
+              </div>
+            )}
+
+            {resolvedLesson.status === 'pending' && resolvedLesson.studentMessage && (
+              <div className="rounded-xl border border-slate-100 border-l-4 border-l-purple-500 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase text-slate-400">
+                  Message from Student
+                </p>
+                <p className="mt-2 text-sm text-slate-600">{resolvedLesson.studentMessage}</p>
+              </div>
+            )}
+
+            {resolvedLesson.status === 'cancelled' && resolvedLesson.cancellationReason && (
+              <div className="rounded-xl border border-red-100 border-l-4 border-l-red-500 bg-red-50 p-4">
+                <p className="text-xs font-semibold uppercase text-slate-400">
+                  Cancellation Reason
+                </p>
+                <p className="mt-2 text-sm text-slate-600">{resolvedLesson.cancellationReason}</p>
+              </div>
+            )}
+
+            <div className="space-y-4 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
+                  <Calendar className="h-4 w-4" />
+                  {resolvedLesson.status === 'pending' ? 'Requested Time' : 'Date & Time'}
+                </div>
+                <p
+                  className={`mt-2 text-base font-semibold ${
+                    resolvedLesson.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-900'
+                  }`}
+                >
+                  {resolvedLesson.dateLabel}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {resolvedLesson.startTimeLabel}
+                  {resolvedLesson.endTimeLabel ? ` – ${resolvedLesson.endTimeLabel}` : ''} ({durationLabel})
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
+                  <MapPin className="h-4 w-4" />
+                  Location
+                </div>
+                <p className="mt-2 text-base font-semibold text-slate-900">
+                  {resolvedLesson.locationName || 'TBD'}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {resolvedLesson.locationAddress || ''}
+                </p>
+              </div>
+
+              {resolvedLesson.status === 'confirmed' && (
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
+                    <Tag className="h-4 w-4" />
+                    Status
+                  </div>
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    {statusLabels.confirmed}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
+                  <AlertCircle className="h-4 w-4" />
+                  Lesson Fee
+                </div>
+                <p
+                  className={`mt-2 text-lg font-semibold ${
+                    resolvedLesson.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-900'
+                  }`}
+                >
+                  {priceLabel} <span className="text-sm font-normal text-slate-400">/ hour</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Time</label>
+              <input
+                type="time"
+                value={editData?.time}
+                onChange={(event) => handleFieldChange('time', event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
+              <select
+                value={editData?.location}
+                onChange={(event) => handleFieldChange('location', event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {coachCourts.map((court) => (
+                  <option key={court} value={court}>
+                    {court}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Court</label>
+              <input
+                type="text"
+                value={editData?.court}
+                onChange={(event) => handleFieldChange('court', event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
         )}
-      </AnimatePresence>
-    </Dialog.Root>
+      </div>
+
+      <div className="border-t border-slate-100 bg-white px-5 py-5 sm:px-6">
+        {!isEditing ? (
+          <div className="flex flex-col gap-3 sm:flex-row">{actionButtons()}</div>
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              disabled={mutationLoading}
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
+                mutationLoading ? 'cursor-wait bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
+              }`}
+            >
+              {mutationLoading ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
+
 };
 
 export default LessonDetailModal;
