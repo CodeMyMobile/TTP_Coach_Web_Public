@@ -469,12 +469,20 @@
 }
 
 .lesson-card {
+  width: 100%;
+  text-align: left;
+  border: none;
   padding: 10px 12px;
   border-radius: 8px;
   border-left: 3px solid;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  cursor: pointer;
+}
+
+.lesson-card:disabled {
+  cursor: default;
 }
 
 .lesson-card.private {

@@ -585,8 +585,21 @@ const CoachCalendar = ({
                     const title = lesson.resource?.metadata?.title || lesson.title || 'Lesson';
                     const subtitle = lesson.resource?.location || lesson.resource?.metadata?.subtitle || '';
 
+                    const isBusy = lesson.type === 'busy';
+
                     return (
-                      <div key={`${key}-lesson-${index}`} className={`lesson-card ${lessonKind}`}>
+                      <button
+                        key={`${key}-lesson-${index}`}
+                        type="button"
+                        className={`lesson-card ${lessonKind}`}
+                        onClick={() => {
+                          if (isBusy) {
+                            return;
+                          }
+                          onLessonSelect?.(lesson.resource || lesson);
+                        }}
+                        disabled={isBusy}
+                      >
                         <div className="lesson-card-header">
                           <span className={`lesson-card-type ${lessonKind}`}>
                             {lessonKind.replace('-', ' ').toUpperCase()}
@@ -597,7 +610,7 @@ const CoachCalendar = ({
                         </div>
                         <div className="lesson-card-title">{title}</div>
                         {subtitle && <div className="lesson-card-subtitle">{subtitle}</div>}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
