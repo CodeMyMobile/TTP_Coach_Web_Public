@@ -297,45 +297,52 @@ const LessonDetailModal = ({
 
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={closeModal}
-      placement={isMobile ? 'bottom' : 'center'}
-      overlayClassName="bg-black/40"
-      panelClassName={`flex w-full flex-col overflow-hidden bg-white shadow-2xl ${
-        isMobile
-          ? 'max-h-[78vh] rounded-t-3xl'
-          : 'max-h-[90vh] w-[360px] max-w-[90vw] rounded-2xl'
-      }`}
-    >
-      {isMobile && <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-slate-200" />}
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && closeModal()}>
+      <AnimatePresence>
+        {isOpen && (
+          <Dialog.Portal forceMount>
+            <Dialog.Overlay asChild>
+              <motion.div
+                className="fixed inset-0 z-40 bg-black/40"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />
+            </Dialog.Overlay>
 
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-        <button
-          type="button"
-          onClick={closeModal}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
+            <Dialog.Content asChild>
+              <motion.div
+                className={`fixed left-1/2 top-1/2 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ${
+                  isMobile ? 'max-h-[85vh]' : 'max-h-[90vh]'
+                }`}
+                initial={isMobile ? { opacity: 0, scale: 0.96 } : { opacity: 0, scale: 0.95 }}
+                animate={isMobile ? { opacity: 1, scale: 1 } : { opacity: 1, scale: 1 }}
+                exit={isMobile ? { opacity: 0, scale: 0.96 } : { opacity: 0, scale: 0.95 }}
+                transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                drag={isMobile ? 'y' : false}
+                dragConstraints={{ top: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(event, info) => {
+                  if (info.offset.y > 120) {
+                    closeModal();
+                  }
+                }}
+              >
+                {isMobile && <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-slate-200" />}
 
-      <div className="flex-1 overflow-y-auto px-5 pb-6 pt-5 sm:px-6">
-        {!isEditing ? (
-          <div className="space-y-5">
-            {resolvedLesson.status === 'pending' && (
-              <div className="rounded-xl border border-yellow-200 bg-gradient-to-r from-[#FEF3C7] to-[#FDE68A] p-4">
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl">⏳</div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-yellow-900">
-                      Awaiting Your Confirmation
-                    </p>
-                    <p className="text-xs text-yellow-800">
-                      Requested {resolvedLesson.requestedAt || 'recently'}
-                    </p>
-                  </div>
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+                  <Dialog.Title className="text-lg font-semibold text-slate-900">
+                    {title}
+                  </Dialog.Title>
+                  <Dialog.Close asChild>
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </Dialog.Close>
                 </div>
               </div>
             )}

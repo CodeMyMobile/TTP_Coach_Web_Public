@@ -9,6 +9,8 @@
     "preview": "node --require ./scripts/unquarantine-rollup-native.cjs node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "framer-motion": "^12.34.0",
     "lucide-react": "^0.263.1",
     "moment": "^2.30.1",
     "react": "^18.2.0",
