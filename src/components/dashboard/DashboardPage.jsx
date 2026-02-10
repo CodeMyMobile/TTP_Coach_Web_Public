@@ -491,15 +491,24 @@ const DashboardPage = ({
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
-    ...pendingLessons.map((lesson, index) => ({
-      id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
-      type: 'lesson',
-      name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
-      detail: lesson.start_date_time ? 'lesson request' : 'lesson pending',
-      info: formatLessonInfo(lesson),
-      onAccept: null,
-      onDecline: null
-    }))
+    ...pendingLessons.map((lesson, index) => {
+      const createdById = Number(lesson.created_by ?? lesson.createdBy);
+      const coachId = Number(lesson.coach_id ?? lesson.coachId);
+      const isCoachCreatedLesson =
+        Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+
+      return {
+        id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
+        type: 'lesson',
+        name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
+        detail: isCoachCreatedLesson ? 'lesson created by coach' : 'lesson request',
+        info: formatLessonInfo(lesson),
+        onAccept: isCoachCreatedLesson ? null : () => onLessonSelect(lesson),
+        onDecline: () => onLessonSelect(lesson),
+        acceptLabel: isCoachCreatedLesson ? '' : 'Confirm',
+        declineLabel: isCoachCreatedLesson ? 'Cancel Lesson' : 'Decline'
+      };
+    })
   ];
   const notificationItems = actionItems;
 
@@ -639,19 +648,23 @@ const DashboardPage = ({
                               <strong>{item.name}</strong> {item.detail}
                             </div>
                             <div className="notification-actions">
-                              <button
-                                type="button"
-                                className="notification-btn approve"
-                                onClick={item.onAccept || undefined}
-                              >
-                                {item.type === 'lesson' ? 'Confirm' : 'Accept'}
-                              </button>
+                              {item.acceptLabel !== '' && (
+                                <button
+                                  type="button"
+                                  className="notification-btn approve"
+                                  onClick={item.onAccept || undefined}
+                                  disabled={!item.onAccept}
+                                >
+                                  {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="notification-btn decline"
                                 onClick={item.onDecline || undefined}
+                                disabled={!item.onDecline}
                               >
-                                Decline
+                                {item.declineLabel || 'Decline'}
                               </button>
                             </div>
                           </div>
@@ -789,21 +802,23 @@ const DashboardPage = ({
                       {item.info && <span className="action-alert-info">{item.info}</span>}
                     </div>
                     <div className="action-alert-buttons">
-                      <button
-                        type="button"
-                        className="action-alert-btn approve"
-                        onClick={item.onAccept || undefined}
-                        disabled={!item.onAccept}
-                      >
-                        {item.type === 'lesson' ? 'Confirm' : 'Accept'}
-                      </button>
+                      {item.acceptLabel !== '' && (
+                        <button
+                          type="button"
+                          className="action-alert-btn approve"
+                          onClick={item.onAccept || undefined}
+                          disabled={!item.onAccept}
+                        >
+                          {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="action-alert-btn decline"
                         onClick={item.onDecline || undefined}
                         disabled={!item.onDecline}
                       >
-                        Decline
+                        {item.declineLabel || 'Decline'}
                       </button>
                     </div>
                   </div>
@@ -857,21 +872,24 @@ const DashboardPage = ({
                     </div>
                   </div>
                   <div className="notification-carousel-actions">
-                    <button
-                      type="button"
-                      className="notification-carousel-btn approve"
-                      onClick={actionItems[carouselIndex]?.onAccept || undefined}
-                      disabled={!actionItems[carouselIndex]?.onAccept}
-                    >
-                      {actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept'}
-                    </button>
+                    {actionItems[carouselIndex]?.acceptLabel !== '' && (
+                      <button
+                        type="button"
+                        className="notification-carousel-btn approve"
+                        onClick={actionItems[carouselIndex]?.onAccept || undefined}
+                        disabled={!actionItems[carouselIndex]?.onAccept}
+                      >
+                        {actionItems[carouselIndex]?.acceptLabel ||
+                          (actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept')}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="notification-carousel-btn decline"
                       onClick={actionItems[carouselIndex]?.onDecline || undefined}
                       disabled={!actionItems[carouselIndex]?.onDecline}
                     >
-                      Decline
+                      {actionItems[carouselIndex]?.declineLabel || 'Decline'}
                     </button>
                   </div>
                 </div>
