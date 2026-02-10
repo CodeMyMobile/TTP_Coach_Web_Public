@@ -1103,9 +1103,9 @@ const OnboardingFlow = ({
                   onChange={(event) => setLocationInput(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && addLocation()}
                   onPlaceSelected={(place) => {
-                    const address = place?.formatted_address || place?.name || '';
-                    if (address) {
-                      setLocationInput(address);
+                    const locationLabel = place?.name || place?.formatted_address || '';
+                    if (locationLabel) {
+                      setLocationInput(locationLabel);
                     }
                   }}
                   options={{ types: ['establishment', 'geocode'] }}
