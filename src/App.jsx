@@ -1141,6 +1141,77 @@ function App() {
     }
   };
 
+  const handleConfirmLessonRequestFromActionBar = useCallback(async (lesson) => {
+    const lessonId = lesson?.id ?? lesson?.lesson_id;
+    if (!lessonId) {
+      return;
+    }
+
+    try {
+      const response = await coachStripePaymentIntent({
+        coachAccessToken: user?.session?.access_token,
+        lessonId
+      });
+
+      await refreshSchedule();
+
+      if (!(response?.status === 200 || response?.status === 201)) {
+        window.alert('Something went wrong!!');
+      }
+    } catch (error) {
+      console.error('Failed to accept lesson request from action bar', error);
+      window.alert('Something went wrong!!');
+    }
+  }, [refreshSchedule, user?.session?.access_token]);
+
+  const handleDeclineLessonRequestFromActionBar = useCallback(async (lesson) => {
+    const lessonId = lesson?.id ?? lesson?.lesson_id;
+    if (!lessonId) {
+      return;
+    }
+
+    try {
+      const response = await updateCoachLessons(
+        user?.session?.access_token,
+        lessonId,
+        { status: 'CANCELLED' }
+      );
+
+      await refreshSchedule();
+
+      if (response?.status !== 200) {
+        window.alert('Something went wrong!!');
+      }
+    } catch (error) {
+      console.error('Failed to decline lesson request from action bar', error);
+      window.alert('Something went wrong!!');
+    }
+  }, [refreshSchedule, user?.session?.access_token]);
+
+  const handleCancelCoachLessonFromActionBar = useCallback(async (lesson) => {
+    const lessonId = lesson?.id ?? lesson?.lesson_id;
+    if (!lessonId) {
+      return;
+    }
+
+    try {
+      const response = await updateCoachLessons(
+        user?.session?.access_token,
+        lessonId,
+        { status: 'CANCELLED' }
+      );
+
+      await refreshSchedule();
+
+      if (response?.status !== 200) {
+        window.alert('Something went wrong!!');
+      }
+    } catch (error) {
+      console.error('Failed to cancel coach lesson from action bar', error);
+      window.alert('Something went wrong!!');
+    }
+  }, [refreshSchedule, user?.session?.access_token]);
+
   const resolvedStudents = useMemo(() => (
     Array.isArray(students) ? students : students?.students || []
   ), [students]);
@@ -1234,6 +1305,9 @@ function App() {
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
           onOpenNotifications={() => navigate('/notifications')}
+          onConfirmLessonRequest={handleConfirmLessonRequestFromActionBar}
+          onDeclineLessonRequest={handleDeclineLessonRequestFromActionBar}
+          onCancelCoachLesson={handleCancelCoachLessonFromActionBar}
           onLogout={logout}
           studentSearchQuery={studentSearchQuery}
           onStudentSearchQueryChange={setStudentSearchQuery}
