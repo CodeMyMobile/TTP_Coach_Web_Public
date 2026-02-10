@@ -312,14 +312,12 @@ const LessonDetailModal = ({
 
             <Dialog.Content asChild>
               <motion.div
-                className={`fixed z-50 flex w-full flex-col overflow-hidden bg-white shadow-2xl ${
-                  isMobile
-                    ? 'bottom-0 left-0 right-0 max-h-[85vh] rounded-t-3xl'
-                    : 'left-1/2 top-1/2 w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-2xl'
+                className={`fixed left-1/2 top-1/2 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ${
+                  isMobile ? 'max-h-[85vh]' : 'max-h-[90vh]'
                 }`}
-                initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
-                animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
-                exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+                initial={isMobile ? { opacity: 0, scale: 0.96 } : { opacity: 0, scale: 0.95 }}
+                animate={isMobile ? { opacity: 1, scale: 1 } : { opacity: 1, scale: 1 }}
+                exit={isMobile ? { opacity: 0, scale: 0.96 } : { opacity: 0, scale: 0.95 }}
                 transition={{ type: 'spring', damping: 26, stiffness: 320 }}
                 drag={isMobile ? 'y' : false}
                 dragConstraints={{ top: 0 }}
