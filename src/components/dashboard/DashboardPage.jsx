@@ -477,7 +477,31 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showQuickActions]);
 
-  const pendingLessons = bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending');
+  const isLessonCreatedByCoach = useCallback((lesson) => {
+    if (!lesson || typeof lesson !== 'object') {
+      return false;
+    }
+
+    const createdByRaw = lesson.created_by ?? lesson.createdBy;
+    const coachIdRaw = lesson.coach_id ?? lesson.coachId;
+
+    if (createdByRaw === null || createdByRaw === undefined || coachIdRaw === null || coachIdRaw === undefined) {
+      return false;
+    }
+
+    const createdBy = Number(createdByRaw);
+    const coachId = Number(coachIdRaw);
+
+    if (Number.isFinite(createdBy) && Number.isFinite(coachId)) {
+      return createdBy === coachId;
+    }
+
+    return String(createdByRaw) === String(coachIdRaw);
+  }, []);
+
+  const pendingLessons = bookedLessons.filter(
+    (lesson) => lesson.lessonStatus === 'pending' && isLessonCreatedByCoach(lesson)
+  );
   const rosterRequests = normalizedStudents.filter(
     (student) => student.isPlayerRequest && !student.isConfirmed
   );
