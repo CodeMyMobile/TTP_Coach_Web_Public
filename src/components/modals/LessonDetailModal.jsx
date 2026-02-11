@@ -69,7 +69,8 @@ const LessonDetailModal = ({
   formatDuration,
   onAcceptRequest,
   onDeclineRequest,
-  onCreateLesson
+  onCreateLesson,
+  coachHourlyRate = null
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
 
@@ -214,13 +215,35 @@ const LessonDetailModal = ({
       ? `${formatDuration?.(resolvedLesson.durationMinutes || resolvedLesson.duration) || resolvedLesson.durationMinutes || resolvedLesson.duration}`
       : '1 hour';
 
-  const pricePerHour =
-    resolvedLesson.pricePerHour ||
-    resolvedLesson.price_per_hour ||
-    resolvedLesson.rate ||
-    resolvedLesson.price ||
-    0;
-  const priceLabel = pricePerHour ? `$${pricePerHour}` : '—';
+  const parseMoney = (value) => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const groupPricePerPerson =
+    parseMoney(resolvedLesson.group_price_per_person) ??
+    parseMoney(resolvedLesson.groupPricePerPerson) ??
+    parseMoney(resolvedLesson.price_per_person) ??
+    parseMoney(resolvedLesson.pricePerPerson);
+
+  const privateHourlyRate =
+    parseMoney(coachHourlyRate) ??
+    parseMoney(resolvedLesson.hourly_rate) ??
+    parseMoney(resolvedLesson.hourlyRate) ??
+    parseMoney(resolvedLesson.pricePerHour) ??
+    parseMoney(resolvedLesson.price_per_hour) ??
+    parseMoney(resolvedLesson.rate) ??
+    parseMoney(resolvedLesson.price);
+
+  const isGroupOrSemiPrivate =
+    resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
+  const resolvedLessonFee = isGroupOrSemiPrivate ? groupPricePerPerson : privateHourlyRate;
+  const feeSuffix = isGroupOrSemiPrivate ? '/ player' : '/ hour';
+  const priceLabel = resolvedLessonFee !== null ? `$${resolvedLessonFee}` : '—';
 
   const typeBadgeClass =
     resolvedLesson.status === 'cancelled'
@@ -474,7 +497,7 @@ const LessonDetailModal = ({
                     resolvedLesson.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-900'
                   }`}
                 >
-                  {priceLabel} <span className="text-sm font-normal text-slate-400">/ hour</span>
+                  {priceLabel} <span className="text-sm font-normal text-slate-400">{feeSuffix}</span>
                 </p>
               </div>
             </div>
