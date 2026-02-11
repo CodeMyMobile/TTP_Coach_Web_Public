@@ -58,6 +58,27 @@ const formatValidityLabel = (months) => {
   return `${months} months`;
 };
 
+const formatActionStatusLabel = (value) => {
+  if (value === 1 || value === '1') {
+    return 'Confirmed';
+  }
+
+  if (value === 2 || value === '2') {
+    return 'Cancelled';
+  }
+
+  const normalizedValue = typeof value === 'string' ? value.toLowerCase() : '';
+  if (normalizedValue.includes('confirm') || normalizedValue.includes('accept') || normalizedValue === 'scheduled') {
+    return 'Confirmed';
+  }
+
+  if (normalizedValue.includes('cancel') || normalizedValue.includes('decline')) {
+    return 'Cancelled';
+  }
+
+  return 'Pending';
+};
+
 const formatLessonInfo = (lesson) => {
   if (!lesson) {
     return '';
@@ -551,7 +572,8 @@ const DashboardPage = ({
       type: 'roster',
       name: student.name || 'Student',
       detail: 'roster request',
-      info: student.email || student.phone || '',
+      statusLabel: 'Pending',
+      info: [student.email || student.phone || ''].filter(Boolean).join(' • '),
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
@@ -573,12 +595,16 @@ const DashboardPage = ({
               : '');
       const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
 
+      const statusLabel = formatActionStatusLabel(lesson.status ?? lesson.lessonStatus ?? lesson.lesson_status);
+      const lessonInfoLabel = formatLessonInfo(lesson);
+
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
         name:
           lesson.player_name ||
           lesson.full_name ||
+          lesson.student ||
           lesson.student_name ||
           lesson.studentName ||
           lesson.title ||
@@ -586,7 +612,8 @@ const DashboardPage = ({
         detail: isCoachCreatedLesson
           ? `${detailPrefix.toLowerCase()} created by coach`
           : `${detailPrefix.toLowerCase()} request`,
-        info: formatLessonInfo(lesson),
+        statusLabel,
+        info: [lessonInfoLabel].filter(Boolean).join(' • '),
         onAccept: isCoachCreatedLesson ? null : () => onLessonSelect(lesson),
         onDecline: () => onLessonSelect(lesson),
         acceptLabel: isCoachCreatedLesson ? '' : 'Confirm',
@@ -883,7 +910,10 @@ const DashboardPage = ({
                       <span className="action-alert-primary">
                         {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
                       </span>
-                      {item.info && <span className="action-alert-info">{item.info}</span>}
+                      <span className="action-alert-info">
+                        Status: <strong>{item.statusLabel || 'Pending'}</strong>
+                        {item.info ? ` • ${item.info}` : ''}
+                      </span>
                     </div>
                     <div className="action-alert-buttons">
                       {item.acceptLabel !== '' && (
@@ -948,11 +978,12 @@ const DashboardPage = ({
                       <div className="notification-carousel-detail">
                         {actionItems[carouselIndex]?.detail}
                       </div>
-                      {actionItems[carouselIndex]?.info && (
-                        <div className="notification-carousel-info">
-                          {actionItems[carouselIndex]?.info}
-                        </div>
-                      )}
+                      <div className="notification-carousel-info">
+                        Status: <strong>{actionItems[carouselIndex]?.statusLabel || 'Pending'}</strong>
+                        {actionItems[carouselIndex]?.info
+                          ? ` • ${actionItems[carouselIndex]?.info}`
+                          : ''}
+                      </div>
                     </div>
                   </div>
                   <div className="notification-carousel-actions">
