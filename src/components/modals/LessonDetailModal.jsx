@@ -251,18 +251,16 @@ const LessonDetailModal = ({
       }))
     : [];
 
-  const hasGroupPlayers = groupPlayerList.length > 0;
-  const participantListRaw = hasGroupPlayers
+  const hasGroupPlayers = isGroupLesson && groupPlayerList.length > 0;
+  const participantListRaw = isGroupLesson
     ? groupPlayerList
-    : isGroupLesson
-      ? []
-      : studentList.length
-        ? studentList
-        : participantsFromProps;
+    : studentList.length
+      ? studentList
+      : participantsFromProps;
 
   const resolveParticipantStatus = (status) => {
     if (status === 1 || status === '1') {
-      return 'Booked';
+      return 'Confirmed';
     }
 
     if (status === 2 || status === '2') {
@@ -274,10 +272,33 @@ const LessonDetailModal = ({
     }
 
     if (!status) {
-      return 'Booked';
+      return 'Confirmed';
     }
 
     return status;
+  };
+
+  const participantStatusClass = (status) => {
+    const normalized = String(status || '').toLowerCase();
+
+    if (normalized.includes('cancel')) {
+      return {
+        text: 'text-rose-600',
+        dot: 'bg-rose-500'
+      };
+    }
+
+    if (normalized.includes('pending')) {
+      return {
+        text: 'text-amber-600',
+        dot: 'bg-amber-500'
+      };
+    }
+
+    return {
+      text: 'text-emerald-600',
+      dot: 'bg-emerald-500'
+    };
   };
 
   const participantList = participantListRaw.map((participant, index) => ({
@@ -587,7 +608,7 @@ const LessonDetailModal = ({
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
                           <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
-                          <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{participant.status}</p>
+                          <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
                         </div>
                         <div className="flex gap-1">
                           <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
@@ -657,7 +678,7 @@ const LessonDetailModal = ({
                           <div className="flex-1">
                             <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
                             <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
-                            <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{participant.status}</p>
+                            <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
                           </div>
                           <div className="flex gap-1">
                             <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
