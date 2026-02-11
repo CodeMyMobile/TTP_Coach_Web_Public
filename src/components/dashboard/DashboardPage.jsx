@@ -101,23 +101,49 @@ const formatLessonInfo = (lesson) => {
     : Array.isArray(lesson.groupPlayers)
       ? lesson.groupPlayers
       : [];
-  const acceptedPlayerCount = groupPlayers.filter((player) => {
-    const status = player?.status;
-    if (status === 1 || status === '1') {
-      return true;
+
+  const resolveGroupPlayerStatus = (player) => {
+    const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
+    if (rawStatus === 1 || rawStatus === '1') {
+      return 'confirmed';
     }
-    const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : '';
-    return normalizedStatus.includes('confirm') || normalizedStatus.includes('accept');
-  }).length;
+    if (rawStatus === 2 || rawStatus === '2') {
+      return 'cancelled';
+    }
+    const normalizedStatus = typeof rawStatus === 'string' ? rawStatus.toLowerCase() : '';
+    if (normalizedStatus.includes('confirm') || normalizedStatus.includes('accept')) {
+      return 'confirmed';
+    }
+    if (normalizedStatus.includes('cancel') || normalizedStatus.includes('decline')) {
+      return 'cancelled';
+    }
+    return 'pending';
+  };
+
+  const confirmedPlayerCount = groupPlayers.filter(
+    (player) => resolveGroupPlayerStatus(player) === 'confirmed'
+  ).length;
+  const pendingPlayerCount = groupPlayers.filter(
+    (player) => resolveGroupPlayerStatus(player) === 'pending'
+  ).length;
+  const cancelledPlayerCount = groupPlayers.filter(
+    (player) => resolveGroupPlayerStatus(player) === 'cancelled'
+  ).length;
+
   const joinedPlayerCount = groupPlayers.length;
   const playerLimit = Number(lesson.player_limit ?? lesson.playerLimit);
 
   const groupMeta = [];
   if (joinedPlayerCount > 0) {
-    groupMeta.push(`${acceptedPlayerCount} accepted / ${joinedPlayerCount} joined`);
+    groupMeta.push(
+      `${confirmedPlayerCount} confirmed • ${pendingPlayerCount} pending` +
+        (cancelledPlayerCount > 0 ? ` • ${cancelledPlayerCount} cancelled` : '')
+    );
   }
   if (Number.isFinite(playerLimit) && playerLimit > 0) {
-    groupMeta.push(`limit ${playerLimit}`);
+    const filledSpots = Math.min(confirmedPlayerCount, playerLimit);
+    const availableSpots = Math.max(playerLimit - filledSpots, 0);
+    groupMeta.push(`spots ${filledSpots}/${playerLimit} filled (${availableSpots} open)`);
   }
 
   const groupDetails = groupMeta.length > 0 ? `Players: ${groupMeta.join(' • ')}` : '';
