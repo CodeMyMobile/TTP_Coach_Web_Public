@@ -170,6 +170,7 @@ const DashboardPage = ({
   studentsPage = 1,
   studentsPerPage = 5,
   lessonsData,
+  upcomingLessonsData = [],
   availabilityData,
   googleEvents,
   statsData,
@@ -207,6 +208,9 @@ const DashboardPage = ({
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
     : lessonsData?.lessons || [];
+  const upcomingLessons = Array.isArray(upcomingLessonsData)
+    ? upcomingLessonsData
+    : upcomingLessonsData?.lessons || [];
 
   const currencyFormatter = useMemo(
     () =>
@@ -267,8 +271,9 @@ const DashboardPage = ({
     todayLessons: statsData?.todayLessons ?? 0,
     weekRevenue: statsData?.weekRevenue ?? 0,
     activeStudents: statsData?.activeStudents ?? (Array.isArray(studentsData) ? studentsData.length : studentsData?.students?.length ?? 0),
-    upcomingLessons: statsData?.upcomingLessons ?? bookedLessons.length,
-    pendingRequests: statsData?.pendingRequests ?? bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
+    upcomingLessons: statsData?.upcomingLessons ?? upcomingLessons.length,
+    pendingRequests:
+      statsData?.pendingRequests ?? upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
   };
 
   const handleAvailabilitySelect = (availability) => {
@@ -541,7 +546,7 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showQuickActions]);
 
-  const pendingLessons = bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending');
+  const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
   const rosterRequests = normalizedStudents.filter(
     (student) => student.isPlayerRequest && !student.isConfirmed
   );

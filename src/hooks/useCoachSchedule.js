@@ -77,6 +77,46 @@ const normaliseLessons = (payload) => {
   return [];
 };
 
+const getLessonsCollection = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (payload && Array.isArray(payload.lessons)) {
+    return payload.lessons;
+  }
+
+  return [];
+};
+
+const fetchAllCoachLessons = async ({ perPage = 100, maxPages = 100 } = {}) => {
+  const allLessons = [];
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const payload = await getCoachLessons({ perPage, page });
+    const lessonsPage = getLessonsCollection(payload);
+
+    if (lessonsPage.length === 0) {
+      break;
+    }
+
+    allLessons.push(...lessonsPage);
+
+    const pagination = payload?.pagination || payload?.meta || payload?.pageInfo || {};
+    const totalPages = Number(pagination.totalPages || pagination.total_pages || pagination.pages);
+
+    if (Number.isFinite(totalPages) && page >= totalPages) {
+      break;
+    }
+
+    if (lessonsPage.length < perPage) {
+      break;
+    }
+  }
+
+  return allLessons;
+};
+
 const addWeeklySlot = (acc, day, start, end, location) => {
   if (!day || !start || !end) {
     return;
@@ -289,6 +329,7 @@ const formatLocalDate = (value) => {
 
 export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
   const [lessons, setLessons] = useState([]);
+  const [upcomingLessons, setUpcomingLessons] = useState([]);
   const [availability, setAvailability] = useState({ ...emptyAvailability });
   const [stats, setStats] = useState(null);
   const [googleEvents, setGoogleEvents] = useState([]);
@@ -319,8 +360,9 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
       const rangeDates = resolvedDates.length > 0 ? [...resolvedDates].sort() : (resolvedDate ? [resolvedDate] : []);
       const rangeMin = rangeDates.length > 0 ? `${rangeDates[0]}T00:00:00.000Z` : null;
       const rangeMax = rangeDates.length > 0 ? `${rangeDates[rangeDates.length - 1]}T23:59:59.999Z` : null;
-      const [lessonsResult, availabilityResult, statsResult, googleResult] = await Promise.allSettled([
+      const [lessonsResult, upcomingLessonsResult, availabilityResult, statsResult, googleResult] = await Promise.allSettled([
         Promise.allSettled(lessonPromises),
+        fetchAllCoachLessons({ perPage: 100 }),
         getCoachAvailability(),
         getCoachStats(),
         rangeMin && rangeMax
@@ -354,6 +396,15 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
         }
       } else if (!fetchError) {
         fetchError = lessonsResult.reason;
+      }
+
+      if (upcomingLessonsResult.status === 'fulfilled') {
+        setUpcomingLessons(normaliseLessons(upcomingLessonsResult.value));
+      } else {
+        setUpcomingLessons([]);
+        if (!fetchError) {
+          fetchError = upcomingLessonsResult.reason;
+        }
       }
 
       if (availabilityResult.status === 'fulfilled') {
@@ -470,6 +521,7 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
 
   return {
     lessons,
+    upcomingLessons,
     availability,
     stats,
     googleEvents,
