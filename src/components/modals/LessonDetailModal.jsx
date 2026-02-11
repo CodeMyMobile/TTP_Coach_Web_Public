@@ -81,16 +81,28 @@ const LessonDetailModal = ({
       return null;
     }
 
+    const createdById = Number(lesson.created_by ?? lesson.createdBy);
+    const coachId = Number(lesson.coach_id ?? lesson.coachId);
+    const isCoachCreatedLesson =
+      Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+
     const normalizeStatus = (value) => {
-      if (value === 0 || value === '0') {
-        return 'pending';
-      }
       if (value === 2 || value === '2') {
         return 'cancelled';
       }
+
+      if (value === 0 || value === '0') {
+        return isCoachCreatedLesson ? 'confirmed' : 'pending';
+      }
+
+      if (value === 1 || value === '1') {
+        return 'confirmed';
+      }
+
       if (!value) {
         return 'confirmed';
       }
+
       const normalized = String(value).toLowerCase();
       if (normalized.includes('pending') || normalized.includes('request') || normalized.includes('await')) {
         return 'pending';
@@ -104,7 +116,7 @@ const LessonDetailModal = ({
       return normalized;
     };
 
-    const status = normalizeStatus(lesson.status || lesson.lessonStatus || lesson.lesson_status);
+    const status = normalizeStatus(lesson.status ?? lesson.lessonStatus ?? lesson.lesson_status);
 
     const resolveType = () => {
       const typeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
@@ -138,11 +150,6 @@ const LessonDetailModal = ({
     const dateLabel = lesson.date || (start?.isValid() ? start.format('dddd, MMMM D') : '');
     const startTimeLabel = lesson.startTime || (start?.isValid() ? start.format('hh:mm a') : '');
     const endTimeLabel = lesson.endTime || (end?.isValid() ? end.format('hh:mm a') : '');
-    const createdById = Number(lesson.created_by ?? lesson.createdBy);
-    const coachId = Number(lesson.coach_id ?? lesson.coachId);
-    const isCoachCreatedLesson =
-      Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
-
     return {
       ...lesson,
       lessonType,
@@ -191,6 +198,29 @@ const LessonDetailModal = ({
     'semi-private': 'Semi-Private Lesson',
     group: 'Group Lesson'
   };
+  const isGroupLesson = resolvedLesson.lessonType === 'group';
+
+  const lessonGroupPlayers = Array.isArray(resolvedLesson.group_players)
+    ? resolvedLesson.group_players
+    : Array.isArray(resolvedLesson.groupPlayers)
+      ? resolvedLesson.groupPlayers
+      : [];
+
+  const groupPlayerList = lessonGroupPlayers.map((student, index) => ({
+    id: student.player_id || student.playerId || student.id || `${student.full_name}-${index}`,
+    name: student.full_name || student.name || student.player_name || `Participant ${index + 1}`,
+    initials: (student.full_name || student.name || student.player_name || 'ST')
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase(),
+    level: student.level || student.skill_level || resolvedLesson.studentLevel || 'Intermediate',
+    lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
+    phone: student.phone || student.phone_number || '',
+    profilePicture: student.profile_picture || student.profilePicture || '',
+    status: student.status
+  }));
 
   const studentList = resolvedLesson.students?.length
     ? resolvedLesson.students
@@ -221,7 +251,34 @@ const LessonDetailModal = ({
       }))
     : [];
 
-  const participantListRaw = studentList.length ? studentList : participantsFromProps;
+  const participantListRaw = isGroupLesson
+    ? groupPlayerList.length
+      ? groupPlayerList
+      : []
+    : studentList.length
+      ? studentList
+      : participantsFromProps;
+
+  const resolveParticipantStatus = (status) => {
+    if (status === 1 || status === '1') {
+      return 'Booked';
+    }
+
+    if (status === 2 || status === '2') {
+      return 'Cancelled';
+    }
+
+    if (status === 0 || status === '0') {
+      return 'Pending';
+    }
+
+    if (!status) {
+      return 'Booked';
+    }
+
+    return status;
+  };
+
   const participantList = participantListRaw.map((participant, index) => ({
     id: participant.id || `${participant.name}-${index}`,
     name: participant.name || `Participant ${index + 1}`,
@@ -237,7 +294,7 @@ const LessonDetailModal = ({
     level: participant.level || 'Intermediate',
     lessonsCompleted: participant.lessonsCompleted || 0,
     phone: participant.phone || '',
-    status: participant.status || 'Booked'
+    status: resolveParticipantStatus(participant.status)
   }));
 
   const primaryStudent = participantList[0];
@@ -275,10 +332,10 @@ const LessonDetailModal = ({
   const resolvedLessonFee = isGroupOrSemiPrivate ? groupPricePerPerson : privateHourlyRate;
   const feeSuffix = isGroupOrSemiPrivate ? '/ player' : '/ hour';
   const priceLabel = resolvedLessonFee !== null ? `$${resolvedLessonFee}` : '—';
-  const isGroupLesson = resolvedLesson.lessonType === 'group';
   const groupCapacity = Number(
     resolvedLesson.maxParticipants ||
       resolvedLesson.max_participants ||
+      resolvedLesson.player_limit ||
       resolvedLesson.capacity ||
       resolvedLesson.max_players ||
       8
