@@ -576,7 +576,13 @@ const DashboardPage = ({
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
-        name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
+        name:
+          lesson.player_name ||
+          lesson.full_name ||
+          lesson.student_name ||
+          lesson.studentName ||
+          lesson.title ||
+          'Lesson request',
         detail: isCoachCreatedLesson
           ? `${detailPrefix.toLowerCase()} created by coach`
           : `${detailPrefix.toLowerCase()} request`,
