@@ -251,13 +251,14 @@ const LessonDetailModal = ({
       }))
     : [];
 
-  const participantListRaw = isGroupLesson
-    ? groupPlayerList.length
-      ? groupPlayerList
-      : []
-    : studentList.length
-      ? studentList
-      : participantsFromProps;
+  const hasGroupPlayers = groupPlayerList.length > 0;
+  const participantListRaw = hasGroupPlayers
+    ? groupPlayerList
+    : isGroupLesson
+      ? []
+      : studentList.length
+        ? studentList
+        : participantsFromProps;
 
   const resolveParticipantStatus = (status) => {
     if (status === 1 || status === '1') {
@@ -575,6 +576,9 @@ const LessonDetailModal = ({
                   </div>
 
                   <div className="space-y-1 p-2">
+                    {participantList.length === 0 && (
+                      <p className="px-2 py-3 text-sm text-slate-500">No participants yet.</p>
+                    )}
                     {participantList.map((participant, index) => (
                       <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
                         <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
@@ -636,7 +640,38 @@ const LessonDetailModal = ({
                   🎾 {typeLabelMap[resolvedLesson.lessonType]}
                 </div>
 
-                {primaryStudent && (
+                {hasGroupPlayers ? (
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-900">Participants</p>
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 p-2">
+                      {participantList.map((participant, index) => (
+                        <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
+                          <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
+                            {participant.initials}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
+                            <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
+                            <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{participant.status}</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                              <MessageCircle className="h-4 w-4" />
+                            </button>
+                            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                              <Phone className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : primaryStudent ? (
                   <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-300 text-sm font-bold text-white">
                       {primaryStudent.initials}
@@ -652,7 +687,7 @@ const LessonDetailModal = ({
                       <MessageCircle className="h-5 w-5" />
                     </button>
                   </div>
-                )}
+                ) : null}
 
                 {resolvedLesson.status === 'pending' && resolvedLesson.studentMessage && (
                   <div className="rounded-xl border border-slate-100 border-l-4 border-l-purple-500 bg-slate-50 p-4">
