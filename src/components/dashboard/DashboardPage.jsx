@@ -80,11 +80,25 @@ const formatLessonInfo = (lesson) => {
     : '';
   const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startTime;
 
+  const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+  const lessonTypeLabel =
+    lesson.lesson_type_name ||
+    lesson.lessonTypeName ||
+    (lessonTypeId === 1
+      ? 'Private'
+      : lessonTypeId === 2
+        ? 'Semi Private'
+        : lessonTypeId === 3
+          ? 'Open Group'
+          : '');
+
   const locationLabel = lesson.court
     ? `${lesson.location || ''} · Court ${lesson.court}`
     : lesson.location || lesson.courtName || '';
 
-  return [dateLabel, timeRange, locationLabel].filter(Boolean).join(' • ');
+  const displayType = lessonTypeLabel ? `${lessonTypeLabel} lesson` : '';
+
+  return [displayType, dateLabel, timeRange, locationLabel].filter(Boolean).join(' • ');
 };
 
 const DashboardPage = ({
@@ -496,12 +510,26 @@ const DashboardPage = ({
       const coachId = Number(lesson.coach_id ?? lesson.coachId);
       const isCoachCreatedLesson =
         Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+      const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+      const lessonTypeLabel =
+        lesson.lesson_type_name ||
+        lesson.lessonTypeName ||
+        (lessonTypeId === 1
+          ? 'Private'
+          : lessonTypeId === 2
+            ? 'Semi Private'
+            : lessonTypeId === 3
+              ? 'Open Group'
+              : '');
+      const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
 
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
         name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
-        detail: isCoachCreatedLesson ? 'lesson created by coach' : 'lesson request',
+        detail: isCoachCreatedLesson
+          ? `${detailPrefix.toLowerCase()} created by coach`
+          : `${detailPrefix.toLowerCase()} request`,
         info: formatLessonInfo(lesson),
         onAccept: isCoachCreatedLesson ? null : () => onLessonSelect(lesson),
         onDecline: () => onLessonSelect(lesson),

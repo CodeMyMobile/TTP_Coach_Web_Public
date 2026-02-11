@@ -131,6 +131,10 @@ const LessonDetailModal = ({
     const dateLabel = lesson.date || (start ? start.format('dddd, MMMM D') : '');
     const startTimeLabel = lesson.startTime || (start ? start.format('h:mm A') : '');
     const endTimeLabel = lesson.endTime || (end ? end.format('h:mm A') : '');
+    const createdById = Number(lesson.created_by ?? lesson.createdBy);
+    const coachId = Number(lesson.coach_id ?? lesson.coachId);
+    const isCoachCreatedLesson =
+      Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
 
     return {
       ...lesson,
@@ -139,6 +143,7 @@ const LessonDetailModal = ({
       dateLabel,
       startTimeLabel,
       endTimeLabel,
+      isCoachCreatedLesson,
       studentName:
         lesson.student ||
         lesson.full_name ||
@@ -173,7 +178,7 @@ const LessonDetailModal = ({
     return null;
   }
 
-  const title = resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details';
+  const title = resolvedLesson.status === 'pending' && !resolvedLesson.isCoachCreatedLesson ? 'Lesson Request' : 'Lesson Details';
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
@@ -229,6 +234,18 @@ const LessonDetailModal = ({
 
   const actionButtons = () => {
     if (resolvedLesson.status === 'pending') {
+      if (resolvedLesson.isCoachCreatedLesson) {
+        return (
+          <button
+            type="button"
+            onClick={onDeclineRequest}
+            className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+          >
+            ✕ Cancel Lesson
+          </button>
+        );
+      }
+
       return (
         <>
           <button
@@ -330,10 +347,10 @@ const LessonDetailModal = ({
                   <div className="text-2xl">⏳</div>
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-yellow-900">
-                      Awaiting Your Confirmation
+                      Awaiting Player Confirmation
                     </p>
                     <p className="text-xs text-yellow-800">
-                      Requested {resolvedLesson.requestedAt || 'recently'}
+                      {resolvedLesson.isCoachCreatedLesson ? `Created ${resolvedLesson.requestedAt || 'recently'}` : `Requested ${resolvedLesson.requestedAt || 'recently'}`}
                     </p>
                   </div>
                 </div>
