@@ -96,9 +96,34 @@ const formatLessonInfo = (lesson) => {
     ? `${lesson.location || ''} · Court ${lesson.court}`
     : lesson.location || lesson.courtName || '';
 
+  const groupPlayers = Array.isArray(lesson.group_players)
+    ? lesson.group_players
+    : Array.isArray(lesson.groupPlayers)
+      ? lesson.groupPlayers
+      : [];
+  const acceptedPlayerCount = groupPlayers.filter((player) => {
+    const status = player?.status;
+    if (status === 1 || status === '1') {
+      return true;
+    }
+    const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : '';
+    return normalizedStatus.includes('confirm') || normalizedStatus.includes('accept');
+  }).length;
+  const joinedPlayerCount = groupPlayers.length;
+  const playerLimit = Number(lesson.player_limit ?? lesson.playerLimit);
+
+  const groupMeta = [];
+  if (joinedPlayerCount > 0) {
+    groupMeta.push(`${acceptedPlayerCount} accepted / ${joinedPlayerCount} joined`);
+  }
+  if (Number.isFinite(playerLimit) && playerLimit > 0) {
+    groupMeta.push(`limit ${playerLimit}`);
+  }
+
+  const groupDetails = groupMeta.length > 0 ? `Players: ${groupMeta.join(' • ')}` : '';
   const displayType = lessonTypeLabel ? `${lessonTypeLabel} lesson` : '';
 
-  return [displayType, dateLabel, timeRange, locationLabel].filter(Boolean).join(' • ');
+  return [displayType, dateLabel, timeRange, locationLabel, groupDetails].filter(Boolean).join(' • ');
 };
 
 const DashboardPage = ({
