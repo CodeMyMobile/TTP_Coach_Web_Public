@@ -633,9 +633,18 @@ const DashboardPage = ({
     })),
     ...pendingLessons.map((lesson, index) => {
       const createdById = Number(lesson.created_by ?? lesson.createdBy);
-      const coachId = Number(lesson.coach_id ?? lesson.coachId);
+      const lessonCoachId = Number(lesson.coach_id ?? lesson.coachId);
+      const profileCoachId = Number(profile?.id ?? profile?.coach_id ?? profile?.coachId ?? profile?.user_id ?? profile?.userId);
+      const resolvedCoachId = Number.isFinite(lessonCoachId)
+        ? lessonCoachId
+        : Number.isFinite(profileCoachId)
+          ? profileCoachId
+          : null;
+      const playerId = Number(lesson.player_id ?? lesson.playerId);
       const isCoachCreatedLesson =
-        Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+        Number.isFinite(createdById) && Number.isFinite(resolvedCoachId) && createdById === resolvedCoachId;
+      const isPlayerRequestedLesson =
+        Number.isFinite(createdById) && Number.isFinite(playerId) && createdById === playerId;
       const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
       const lessonTypeLabel =
         lesson.lesson_type_name ||
@@ -655,12 +664,14 @@ const DashboardPage = ({
         name: getLessonActionName(lesson),
         detail: isCoachCreatedLesson
           ? `${detailPrefix.toLowerCase()} created by coach`
-          : `${detailPrefix.toLowerCase()} request`,
+          : isPlayerRequestedLesson
+            ? `${detailPrefix.toLowerCase()} requested by player`
+            : `${detailPrefix.toLowerCase()} request`,
         info: formatLessonInfo(lesson),
-        onAccept: isCoachCreatedLesson ? null : () => onLessonSelect(lesson),
+        onAccept: isPlayerRequestedLesson ? () => onLessonSelect(lesson) : null,
         onDecline: () => onLessonSelect(lesson),
-        acceptLabel: isCoachCreatedLesson ? '' : 'Confirm',
-        declineLabel: isCoachCreatedLesson ? 'Cancel Lesson' : 'Decline'
+        acceptLabel: isPlayerRequestedLesson ? 'Confirm' : '',
+        declineLabel: 'Cancel Lesson'
       };
     })
   ];
