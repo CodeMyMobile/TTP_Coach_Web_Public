@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import moment from 'moment';
 import {
   AlertCircle,
   Bell,
@@ -64,20 +65,18 @@ const formatLessonInfo = (lesson) => {
 
   const startRaw = lesson.start_date_time || lesson.startDateTime || lesson.start_time;
   const endRaw = lesson.end_date_time || lesson.endDateTime || lesson.end_time;
-  const startDate = startRaw ? new Date(startRaw) : null;
-  const endDate = endRaw ? new Date(endRaw) : null;
-  const hasStart = startDate instanceof Date && !Number.isNaN(startDate?.getTime?.());
-  const hasEnd = endDate instanceof Date && !Number.isNaN(endDate?.getTime?.());
+  const startMoment = startRaw ? moment.utc(startRaw) : null;
+  const endMoment = endRaw
+    ? moment.utc(endRaw)
+    : startMoment?.isValid()
+      ? startMoment.clone().add(1, 'hour')
+      : null;
+  const hasStart = Boolean(startMoment?.isValid?.());
+  const hasEnd = Boolean(endMoment?.isValid?.());
 
-  const dateLabel = hasStart
-    ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : '';
-  const startTime = hasStart
-    ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : '';
-  const endTime = hasEnd
-    ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : '';
+  const dateLabel = hasStart ? startMoment.format('MMM D') : '';
+  const startTime = hasStart ? startMoment.format('hh:mm a') : '';
+  const endTime = hasEnd ? endMoment.format('hh:mm a') : '';
   const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startTime;
 
   const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);

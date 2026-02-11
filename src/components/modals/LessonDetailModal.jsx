@@ -125,12 +125,16 @@ const LessonDetailModal = ({
 
     const startRaw = lesson.start_date_time || lesson.startDateTime;
     const endRaw = lesson.end_date_time || lesson.endDateTime;
-    const start = startRaw ? moment(String(startRaw).replace(/Z$/, '')) : null;
-    const end = endRaw ? moment(String(endRaw).replace(/Z$/, '')) : null;
+    const start = startRaw ? moment.utc(startRaw) : null;
+    const end = endRaw
+      ? moment.utc(endRaw)
+      : start?.isValid()
+        ? start.clone().add(1, 'hour')
+        : null;
 
-    const dateLabel = lesson.date || (start ? start.format('dddd, MMMM D') : '');
-    const startTimeLabel = lesson.startTime || (start ? start.format('h:mm A') : '');
-    const endTimeLabel = lesson.endTime || (end ? end.format('h:mm A') : '');
+    const dateLabel = lesson.date || (start?.isValid() ? start.format('dddd, MMMM D') : '');
+    const startTimeLabel = lesson.startTime || (start?.isValid() ? start.format('hh:mm a') : '');
+    const endTimeLabel = lesson.endTime || (end?.isValid() ? end.format('hh:mm a') : '');
     const createdById = Number(lesson.created_by ?? lesson.createdBy);
     const coachId = Number(lesson.coach_id ?? lesson.coachId);
     const isCoachCreatedLesson =
