@@ -79,6 +79,34 @@ const formatActionStatusLabel = (value) => {
   return 'Pending';
 };
 
+const resolveActionLessonPlayer = (lesson) => {
+  const groupPlayers = Array.isArray(lesson?.group_players)
+    ? lesson.group_players
+    : Array.isArray(lesson?.groupPlayers)
+      ? lesson.groupPlayers
+      : [];
+
+  const lessonId = Number(lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId);
+  const playerId = Number(lesson?.player_id ?? lesson?.playerId);
+
+  const matchingGroupPlayer = groupPlayers.find((player) => {
+    const groupLessonId = Number(player?.lesson_id ?? player?.lessonId);
+    const groupPlayerId = Number(player?.player_id ?? player?.playerId);
+
+    if (Number.isFinite(lessonId) && Number.isFinite(groupLessonId) && groupLessonId === lessonId) {
+      return true;
+    }
+
+    if (Number.isFinite(playerId) && Number.isFinite(groupPlayerId) && groupPlayerId === playerId) {
+      return true;
+    }
+
+    return false;
+  });
+
+  return matchingGroupPlayer || null;
+};
+
 const formatLessonInfo = (lesson) => {
   if (!lesson) {
     return '';
@@ -595,13 +623,18 @@ const DashboardPage = ({
               : '');
       const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
 
-      const statusLabel = formatActionStatusLabel(lesson.status ?? lesson.lessonStatus ?? lesson.lesson_status);
+      const matchedPlayer = resolveActionLessonPlayer(lesson);
+      const statusLabel = formatActionStatusLabel(
+        matchedPlayer?.status ?? lesson.status ?? lesson.lessonStatus ?? lesson.lesson_status
+      );
       const lessonInfoLabel = formatLessonInfo(lesson);
 
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
         name:
+          matchedPlayer?.full_name ||
+          matchedPlayer?.name ||
           lesson.player_name ||
           lesson.full_name ||
           lesson.student ||
