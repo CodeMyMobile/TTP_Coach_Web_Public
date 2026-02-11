@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import moment from 'moment';
 import {
   AlertCircle,
   Bell,
@@ -64,27 +65,90 @@ const formatLessonInfo = (lesson) => {
 
   const startRaw = lesson.start_date_time || lesson.startDateTime || lesson.start_time;
   const endRaw = lesson.end_date_time || lesson.endDateTime || lesson.end_time;
-  const startDate = startRaw ? new Date(startRaw) : null;
-  const endDate = endRaw ? new Date(endRaw) : null;
-  const hasStart = startDate instanceof Date && !Number.isNaN(startDate?.getTime?.());
-  const hasEnd = endDate instanceof Date && !Number.isNaN(endDate?.getTime?.());
+  const startMoment = startRaw ? moment.utc(startRaw) : null;
+  const endMoment = endRaw
+    ? moment.utc(endRaw)
+    : startMoment?.isValid()
+      ? startMoment.clone().add(1, 'hour')
+      : null;
+  const hasStart = Boolean(startMoment?.isValid?.());
+  const hasEnd = Boolean(endMoment?.isValid?.());
 
-  const dateLabel = hasStart
-    ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : '';
-  const startTime = hasStart
-    ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : '';
-  const endTime = hasEnd
-    ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : '';
+  const dateLabel = hasStart ? startMoment.format('MMM D') : '';
+  const startTime = hasStart ? startMoment.format('hh:mm a') : '';
+  const endTime = hasEnd ? endMoment.format('hh:mm a') : '';
   const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startTime;
+
+  const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+  const lessonTypeLabel =
+    lesson.lesson_type_name ||
+    lesson.lessonTypeName ||
+    (lessonTypeId === 1
+      ? 'Private'
+      : lessonTypeId === 2
+        ? 'Semi Private'
+        : lessonTypeId === 3
+          ? 'Open Group'
+          : '');
 
   const locationLabel = lesson.court
     ? `${lesson.location || ''} · Court ${lesson.court}`
     : lesson.location || lesson.courtName || '';
 
-  return [dateLabel, timeRange, locationLabel].filter(Boolean).join(' • ');
+  const groupPlayers = Array.isArray(lesson.group_players)
+    ? lesson.group_players
+    : Array.isArray(lesson.groupPlayers)
+      ? lesson.groupPlayers
+      : [];
+
+  const resolveGroupPlayerStatus = (player) => {
+    const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
+    if (rawStatus === 1 || rawStatus === '1') {
+      return 'confirmed';
+    }
+    if (rawStatus === 2 || rawStatus === '2') {
+      return 'cancelled';
+    }
+    const normalizedStatus = typeof rawStatus === 'string' ? rawStatus.toLowerCase() : '';
+    if (normalizedStatus.includes('confirm') || normalizedStatus.includes('accept')) {
+      return 'confirmed';
+    }
+    if (normalizedStatus.includes('cancel') || normalizedStatus.includes('decline')) {
+      return 'cancelled';
+    }
+    return 'pending';
+  };
+
+  const confirmedPlayerCount = groupPlayers.filter(
+    (player) => resolveGroupPlayerStatus(player) === 'confirmed'
+  ).length;
+  const pendingPlayerCount = groupPlayers.filter(
+    (player) => resolveGroupPlayerStatus(player) === 'pending'
+  ).length;
+  const cancelledPlayerCount = groupPlayers.filter(
+    (player) => resolveGroupPlayerStatus(player) === 'cancelled'
+  ).length;
+
+  const joinedPlayerCount = groupPlayers.length;
+  const playerLimit = Number(lesson.player_limit ?? lesson.playerLimit);
+
+  const groupMeta = [];
+  if (joinedPlayerCount > 0) {
+    groupMeta.push(
+      `${confirmedPlayerCount} confirmed • ${pendingPlayerCount} pending` +
+        (cancelledPlayerCount > 0 ? ` • ${cancelledPlayerCount} cancelled` : '')
+    );
+  }
+  if (Number.isFinite(playerLimit) && playerLimit > 0) {
+    const filledSpots = Math.min(confirmedPlayerCount, playerLimit);
+    const availableSpots = Math.max(playerLimit - filledSpots, 0);
+    groupMeta.push(`spots ${filledSpots}/${playerLimit} filled (${availableSpots} open)`);
+  }
+
+  const groupDetails = groupMeta.length > 0 ? `Players: ${groupMeta.join(' • ')}` : '';
+  const displayType = lessonTypeLabel ? `${lessonTypeLabel} lesson` : '';
+
+  return [displayType, dateLabel, timeRange, locationLabel, groupDetails].filter(Boolean).join(' • ');
 };
 
 const DashboardPage = ({
@@ -491,15 +555,38 @@ const DashboardPage = ({
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
-    ...pendingLessons.map((lesson, index) => ({
-      id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
-      type: 'lesson',
-      name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
-      detail: lesson.start_date_time ? 'lesson request' : 'lesson pending',
-      info: formatLessonInfo(lesson),
-      onAccept: null,
-      onDecline: null
-    }))
+    ...pendingLessons.map((lesson, index) => {
+      const createdById = Number(lesson.created_by ?? lesson.createdBy);
+      const coachId = Number(lesson.coach_id ?? lesson.coachId);
+      const isCoachCreatedLesson =
+        Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+      const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+      const lessonTypeLabel =
+        lesson.lesson_type_name ||
+        lesson.lessonTypeName ||
+        (lessonTypeId === 1
+          ? 'Private'
+          : lessonTypeId === 2
+            ? 'Semi Private'
+            : lessonTypeId === 3
+              ? 'Open Group'
+              : '');
+      const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
+
+      return {
+        id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
+        type: 'lesson',
+        name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
+        detail: isCoachCreatedLesson
+          ? `${detailPrefix.toLowerCase()} created by coach`
+          : `${detailPrefix.toLowerCase()} request`,
+        info: formatLessonInfo(lesson),
+        onAccept: isCoachCreatedLesson ? null : () => onLessonSelect(lesson),
+        onDecline: () => onLessonSelect(lesson),
+        acceptLabel: isCoachCreatedLesson ? '' : 'Confirm',
+        declineLabel: isCoachCreatedLesson ? 'Cancel Lesson' : 'Decline'
+      };
+    })
   ];
   const notificationItems = actionItems;
 
@@ -639,19 +726,23 @@ const DashboardPage = ({
                               <strong>{item.name}</strong> {item.detail}
                             </div>
                             <div className="notification-actions">
-                              <button
-                                type="button"
-                                className="notification-btn approve"
-                                onClick={item.onAccept || undefined}
-                              >
-                                {item.type === 'lesson' ? 'Confirm' : 'Accept'}
-                              </button>
+                              {item.acceptLabel !== '' && (
+                                <button
+                                  type="button"
+                                  className="notification-btn approve"
+                                  onClick={item.onAccept || undefined}
+                                  disabled={!item.onAccept}
+                                >
+                                  {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="notification-btn decline"
                                 onClick={item.onDecline || undefined}
+                                disabled={!item.onDecline}
                               >
-                                Decline
+                                {item.declineLabel || 'Decline'}
                               </button>
                             </div>
                           </div>
@@ -789,21 +880,23 @@ const DashboardPage = ({
                       {item.info && <span className="action-alert-info">{item.info}</span>}
                     </div>
                     <div className="action-alert-buttons">
-                      <button
-                        type="button"
-                        className="action-alert-btn approve"
-                        onClick={item.onAccept || undefined}
-                        disabled={!item.onAccept}
-                      >
-                        {item.type === 'lesson' ? 'Confirm' : 'Accept'}
-                      </button>
+                      {item.acceptLabel !== '' && (
+                        <button
+                          type="button"
+                          className="action-alert-btn approve"
+                          onClick={item.onAccept || undefined}
+                          disabled={!item.onAccept}
+                        >
+                          {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="action-alert-btn decline"
                         onClick={item.onDecline || undefined}
                         disabled={!item.onDecline}
                       >
-                        Decline
+                        {item.declineLabel || 'Decline'}
                       </button>
                     </div>
                   </div>
@@ -857,21 +950,24 @@ const DashboardPage = ({
                     </div>
                   </div>
                   <div className="notification-carousel-actions">
-                    <button
-                      type="button"
-                      className="notification-carousel-btn approve"
-                      onClick={actionItems[carouselIndex]?.onAccept || undefined}
-                      disabled={!actionItems[carouselIndex]?.onAccept}
-                    >
-                      {actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept'}
-                    </button>
+                    {actionItems[carouselIndex]?.acceptLabel !== '' && (
+                      <button
+                        type="button"
+                        className="notification-carousel-btn approve"
+                        onClick={actionItems[carouselIndex]?.onAccept || undefined}
+                        disabled={!actionItems[carouselIndex]?.onAccept}
+                      >
+                        {actionItems[carouselIndex]?.acceptLabel ||
+                          (actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept')}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="notification-carousel-btn decline"
                       onClick={actionItems[carouselIndex]?.onDecline || undefined}
                       disabled={!actionItems[carouselIndex]?.onDecline}
                     >
-                      Decline
+                      {actionItems[carouselIndex]?.declineLabel || 'Decline'}
                     </button>
                   </div>
                 </div>

@@ -69,7 +69,8 @@ const LessonDetailModal = ({
   formatDuration,
   onAcceptRequest,
   onDeclineRequest,
-  onCreateLesson
+  onCreateLesson,
+  coachHourlyRate = null
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
 
@@ -125,12 +126,20 @@ const LessonDetailModal = ({
 
     const startRaw = lesson.start_date_time || lesson.startDateTime;
     const endRaw = lesson.end_date_time || lesson.endDateTime;
-    const start = startRaw ? moment(String(startRaw).replace(/Z$/, '')) : null;
-    const end = endRaw ? moment(String(endRaw).replace(/Z$/, '')) : null;
+    const start = startRaw ? moment.utc(startRaw) : null;
+    const end = endRaw
+      ? moment.utc(endRaw)
+      : start?.isValid()
+        ? start.clone().add(1, 'hour')
+        : null;
 
-    const dateLabel = lesson.date || (start ? start.format('dddd, MMMM D') : '');
-    const startTimeLabel = lesson.startTime || (start ? start.format('h:mm A') : '');
-    const endTimeLabel = lesson.endTime || (end ? end.format('h:mm A') : '');
+    const dateLabel = lesson.date || (start?.isValid() ? start.format('dddd, MMMM D') : '');
+    const startTimeLabel = lesson.startTime || (start?.isValid() ? start.format('hh:mm a') : '');
+    const endTimeLabel = lesson.endTime || (end?.isValid() ? end.format('hh:mm a') : '');
+    const createdById = Number(lesson.created_by ?? lesson.createdBy);
+    const coachId = Number(lesson.coach_id ?? lesson.coachId);
+    const isCoachCreatedLesson =
+      Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
 
     return {
       ...lesson,
@@ -139,6 +148,7 @@ const LessonDetailModal = ({
       dateLabel,
       startTimeLabel,
       endTimeLabel,
+      isCoachCreatedLesson,
       studentName:
         lesson.student ||
         lesson.full_name ||
@@ -173,7 +183,7 @@ const LessonDetailModal = ({
     return null;
   }
 
-  const title = resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details';
+  const title = resolvedLesson.status === 'pending' && !resolvedLesson.isCoachCreatedLesson ? 'Lesson Request' : 'Lesson Details';
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
@@ -205,13 +215,35 @@ const LessonDetailModal = ({
       ? `${formatDuration?.(resolvedLesson.durationMinutes || resolvedLesson.duration) || resolvedLesson.durationMinutes || resolvedLesson.duration}`
       : '1 hour';
 
-  const pricePerHour =
-    resolvedLesson.pricePerHour ||
-    resolvedLesson.price_per_hour ||
-    resolvedLesson.rate ||
-    resolvedLesson.price ||
-    0;
-  const priceLabel = pricePerHour ? `$${pricePerHour}` : '—';
+  const parseMoney = (value) => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const groupPricePerPerson =
+    parseMoney(resolvedLesson.group_price_per_person) ??
+    parseMoney(resolvedLesson.groupPricePerPerson) ??
+    parseMoney(resolvedLesson.price_per_person) ??
+    parseMoney(resolvedLesson.pricePerPerson);
+
+  const privateHourlyRate =
+    parseMoney(coachHourlyRate) ??
+    parseMoney(resolvedLesson.hourly_rate) ??
+    parseMoney(resolvedLesson.hourlyRate) ??
+    parseMoney(resolvedLesson.pricePerHour) ??
+    parseMoney(resolvedLesson.price_per_hour) ??
+    parseMoney(resolvedLesson.rate) ??
+    parseMoney(resolvedLesson.price);
+
+  const isGroupOrSemiPrivate =
+    resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
+  const resolvedLessonFee = isGroupOrSemiPrivate ? groupPricePerPerson : privateHourlyRate;
+  const feeSuffix = isGroupOrSemiPrivate ? '/ player' : '/ hour';
+  const priceLabel = resolvedLessonFee !== null ? `$${resolvedLessonFee}` : '—';
 
   const typeBadgeClass =
     resolvedLesson.status === 'cancelled'
@@ -229,6 +261,18 @@ const LessonDetailModal = ({
 
   const actionButtons = () => {
     if (resolvedLesson.status === 'pending') {
+      if (resolvedLesson.isCoachCreatedLesson) {
+        return (
+          <button
+            type="button"
+            onClick={onDeclineRequest}
+            className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+          >
+            ✕ Cancel Lesson
+          </button>
+        );
+      }
+
       return (
         <>
           <button
@@ -330,10 +374,10 @@ const LessonDetailModal = ({
                   <div className="text-2xl">⏳</div>
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-yellow-900">
-                      Awaiting Your Confirmation
+                      Awaiting Player Confirmation
                     </p>
                     <p className="text-xs text-yellow-800">
-                      Requested {resolvedLesson.requestedAt || 'recently'}
+                      {resolvedLesson.isCoachCreatedLesson ? `Created ${resolvedLesson.requestedAt || 'recently'}` : `Requested ${resolvedLesson.requestedAt || 'recently'}`}
                     </p>
                   </div>
                 </div>
@@ -453,7 +497,7 @@ const LessonDetailModal = ({
                     resolvedLesson.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-900'
                   }`}
                 >
-                  {priceLabel} <span className="text-sm font-normal text-slate-400">/ hour</span>
+                  {priceLabel} <span className="text-sm font-normal text-slate-400">{feeSuffix}</span>
                 </p>
               </div>
             </div>
