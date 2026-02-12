@@ -58,6 +58,95 @@ const formatValidityLabel = (months) => {
   return `${months} months`;
 };
 
+
+const resolveLessonPlayerStatus = (player) => {
+  const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
+  if (rawStatus === 1 || rawStatus === '1') {
+    return 'confirmed';
+  }
+  if (rawStatus === 2 || rawStatus === '2') {
+    return 'cancelled';
+  }
+  const normalizedStatus = typeof rawStatus === 'string' ? rawStatus.toLowerCase() : '';
+  if (normalizedStatus.includes('confirm') || normalizedStatus.includes('accept')) {
+    return 'confirmed';
+  }
+  if (normalizedStatus.includes('cancel') || normalizedStatus.includes('decline')) {
+    return 'cancelled';
+  }
+  return 'pending';
+};
+
+const getPlayerName = (player) => {
+  if (!player || typeof player !== 'object') {
+    return '';
+  }
+
+  return (
+    player.full_name ||
+    player.player_name ||
+    player.student_name ||
+    player.name ||
+    ''
+  );
+};
+
+const toUniqueNames = (players = []) => {
+  const names = players
+    .map((player) => getPlayerName(player).trim())
+    .filter(Boolean);
+
+  return [...new Set(names)];
+};
+
+const getLessonActionName = (lesson) => {
+  if (!lesson) {
+    return 'Lesson request';
+  }
+
+  const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+  const groupPlayers = Array.isArray(lesson.group_players)
+    ? lesson.group_players
+    : Array.isArray(lesson.groupPlayers)
+      ? lesson.groupPlayers
+      : [];
+
+  const pendingPlayerNames = toUniqueNames(
+    groupPlayers.filter((player) => resolveLessonPlayerStatus(player) === 'pending')
+  );
+  const allGroupPlayerNames = toUniqueNames(groupPlayers);
+
+  const primaryName =
+    lesson.full_name ||
+    lesson.player_name ||
+    lesson.student_name ||
+    lesson.studentName ||
+    lesson.playerName ||
+    '';
+
+  if (lessonTypeId === 1) {
+    return primaryName || allGroupPlayerNames[0] || 'Private lesson request';
+  }
+
+  if (lessonTypeId === 2) {
+    const semiPrivateNames = pendingPlayerNames.length > 0 ? pendingPlayerNames : allGroupPlayerNames;
+    if (semiPrivateNames.length > 0) {
+      return semiPrivateNames.join(', ');
+    }
+    return primaryName || 'Semi private lesson request';
+  }
+
+  if (pendingPlayerNames.length > 0) {
+    return pendingPlayerNames.join(', ');
+  }
+
+  if (allGroupPlayerNames.length > 0) {
+    return allGroupPlayerNames.join(', ');
+  }
+
+  return primaryName || lesson.title || 'Lesson request';
+};
+
 const formatLessonInfo = (lesson) => {
   if (!lesson) {
     return '';
@@ -101,32 +190,14 @@ const formatLessonInfo = (lesson) => {
       ? lesson.groupPlayers
       : [];
 
-  const resolveGroupPlayerStatus = (player) => {
-    const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
-    if (rawStatus === 1 || rawStatus === '1') {
-      return 'confirmed';
-    }
-    if (rawStatus === 2 || rawStatus === '2') {
-      return 'cancelled';
-    }
-    const normalizedStatus = typeof rawStatus === 'string' ? rawStatus.toLowerCase() : '';
-    if (normalizedStatus.includes('confirm') || normalizedStatus.includes('accept')) {
-      return 'confirmed';
-    }
-    if (normalizedStatus.includes('cancel') || normalizedStatus.includes('decline')) {
-      return 'cancelled';
-    }
-    return 'pending';
-  };
-
   const confirmedPlayerCount = groupPlayers.filter(
-    (player) => resolveGroupPlayerStatus(player) === 'confirmed'
+    (player) => resolveLessonPlayerStatus(player) === 'confirmed'
   ).length;
   const pendingPlayerCount = groupPlayers.filter(
-    (player) => resolveGroupPlayerStatus(player) === 'pending'
+    (player) => resolveLessonPlayerStatus(player) === 'pending'
   ).length;
   const cancelledPlayerCount = groupPlayers.filter(
-    (player) => resolveGroupPlayerStatus(player) === 'cancelled'
+    (player) => resolveLessonPlayerStatus(player) === 'cancelled'
   ).length;
 
   const joinedPlayerCount = groupPlayers.length;
@@ -170,6 +241,7 @@ const DashboardPage = ({
   studentsPage = 1,
   studentsPerPage = 5,
   lessonsData,
+  upcomingLessonsData = [],
   availabilityData,
   googleEvents,
   statsData,
@@ -207,6 +279,9 @@ const DashboardPage = ({
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
     : lessonsData?.lessons || [];
+  const upcomingLessons = Array.isArray(upcomingLessonsData)
+    ? upcomingLessonsData
+    : upcomingLessonsData?.lessons || [];
 
   const currencyFormatter = useMemo(
     () =>
@@ -267,8 +342,9 @@ const DashboardPage = ({
     todayLessons: statsData?.todayLessons ?? 0,
     weekRevenue: statsData?.weekRevenue ?? 0,
     activeStudents: statsData?.activeStudents ?? (Array.isArray(studentsData) ? studentsData.length : studentsData?.students?.length ?? 0),
-    upcomingLessons: statsData?.upcomingLessons ?? bookedLessons.length,
-    pendingRequests: statsData?.pendingRequests ?? bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
+    upcomingLessons: statsData?.upcomingLessons ?? upcomingLessons.length,
+    pendingRequests:
+      statsData?.pendingRequests ?? upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
   };
 
   const handleAvailabilitySelect = (availability) => {
@@ -541,7 +617,7 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showQuickActions]);
 
-  const pendingLessons = bookedLessons.filter((lesson) => lesson.lessonStatus === 'pending');
+  const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
   const rosterRequests = normalizedStudents.filter(
     (student) => student.isPlayerRequest && !student.isConfirmed
   );
@@ -557,9 +633,18 @@ const DashboardPage = ({
     })),
     ...pendingLessons.map((lesson, index) => {
       const createdById = Number(lesson.created_by ?? lesson.createdBy);
-      const coachId = Number(lesson.coach_id ?? lesson.coachId);
+      const lessonCoachId = Number(lesson.coach_id ?? lesson.coachId);
+      const profileCoachId = Number(profile?.id ?? profile?.coach_id ?? profile?.coachId ?? profile?.user_id ?? profile?.userId);
+      const resolvedCoachId = Number.isFinite(lessonCoachId)
+        ? lessonCoachId
+        : Number.isFinite(profileCoachId)
+          ? profileCoachId
+          : null;
+      const playerId = Number(lesson.player_id ?? lesson.playerId);
       const isCoachCreatedLesson =
-        Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+        Number.isFinite(createdById) && Number.isFinite(resolvedCoachId) && createdById === resolvedCoachId;
+      const isPlayerRequestedLesson =
+        Number.isFinite(createdById) && Number.isFinite(playerId) && createdById === playerId;
       const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
       const lessonTypeLabel =
         lesson.lesson_type_name ||
@@ -576,15 +661,17 @@ const DashboardPage = ({
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
-        name: lesson.player_name || lesson.student_name || lesson.studentName || lesson.title || 'Lesson request',
+        name: getLessonActionName(lesson),
         detail: isCoachCreatedLesson
           ? `${detailPrefix.toLowerCase()} created by coach`
-          : `${detailPrefix.toLowerCase()} request`,
+          : isPlayerRequestedLesson
+            ? `${detailPrefix.toLowerCase()} requested by player`
+            : `${detailPrefix.toLowerCase()} request`,
         info: formatLessonInfo(lesson),
-        onAccept: isCoachCreatedLesson ? null : () => onLessonSelect(lesson),
+        onAccept: isPlayerRequestedLesson ? () => onLessonSelect(lesson) : null,
         onDecline: () => onLessonSelect(lesson),
-        acceptLabel: isCoachCreatedLesson ? '' : 'Confirm',
-        declineLabel: isCoachCreatedLesson ? 'Cancel Lesson' : 'Decline'
+        acceptLabel: isPlayerRequestedLesson ? 'Confirm' : '',
+        declineLabel: 'Cancel Lesson'
       };
     })
   ];

@@ -338,6 +338,7 @@ function App() {
 
   const {
     lessons,
+    upcomingLessons,
     availability: scheduleAvailability,
     stats: scheduleStats,
     googleEvents: scheduleGoogleEvents,
@@ -1217,6 +1218,7 @@ function App() {
           studentsPage={studentsPage}
           studentsPerPage={studentsPerPage}
           lessonsData={lessons}
+          upcomingLessonsData={upcomingLessons}
           availabilityData={scheduleAvailability}
           googleEvents={scheduleGoogleEvents}
           statsData={scheduleStats}
