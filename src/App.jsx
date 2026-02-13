@@ -1281,7 +1281,7 @@ function App() {
         onCancelLesson={handleCancelLesson}
         students={resolvedStudents}
         coachCourts={profileData.home_courts}
-        coachHourlyRate={profileData.hourly_rate}
+        coachHourlyRate={profileData.hourly_rate ?? profileData.price_private}
         formatDuration={formatDuration}
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
