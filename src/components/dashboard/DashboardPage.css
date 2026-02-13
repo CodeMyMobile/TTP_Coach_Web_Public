@@ -45,7 +45,7 @@
   top: 48px;
   width: 240px;
   background: #ffffff;
-  border-radius: 14px;
+  border-radius: 10px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
   padding: 10px;
   display: flex;
@@ -127,17 +127,17 @@
   position: absolute;
   right: 0;
   top: 48px;
-  width: 520px;
+  width: 440px;
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid #d7dbe6;
-  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
   z-index: 50;
   overflow: hidden;
 }
 
 .notification-dropdown-header {
-  padding: 20px 24px;
+  padding: 16px 18px;
   border-bottom: 1px solid #d7dbe6;
   display: flex;
   align-items: center;
@@ -145,14 +145,14 @@
 }
 
 .notification-dropdown-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1;
   color: #1f2a44;
 }
 
 .notification-mark-read {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: #6d55f6;
   background: none;
@@ -161,15 +161,15 @@
 }
 
 .notification-dropdown-body {
-  max-height: 640px;
+  max-height: 420px;
   overflow-y: auto;
   background: #f4f5f7;
 }
 
 .notification-item {
   display: flex;
-  gap: 16px;
-  padding: 18px 24px;
+  gap: 12px;
+  padding: 14px 18px;
   border-bottom: 1px solid #d7dbe6;
 }
 
@@ -178,13 +178,13 @@
 }
 
 .notification-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 20px;
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -204,7 +204,7 @@
 }
 
 .notification-avatar-fallback {
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 700;
   color: #5f6c85;
 }
@@ -214,29 +214,29 @@
 }
 
 .notification-text {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
   color: #202b44;
 }
 
 .notification-subtext {
-  margin-top: 6px;
-  font-size: 16px;
+  margin-top: 4px;
+  font-size: 13px;
   color: #5f6c85;
 }
 
 .notification-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .notification-btn {
-  padding: 10px 22px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 600;
-  border-radius: 14px;
+  border-radius: 10px;
   border: none;
 }
 
@@ -251,19 +251,19 @@
 }
 
 .notification-time {
-  margin-top: 12px;
-  font-size: 16px;
+  margin-top: 8px;
+  font-size: 13px;
   color: #8a96ad;
 }
 
 .notification-dropdown-footer {
-  padding: 22px 16px;
+  padding: 14px 16px;
   text-align: center;
   background: #f4f5f7;
 }
 
 .notification-view-all {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #6d55f6;
   background: none;
@@ -272,8 +272,8 @@
 }
 
 .notification-empty {
-  padding: 24px;
-  font-size: 16px;
+  padding: 20px;
+  font-size: 14px;
   color: #5f6c85;
   text-align: center;
 }
@@ -287,7 +287,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
 }
 
 .action-alert-left {
@@ -360,7 +360,7 @@
 .action-alert-dismiss {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 16px;
   color: #92400e;
   cursor: pointer;
   opacity: 0.6;
@@ -392,7 +392,7 @@
 .notification-carousel-dismiss {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 16px;
   color: #92400e;
   cursor: pointer;
   opacity: 0.7;
@@ -489,7 +489,7 @@
   border: none;
   background: #ffffff;
   color: #a16207;
-  font-size: 18px;
+  font-size: 16px;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
 }
 
@@ -587,7 +587,7 @@
   }
 
   .stats-summary-mobile-value {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     color: #1e293b;
   }
@@ -672,10 +672,10 @@
   .dashboard-fab {
     width: 54px;
     height: 54px;
-    border-radius: 14px;
+    border-radius: 10px;
     background: #8b5cf6;
     color: #ffffff;
-    font-size: 28px;
+    font-size: 20px;
     border: none;
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
   }
