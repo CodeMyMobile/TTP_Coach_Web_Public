@@ -235,6 +235,16 @@ const formatRelativeNotificationTime = (value) => {
   return time.fromNow();
 };
 
+const isGroupLessonType = (lesson) => {
+  const lessonTypeId = Number(lesson?.lessontype_id ?? lesson?.lesson_type_id ?? lesson?.lessonTypeId);
+  if (lessonTypeId === 3) {
+    return true;
+  }
+
+  const lessonTypeName = String(lesson?.lesson_type_name ?? lesson?.lessonTypeName ?? '').toLowerCase();
+  return lessonTypeName.includes('group');
+};
+
 const getInitials = (name) => {
   if (!name) {
     return '🔔';
@@ -649,6 +659,7 @@ const DashboardPage = ({
   }, [showQuickActions]);
 
   const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
+  const actionablePendingLessons = pendingLessons.filter((lesson) => !isGroupLessonType(lesson));
   const rosterRequests = normalizedStudents.filter(
     (student) => student.isPlayerRequest && !student.isConfirmed
   );
@@ -664,7 +675,7 @@ const DashboardPage = ({
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
-    ...pendingLessons.map((lesson, index) => {
+    ...actionablePendingLessons.map((lesson, index) => {
       const createdById = Number(lesson.created_by ?? lesson.createdBy);
       const lessonCoachId = Number(lesson.coach_id ?? lesson.coachId);
       const profileCoachId = Number(profile?.id ?? profile?.coach_id ?? profile?.coachId ?? profile?.user_id ?? profile?.userId);
