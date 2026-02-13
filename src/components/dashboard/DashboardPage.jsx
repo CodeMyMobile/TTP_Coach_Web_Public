@@ -222,6 +222,37 @@ const formatLessonInfo = (lesson) => {
   return [displayType, dateLabel, timeRange, locationLabel, groupDetails].filter(Boolean).join(' • ');
 };
 
+const formatRelativeNotificationTime = (value) => {
+  if (!value) {
+    return 'Recently';
+  }
+
+  const time = moment(value);
+  if (!time.isValid()) {
+    return 'Recently';
+  }
+
+  return time.fromNow();
+};
+
+const getInitials = (name) => {
+  if (!name) {
+    return '🔔';
+  }
+
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (parts.length === 0) {
+    return '🔔';
+  }
+
+  return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+};
+
 const DashboardPage = ({
   profile,
   dashboardTab,
@@ -626,8 +657,10 @@ const DashboardPage = ({
       id: `roster-${student.id}`,
       type: 'roster',
       name: student.name || 'Student',
-      detail: 'roster request',
-      info: student.email || student.phone || '',
+      detail: 'wants to join your roster',
+      info: student.email || student.phone || 'Pending roster request',
+      timestamp: student.created_at || student.createdAt || null,
+      avatarUrl: student.avatar || '',
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
@@ -668,6 +701,8 @@ const DashboardPage = ({
             ? `${detailPrefix.toLowerCase()} requested by player`
             : `${detailPrefix.toLowerCase()} request`,
         info: formatLessonInfo(lesson),
+        timestamp: lesson.created_at || lesson.createdAt || lesson.updated_at || lesson.updatedAt || null,
+        avatarUrl: lesson.profile_url || lesson.profile_picture || '',
         onAccept: isPlayerRequestedLesson ? () => onLessonSelect(lesson) : null,
         onDecline: () => onLessonSelect(lesson),
         acceptLabel: isPlayerRequestedLesson ? 'Confirm' : '',
@@ -806,12 +841,17 @@ const DashboardPage = ({
                       {notificationItems.map((item) => (
                         <div key={item.id} className="notification-item notification-item-unread">
                           <div className={`notification-icon notification-icon-${item.type}`}>
-                            {item.type === 'roster' ? '👤' : '📅'}
+                            {item.avatarUrl ? (
+                              <img src={item.avatarUrl} alt={item.name} className="notification-avatar-image" />
+                            ) : (
+                              <span className="notification-avatar-fallback">{getInitials(item.name)}</span>
+                            )}
                           </div>
                           <div className="notification-content">
                             <div className="notification-text">
                               <strong>{item.name}</strong> {item.detail}
                             </div>
+                            {item.info && <div className="notification-subtext">{item.info}</div>}
                             <div className="notification-actions">
                               {item.acceptLabel !== '' && (
                                 <button
@@ -832,6 +872,7 @@ const DashboardPage = ({
                                 {item.declineLabel || 'Decline'}
                               </button>
                             </div>
+                            <div className="notification-time">{formatRelativeNotificationTime(item.timestamp)}</div>
                           </div>
                         </div>
                       ))}
