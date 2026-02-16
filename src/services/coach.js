@@ -157,6 +157,34 @@ export const getCoachStudents = ({ perPage, page, search } = {}) => {
   return request(path);
 };
 
+export const getCoachStudentsAll = ({ perPage, page, search } = {}) => {
+  const params = new URLSearchParams();
+
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  if (search) {
+    params.set('search', search);
+  }
+
+  const query = params.toString();
+  const path = query ? `/coach/players/all?${query}` : '/coach/players/all';
+  return request(path);
+};
+
+export const getCoachPlayerById = ({ playerId } = {}) => {
+  if (!playerId) {
+    throw new Error('A player id is required to fetch player details.');
+  }
+
+  return request(`/coach/players/${playerId}`);
+};
+
 export const getCoachLessons = ({ perPage = 50, page = 1, date } = {}) => {
   if (date) {
     return request(`/coach/lessons/${date}`);
