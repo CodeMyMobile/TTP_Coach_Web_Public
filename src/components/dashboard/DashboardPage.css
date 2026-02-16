@@ -524,7 +524,9 @@
 
 @media (max-width: 430px) {
   .dashboard-mobile-toggle {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .dashboard-header {
