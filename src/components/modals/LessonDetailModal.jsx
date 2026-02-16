@@ -84,6 +84,8 @@ const LessonDetailModal = ({
 
     const createdById = Number(lesson.created_by ?? lesson.createdBy);
     const coachId = Number(lesson.coach_id ?? lesson.coachId);
+    const updatedById = Number(lesson.updated_by ?? lesson.updatedBy);
+    const playerId = Number(lesson.player_id ?? lesson.playerId);
     const isCoachCreatedLesson =
       Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
 
@@ -183,7 +185,16 @@ const LessonDetailModal = ({
         '',
       requestedAt: lesson.requestedAt || lesson.requested_at || lesson.request_time || '',
       cancelledAt: lesson.cancelledAt || lesson.cancelled_at || lesson.cancelled_time || '',
-      cancelledBy: lesson.cancelledBy || lesson.cancelled_by || '',
+      cancelledBy:
+        lesson.cancelledBy ||
+        lesson.cancelled_by ||
+        lesson.canceledBy ||
+        lesson.canceled_by ||
+        (status === 'cancelled' && Number.isFinite(updatedById) && Number.isFinite(coachId) && updatedById === coachId
+          ? 'coach'
+          : status === 'cancelled' && Number.isFinite(updatedById) && Number.isFinite(playerId) && updatedById === playerId
+            ? 'student'
+            : ''),
       locationName: lesson.location?.name || lesson.location_name || lesson.location,
       locationAddress: lesson.location?.address || lesson.location_address || lesson.court || ''
     };
