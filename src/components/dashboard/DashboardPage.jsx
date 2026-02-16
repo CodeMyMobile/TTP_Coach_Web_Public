@@ -462,10 +462,12 @@ const DashboardPage = ({
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
+  const settingsMenuRef = useRef(null);
 
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
@@ -698,6 +700,21 @@ const DashboardPage = ({
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showQuickActions]);
+
+  useEffect(() => {
+    if (!showSettingsMenu) {
+      return;
+    }
+
+    const handleClickOutside = (event) => {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setShowSettingsMenu(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [showSettingsMenu]);
 
   const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
   const actionablePendingLessons = pendingLessons.filter((lesson) => !isGroupLessonType(lesson));
@@ -977,22 +994,48 @@ const DashboardPage = ({
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="dashboard-header-btn"
-              >
-                <Settings className="h-5 w-5" />
-                <span className="sr-only">Open settings</span>
-              </button>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="dashboard-header-btn dashboard-logout-btn"
-              >
-                <LogOut className="h-5 w-5" />
-                <span className="sr-only">Log out</span>
-              </button>
+              <div className="relative" ref={settingsMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSettingsMenu((prev) => !prev);
+                    setShowQuickActions(false);
+                    setShowNotificationsDropdown(false);
+                  }}
+                  className={`dashboard-header-btn ${showSettingsMenu ? 'dashboard-settings-btn-active' : ''}`}
+                  aria-expanded={showSettingsMenu}
+                  aria-haspopup="menu"
+                >
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">Open settings menu</span>
+                </button>
+                {showSettingsMenu && (
+                  <div className="dashboard-settings-menu" role="menu">
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onOpenSettings?.();
+                      }}
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Settings</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item dashboard-settings-menu-item-danger"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onLogout?.();
+                      }}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Log out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -21,6 +21,54 @@
   color: #1e293b;
 }
 
+.dashboard-settings-btn-active {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.dashboard-settings-menu {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  min-width: 160px;
+  background: #ffffff;
+  border: 1px solid #d7dbe6;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 60;
+}
+
+.dashboard-settings-menu-item {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.dashboard-settings-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.dashboard-settings-menu-item-danger {
+  color: #dc2626;
+}
+
+.dashboard-settings-menu-item-danger:hover {
+  background: #fef2f2;
+}
+
 .dashboard-quick-action-btn {
   background: #8b5cf6;
   color: #ffffff;
