@@ -690,7 +690,7 @@ function App() {
       const response = await updateCoachLessons(
         user?.session?.access_token,
         selectedLessonDetail.id,
-        { status: 'CANCELLED', cancelled_by: 'coach' }
+        { status: 'CANCELLED' }
       );
 
       await refreshSchedule();
@@ -1150,7 +1150,7 @@ function App() {
       const response = await updateCoachLessons(
         user?.session?.access_token,
         selectedLessonDetail.id,
-        { status: 'CANCELLED', cancelled_by: 'coach' }
+        { status: 'CANCELLED' }
       );
 
       await refreshSchedule();
