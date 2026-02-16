@@ -126,9 +126,9 @@ const getPendingInvitationNames = (lesson) => {
 };
 
 const getLessonMergeKey = (lesson) => {
-  const lessonId = lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId;
-  if (lessonId !== null && lessonId !== undefined && String(lessonId).trim() !== '') {
-    return `lesson:${lessonId}`;
+  const groupLessonPriceId = lesson?.group_lesson_price_id ?? lesson?.groupLessonPriceId;
+  if (groupLessonPriceId !== null && groupLessonPriceId !== undefined && String(groupLessonPriceId).trim() !== '') {
+    return `semi-private-group-price:${groupLessonPriceId}`;
   }
 
   const startRaw = lesson?.start_date_time ?? lesson?.startDateTime ?? lesson?.start_time ?? '';
@@ -137,7 +137,7 @@ const getLessonMergeKey = (lesson) => {
   const coachRaw = lesson?.coach_id ?? lesson?.coachId ?? '';
   const typeRaw = getLessonTypeId(lesson);
 
-  return `fallback:${typeRaw}:${startRaw}:${endRaw}:${locationRaw}:${coachRaw}`;
+  return `semi-private-fallback:${typeRaw}:${startRaw}:${endRaw}:${locationRaw}:${coachRaw}`;
 };
 
 const getLessonActionName = (lesson) => {
@@ -776,17 +776,17 @@ const DashboardPage = ({
         ? lesson.__alertInvitedNames
         : getPendingInvitationNames(lesson);
       const isMergedSemiPrivateAlert = lessonTypeId === 2 && semiPrivateInvitedNames.length > 0;
-      const semiPrivatePlayersLabel =
-        semiPrivateInvitedNames.length === 1
-          ? `Player ${semiPrivateInvitedNames[0]}`
-          : `Players ${semiPrivateInvitedNames.join(', ')}`;
+      const hasSingleInvitedPlayer = semiPrivateInvitedNames.length === 1;
+      const semiPrivatePlayersLabel = hasSingleInvitedPlayer
+        ? `Player ${semiPrivateInvitedNames[0]}`
+        : `Players ${semiPrivateInvitedNames.join(', ')}`;
 
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
         name: isMergedSemiPrivateAlert ? semiPrivatePlayersLabel : getLessonActionName(lesson),
         detail: isMergedSemiPrivateAlert
-          ? 'have been invited to a semi-private lesson'
+          ? `${hasSingleInvitedPlayer ? 'has' : 'have'} been invited to a semi-private lesson`
           : isCoachCreatedLesson
             ? `${detailPrefix.toLowerCase()} created by coach`
             : isPlayerRequestedLesson
