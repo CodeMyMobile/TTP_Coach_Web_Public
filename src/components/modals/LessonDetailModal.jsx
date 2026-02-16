@@ -75,6 +75,7 @@ const LessonDetailModal = ({
   coachHourlyRate = null
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
+  const [participantsOpen, setParticipantsOpen] = useState(true);
 
   const resolvedLesson = useMemo(() => {
     if (!lesson) {
@@ -199,6 +200,8 @@ const LessonDetailModal = ({
     group: 'Group Lesson'
   };
   const isGroupLesson = resolvedLesson.lessonType === 'group';
+  const isGroupOrSemiPrivate =
+    resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
 
   const lessonGroupPlayers = Array.isArray(resolvedLesson.group_players)
     ? resolvedLesson.group_players
@@ -251,8 +254,8 @@ const LessonDetailModal = ({
       }))
     : [];
 
-  const hasGroupPlayers = isGroupLesson && groupPlayerList.length > 0;
-  const participantListRaw = isGroupLesson
+  const hasGroupPlayers = isGroupOrSemiPrivate && groupPlayerList.length > 0;
+  const participantListRaw = isGroupOrSemiPrivate
     ? groupPlayerList
     : studentList.length
       ? studentList
@@ -349,8 +352,6 @@ const LessonDetailModal = ({
     parseMoney(resolvedLesson.rate) ??
     parseMoney(resolvedLesson.price);
 
-  const isGroupOrSemiPrivate =
-    resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
   const resolvedLessonFee = isGroupOrSemiPrivate ? groupPricePerPerson : privateHourlyRate;
   const feeSuffix = isGroupOrSemiPrivate ? '/ player' : '/ hour';
   const priceLabel = resolvedLessonFee !== null ? `$${resolvedLessonFee}` : '—';
@@ -593,10 +594,20 @@ const LessonDetailModal = ({
                       <p className="font-semibold text-slate-900">Participants</p>
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots} of {groupCapacity}</span>
                     </div>
-                    <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setParticipantsOpen((prev) => !prev)}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        {participantsOpen ? 'Hide' : 'Show'}
+                      </button>
+                      <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    </div>
                   </div>
 
-                  <div className="space-y-1 p-2">
+                  {participantsOpen && (
+                    <div className="space-y-1 p-2">
                     {participantList.length === 0 && (
                       <p className="px-2 py-3 text-sm text-slate-500">No participants yet.</p>
                     )}
@@ -620,7 +631,8 @@ const LessonDetailModal = ({
                         </div>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  )}
 
                   {availableSpots > 0 && (
                     <div className="border-t border-amber-200 bg-amber-100 px-4 py-3 text-sm text-amber-900">⚠️ {availableSpots} spots still available</div>
@@ -668,9 +680,17 @@ const LessonDetailModal = ({
                         <p className="font-semibold text-slate-900">Participants</p>
                         <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots}</span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setParticipantsOpen((prev) => !prev)}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        {participantsOpen ? 'Hide' : 'Show'}
+                      </button>
                     </div>
-                    <div className="space-y-1 p-2">
-                      {participantList.map((participant, index) => (
+                    {participantsOpen && (
+                      <div className="space-y-1 p-2">
+                        {participantList.map((participant, index) => (
                         <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
                           <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
                             {participant.initials}
@@ -690,7 +710,8 @@ const LessonDetailModal = ({
                           </div>
                         </div>
                       ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ) : primaryStudent ? (
                   <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
