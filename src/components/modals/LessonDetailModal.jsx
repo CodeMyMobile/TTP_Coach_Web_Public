@@ -183,7 +183,12 @@ const LessonDetailModal = ({
         '',
       requestedAt: lesson.requestedAt || lesson.requested_at || lesson.request_time || '',
       cancelledAt: lesson.cancelledAt || lesson.cancelled_at || lesson.cancelled_time || '',
-      cancelledBy: lesson.cancelledBy || lesson.cancelled_by || '',
+      cancelledBy:
+        lesson.cancelledBy ||
+        lesson.cancelled_by ||
+        lesson.canceledBy ||
+        lesson.canceled_by ||
+        (status === 'cancelled' ? 'coach' : ''),
       locationName: lesson.location?.name || lesson.location_name || lesson.location,
       locationAddress: lesson.location?.address || lesson.location_address || lesson.court || ''
     };
@@ -479,7 +484,7 @@ const LessonDetailModal = ({
 
   const cancelledByLabel = resolvedLesson.cancelledBy
     ? `${resolvedLesson.cancelledBy}`.charAt(0).toUpperCase() + `${resolvedLesson.cancelledBy}`.slice(1)
-    : 'Student';
+    : 'Coach';
 
   const lessonMoment = resolvedLesson.start_date_time ? moment.utc(resolvedLesson.start_date_time) : null;
   const relativeStartLabel = lessonMoment?.isValid()
