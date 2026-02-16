@@ -99,6 +99,47 @@ const toUniqueNames = (players = []) => {
   return [...new Set(names)];
 };
 
+const getLessonTypeId = (lesson) =>
+  Number(lesson?.lessontype_id ?? lesson?.lesson_type_id ?? lesson?.lessonTypeId);
+
+const getLessonGroupPlayers = (lesson) => {
+  if (Array.isArray(lesson?.group_players)) {
+    return lesson.group_players;
+  }
+  if (Array.isArray(lesson?.groupPlayers)) {
+    return lesson.groupPlayers;
+  }
+  return [];
+};
+
+const getPendingInvitationNames = (lesson) => {
+  const groupPlayers = getLessonGroupPlayers(lesson);
+  const pendingNames = toUniqueNames(
+    groupPlayers.filter((player) => resolveLessonPlayerStatus(player) === 'pending')
+  );
+
+  if (pendingNames.length > 0) {
+    return pendingNames;
+  }
+
+  return toUniqueNames(groupPlayers);
+};
+
+const getLessonMergeKey = (lesson) => {
+  const groupLessonPriceId = lesson?.group_lesson_price_id ?? lesson?.groupLessonPriceId;
+  if (groupLessonPriceId !== null && groupLessonPriceId !== undefined && String(groupLessonPriceId).trim() !== '') {
+    return `semi-private-group-price:${groupLessonPriceId}`;
+  }
+
+  const startRaw = lesson?.start_date_time ?? lesson?.startDateTime ?? lesson?.start_time ?? '';
+  const endRaw = lesson?.end_date_time ?? lesson?.endDateTime ?? lesson?.end_time ?? '';
+  const locationRaw = lesson?.location ?? lesson?.courtName ?? lesson?.court ?? '';
+  const coachRaw = lesson?.coach_id ?? lesson?.coachId ?? '';
+  const typeRaw = getLessonTypeId(lesson);
+
+  return `semi-private-fallback:${typeRaw}:${startRaw}:${endRaw}:${locationRaw}:${coachRaw}`;
+};
+
 const getLessonActionName = (lesson) => {
   if (!lesson) {
     return 'Lesson request';
@@ -236,7 +277,7 @@ const formatRelativeNotificationTime = (value) => {
 };
 
 const isGroupLessonType = (lesson) => {
-  const lessonTypeId = Number(lesson?.lessontype_id ?? lesson?.lesson_type_id ?? lesson?.lessonTypeId);
+  const lessonTypeId = getLessonTypeId(lesson);
   if (lessonTypeId === 3) {
     return true;
   }
@@ -660,6 +701,36 @@ const DashboardPage = ({
 
   const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
   const actionablePendingLessons = pendingLessons.filter((lesson) => !isGroupLessonType(lesson));
+  const collapsedPendingLessons = actionablePendingLessons.reduce((accumulator, lesson) => {
+    const lessonTypeId = getLessonTypeId(lesson);
+    if (lessonTypeId !== 2) {
+      accumulator.push(lesson);
+      return accumulator;
+    }
+
+    const mergeKey = getLessonMergeKey(lesson);
+    const existing = accumulator.find(
+      (entry) => entry.__alertMergeType === 'semi-private' && entry.__alertMergeKey === mergeKey
+    );
+
+    if (!existing) {
+      accumulator.push({
+        ...lesson,
+        __alertMergeType: 'semi-private',
+        __alertMergeKey: mergeKey,
+        __alertInvitedNames: getPendingInvitationNames(lesson)
+      });
+      return accumulator;
+    }
+
+    const mergedInvitedNames = [
+      ...(Array.isArray(existing.__alertInvitedNames) ? existing.__alertInvitedNames : []),
+      ...getPendingInvitationNames(lesson)
+    ];
+    existing.__alertInvitedNames = [...new Set(mergedInvitedNames)];
+
+    return accumulator;
+  }, []);
   const rosterRequests = normalizedStudents.filter(
     (student) => student.isPlayerRequest && !student.isConfirmed
   );
@@ -675,7 +746,7 @@ const DashboardPage = ({
       onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
       onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
     })),
-    ...actionablePendingLessons.map((lesson, index) => {
+    ...collapsedPendingLessons.map((lesson, index) => {
       const createdById = Number(lesson.created_by ?? lesson.createdBy);
       const lessonCoachId = Number(lesson.coach_id ?? lesson.coachId);
       const profileCoachId = Number(profile?.id ?? profile?.coach_id ?? profile?.coachId ?? profile?.user_id ?? profile?.userId);
@@ -689,7 +760,7 @@ const DashboardPage = ({
         Number.isFinite(createdById) && Number.isFinite(resolvedCoachId) && createdById === resolvedCoachId;
       const isPlayerRequestedLesson =
         Number.isFinite(createdById) && Number.isFinite(playerId) && createdById === playerId;
-      const lessonTypeId = Number(lesson.lessontype_id ?? lesson.lesson_type_id ?? lesson.lessonTypeId);
+      const lessonTypeId = getLessonTypeId(lesson);
       const lessonTypeLabel =
         lesson.lesson_type_name ||
         lesson.lessonTypeName ||
@@ -701,16 +772,26 @@ const DashboardPage = ({
               ? 'Open Group'
               : '');
       const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
+      const semiPrivateInvitedNames = Array.isArray(lesson.__alertInvitedNames)
+        ? lesson.__alertInvitedNames
+        : getPendingInvitationNames(lesson);
+      const isMergedSemiPrivateAlert = lessonTypeId === 2 && semiPrivateInvitedNames.length > 0;
+      const hasSingleInvitedPlayer = semiPrivateInvitedNames.length === 1;
+      const semiPrivatePlayersLabel = hasSingleInvitedPlayer
+        ? `Player ${semiPrivateInvitedNames[0]}`
+        : `Players ${semiPrivateInvitedNames.join(', ')}`;
 
       return {
         id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
         type: 'lesson',
-        name: getLessonActionName(lesson),
-        detail: isCoachCreatedLesson
-          ? `${detailPrefix.toLowerCase()} created by coach`
-          : isPlayerRequestedLesson
-            ? `${detailPrefix.toLowerCase()} requested by player`
-            : `${detailPrefix.toLowerCase()} request`,
+        name: isMergedSemiPrivateAlert ? semiPrivatePlayersLabel : getLessonActionName(lesson),
+        detail: isMergedSemiPrivateAlert
+          ? `${hasSingleInvitedPlayer ? 'has' : 'have'} been invited to a semi-private lesson`
+          : isCoachCreatedLesson
+            ? `${detailPrefix.toLowerCase()} created by coach`
+            : isPlayerRequestedLesson
+              ? `${detailPrefix.toLowerCase()} requested by player`
+              : `${detailPrefix.toLowerCase()} request`,
         info: formatLessonInfo(lesson),
         timestamp: lesson.created_at || lesson.createdAt || lesson.updated_at || lesson.updatedAt || null,
         avatarUrl: lesson.profile_url || lesson.profile_picture || '',
