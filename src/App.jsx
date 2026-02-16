@@ -678,10 +678,36 @@ function App() {
 
   const handleCancelLesson = () => setShowCancelConfirmation(true);
 
-  const confirmCancelLesson = () => {
-    setShowCancelConfirmation(false);
-    setShowLessonDetailModal(false);
-    setSelectedLessonDetail(null);
+  const confirmCancelLesson = async () => {
+    if (!selectedLessonDetail?.id) {
+      setShowCancelConfirmation(false);
+      setShowLessonDetailModal(false);
+      setSelectedLessonDetail(null);
+      return;
+    }
+
+    try {
+      const response = await updateCoachLessons(
+        user?.session?.access_token,
+        selectedLessonDetail.id,
+        { status: 'CANCELLED' }
+      );
+
+      await refreshSchedule();
+
+      if (response?.status === 200) {
+        window.alert('The lesson cancelled successfully!!');
+      } else {
+        window.alert('Something went wrong!!');
+      }
+    } catch (error) {
+      console.error('Failed to cancel lesson', error);
+      window.alert('Something went wrong!!');
+    } finally {
+      setShowCancelConfirmation(false);
+      setShowLessonDetailModal(false);
+      setSelectedLessonDetail(null);
+    }
   };
 
   const handleEditLesson = () => {
