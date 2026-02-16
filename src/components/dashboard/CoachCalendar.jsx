@@ -63,8 +63,61 @@ const parseLessonDateTime = (value) => {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 };
 
-const buildLessonEvents = (lessons) =>
-  (Array.isArray(lessons) ? lessons : []).flatMap((lesson) => {
+const getLessonTypeId = (lesson) =>
+  Number(lesson?.lessontype_id ?? lesson?.lesson_type_id ?? lesson?.lessonTypeId);
+
+const isSemiPrivateLesson = (lesson) => {
+  const lessonTypeId = getLessonTypeId(lesson);
+  if (lessonTypeId === 2) {
+    return true;
+  }
+
+  const typeName = String(lesson?.lesson_type_name ?? lesson?.lessonType ?? lesson?.type ?? '').toLowerCase();
+  return typeName.includes('semi');
+};
+
+const getLessonGroupPlayers = (lesson) =>
+  Array.isArray(lesson?.group_players)
+    ? lesson.group_players
+    : Array.isArray(lesson?.groupPlayers)
+      ? lesson.groupPlayers
+      : [];
+
+const getPlayerDisplayName = (player) =>
+  String(player?.full_name ?? player?.player_name ?? player?.student_name ?? player?.name ?? '').trim();
+
+const uniqueBy = (items, keyBuilder) => {
+  const map = new Map();
+  (Array.isArray(items) ? items : []).forEach((item, index) => {
+    const key = keyBuilder(item, index);
+    if (!map.has(key)) {
+      map.set(key, item);
+    }
+  });
+  return Array.from(map.values());
+};
+
+const buildPlayersDescription = (lesson) => {
+  const names = uniqueBy(
+    getLessonGroupPlayers(lesson)
+      .map((player) => getPlayerDisplayName(player))
+      .filter(Boolean),
+    (name) => name.toLowerCase()
+  );
+
+  if (names.length > 0) {
+    return names.join(', ');
+  }
+
+  const fallbackName = getPlayerDisplayName(lesson);
+  return fallbackName || '';
+};
+
+const buildLessonEvents = (lessons) => {
+  const groupedSemiPrivate = new Map();
+  const directEvents = [];
+
+  (Array.isArray(lessons) ? lessons : []).forEach((lesson) => {
     const startDateTime =
       lesson.start_date_time ||
       lesson.start_date_time_tz ||
@@ -84,7 +137,7 @@ const buildLessonEvents = (lessons) =>
     let end = endDateTime ? parseLessonDateTime(endDateTime) : null;
 
     if (!start || Number.isNaN(start.getTime())) {
-      return [];
+      return;
     }
 
     if (!end || Number.isNaN(end.getTime())) {
@@ -92,15 +145,76 @@ const buildLessonEvents = (lessons) =>
       end = new Date(start.getTime() + durationSlots * 30 * 60000);
     }
 
-    return [{
+    const playerDescription = buildPlayersDescription(lesson);
+    const resource = playerDescription
+      ? {
+          ...lesson,
+          metadata: {
+            ...(lesson.metadata || {}),
+            description: playerDescription
+          }
+        }
+      : lesson;
+
+    const event = {
       start,
       end,
       title: lesson.metadata?.title || lesson.lesson_type_name || lesson.type || 'Lesson',
-      resource: lesson,
-      lessonType: lesson.lessontype_id || lesson.lesson_type_id || lesson.lessonTypeId,
+      resource,
+      lessonType: getLessonTypeId(lesson),
       type: 'lesson'
-    }];
+    };
+
+    const groupLessonPriceId = lesson.group_lesson_price_id ?? lesson.groupLessonPriceId;
+    const isGroupableSemiPrivate =
+      isSemiPrivateLesson(lesson) && groupLessonPriceId !== null && groupLessonPriceId !== undefined && groupLessonPriceId !== '';
+
+    if (!isGroupableSemiPrivate) {
+      directEvents.push(event);
+      return;
+    }
+
+    const groupKey = String(groupLessonPriceId);
+    const existing = groupedSemiPrivate.get(groupKey);
+
+    if (!existing) {
+      groupedSemiPrivate.set(groupKey, event);
+      return;
+    }
+
+    const mergedPlayers = uniqueBy(
+      [...getLessonGroupPlayers(existing.resource), ...getLessonGroupPlayers(resource)],
+      (player) => {
+        const id = player?.player_id ?? player?.playerId ?? player?.id;
+        const name = getPlayerDisplayName(player).toLowerCase();
+        return id !== null && id !== undefined && id !== '' ? `id:${id}` : `name:${name}`;
+      }
+    );
+
+    const mergedDescription = uniqueBy(
+      [existing.resource?.metadata?.description, playerDescription].filter(Boolean),
+      (value) => String(value).toLowerCase()
+    ).join(', ');
+
+    groupedSemiPrivate.set(groupKey, {
+      ...existing,
+      start: existing.start <= start ? existing.start : start,
+      end: existing.end >= end ? existing.end : end,
+      resource: {
+        ...existing.resource,
+        ...resource,
+        group_players: mergedPlayers,
+        metadata: {
+          ...(existing.resource?.metadata || {}),
+          ...(resource.metadata || {}),
+          description: mergedDescription
+        }
+      }
+    });
   });
+
+  return [...directEvents, ...groupedSemiPrivate.values()];
+};
 
 const buildAvailabilityEvents = (availability, referenceDate) => {
   if (!availability) {
@@ -583,7 +697,11 @@ const CoachCalendar = ({
                             ? 'open-group'
                             : 'private';
                     const title = lesson.resource?.metadata?.title || lesson.title || 'Lesson';
-                    const subtitle = lesson.resource?.location || lesson.resource?.metadata?.subtitle || '';
+                    const subtitle =
+                      lesson.resource?.metadata?.description ||
+                      lesson.resource?.location ||
+                      lesson.resource?.metadata?.subtitle ||
+                      '';
 
                     const isBusy = lesson.type === 'busy';
 
