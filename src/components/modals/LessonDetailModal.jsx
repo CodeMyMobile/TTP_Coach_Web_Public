@@ -276,9 +276,9 @@ const LessonDetailModal = ({
         const response = await getCoachPlayerPackageUsage({ lessonId, playerId, perPage: 25, page: 1 });
         const rows = Array.isArray(response)
           ? response
-          : response?.data || response?.rows || response?.records || response?.results || response?.items || [];
+          : response?.usages || response?.data || response?.rows || response?.records || response?.results || response?.items || [];
 
-        const matchedUsage = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+        const matchedUsage = Array.isArray(rows) ? rows[0] || null : null;
 
         if (isMounted) {
           setCreditUsage(matchedUsage);
@@ -484,6 +484,8 @@ const LessonDetailModal = ({
   const creditUsageStatusRaw =
     creditUsage?.usage_status ??
     creditUsage?.usageStatus ??
+    creditUsage?.usage_metadata?.status ??
+    creditUsage?.usageMetadata?.status ??
     creditUsage?.metadata?.usage_status ??
     creditUsage?.metadata?.usageStatus;
   const creditUsageStatus = String(creditUsageStatusRaw || '').toLowerCase() || 'confirmed';
@@ -498,7 +500,8 @@ const LessonDetailModal = ({
     parseNumber(creditUsage?.credits_used) ??
     parseNumber(creditUsage?.creditsUsed) ??
     parseNumber(creditUsage?.used_credits) ??
-    1;
+    parseNumber(creditUsage?.credits_delta) ??
+    0;
   const creditsRemaining =
     parseNumber(creditUsage?.credits_remaining) ??
     parseNumber(creditUsage?.creditsRemaining) ??
