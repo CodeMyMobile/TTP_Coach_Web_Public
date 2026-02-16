@@ -78,23 +78,33 @@ const LessonDetailModal = ({
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [participantsOpen, setParticipantsOpen] = useState(true);
 
-  const openSmsComposer = async ({ playerId, phone } = {}) => {
-    let resolvedPhone = typeof phone === 'string' ? phone.trim() : '';
-
-    if (!resolvedPhone && playerId) {
-      try {
-        const playerDetails = await getCoachPlayerById({ playerId });
-        resolvedPhone =
-          playerDetails?.phone ||
-          playerDetails?.phone_number ||
-          playerDetails?.data?.phone ||
-          playerDetails?.data?.phone_number ||
-          '';
-      } catch (error) {
-        // Ignore fetch errors and fall back to an empty recipient SMS composer.
-      }
+  const resolvePlayerPhone = async ({ playerId, phone } = {}) => {
+    const directPhone = typeof phone === 'string' ? phone.trim() : '';
+    if (directPhone) {
+      return directPhone;
     }
 
+    if (!playerId) {
+      return '';
+    }
+
+    try {
+      const playerDetails = await getCoachPlayerById({ playerId });
+      return (
+        playerDetails?.phone ||
+        playerDetails?.phone_number ||
+        playerDetails?.data?.phone ||
+        playerDetails?.data?.phone_number ||
+        ''
+      );
+    } catch (error) {
+      // Ignore fetch errors and fall back to empty contact details.
+      return '';
+    }
+  };
+
+  const openSmsComposer = async ({ playerId, phone } = {}) => {
+    const resolvedPhone = await resolvePlayerPhone({ playerId, phone });
     const normalizedPhone = String(resolvedPhone || '').replace(/\s+/g, '');
     const smsLink = `sms:${normalizedPhone}`;
     const smstoLink = `smsto:${normalizedPhone}`;
@@ -104,6 +114,15 @@ const LessonDetailModal = ({
       setTimeout(() => {
         window.location.href = smstoLink;
       }, 75);
+    }
+  };
+
+  const openPhoneDialer = async ({ playerId, phone } = {}) => {
+    const resolvedPhone = await resolvePlayerPhone({ playerId, phone });
+    const normalizedPhone = String(resolvedPhone || '').replace(/\s+/g, '');
+
+    if (typeof window !== 'undefined') {
+      window.location.href = `tel:${normalizedPhone}`;
     }
   };
 
@@ -669,10 +688,18 @@ const LessonDetailModal = ({
                           <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
                         </div>
                         <div className="flex gap-1">
-                          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                          <button
+                            type="button"
+                            onClick={() => openSmsComposer({ playerId: participant.playerId, phone: participant.phone })}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+                          >
                             <MessageCircle className="h-4 w-4" />
                           </button>
-                          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                          <button
+                            type="button"
+                            onClick={() => openPhoneDialer({ playerId: participant.playerId, phone: participant.phone })}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+                          >
                             <Phone className="h-4 w-4" />
                           </button>
                         </div>
@@ -755,7 +782,11 @@ const LessonDetailModal = ({
                             >
                               <MessageCircle className="h-4 w-4" />
                             </button>
-                            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                            <button
+                              type="button"
+                              onClick={() => openPhoneDialer({ playerId: participant.playerId, phone: participant.phone })}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+                            >
                               <Phone className="h-4 w-4" />
                             </button>
                           </div>
