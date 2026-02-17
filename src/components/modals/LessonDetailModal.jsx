@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getCoachPlayerById } from '../../services/coach';
+import { getCoachPlayerById, getCoachPlayerPackageUsage } from '../../services/coach';
 import moment from 'moment';
 import {
   AlertCircle,
@@ -77,6 +77,9 @@ const LessonDetailModal = ({
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [participantsOpen, setParticipantsOpen] = useState(true);
+  const [creditUsageLoading, setCreditUsageLoading] = useState(false);
+  const [creditUsageError, setCreditUsageError] = useState('');
+  const [creditUsage, setCreditUsage] = useState(null);
 
   const resolvePlayerPhone = async ({ playerId, phone } = {}) => {
     const directPhone = typeof phone === 'string' ? phone.trim() : '';
@@ -131,12 +134,47 @@ const LessonDetailModal = ({
       return null;
     }
 
-    const createdById = Number(lesson.created_by ?? lesson.createdBy);
-    const coachId = Number(lesson.coach_id ?? lesson.coachId);
+    const resolveNumericId = (...values) => {
+      for (const value of values) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+      return null;
+    };
+
+    const createdById = resolveNumericId(
+      lesson.created_by,
+      lesson.createdBy,
+      lesson.created_by_id,
+      lesson.createdById,
+      lesson.metadata?.created_by,
+      lesson.metadata?.createdBy,
+      lesson.metadata?.created_by_id,
+      lesson.metadata?.createdById
+    );
+    const coachId = resolveNumericId(
+      lesson.coach_id,
+      lesson.coachId,
+      lesson.coach?.id,
+      lesson.coach?.coach_id,
+      lesson.metadata?.coach_id,
+      lesson.metadata?.coachId
+    );
     const updatedById = Number(lesson.updated_by ?? lesson.updatedBy);
-    const playerId = Number(lesson.player_id ?? lesson.playerId);
+    const playerId = resolveNumericId(
+      lesson.player_id,
+      lesson.playerId,
+      lesson.player?.id,
+      lesson.metadata?.player_id,
+      lesson.metadata?.playerId
+    );
+    const fallbackCoachCreated =
+      Number.isFinite(createdById) && Number.isFinite(playerId) && createdById !== playerId;
     const isCoachCreatedLesson =
-      Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+      (Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId) ||
+      fallbackCoachCreated;
 
     const normalizeStatus = (value) => {
       if (value === 2 || value === '2') {
@@ -249,11 +287,61 @@ const LessonDetailModal = ({
     };
   }, [lesson]);
 
+  useEffect(() => {
+    if (!isOpen || !lesson) {
+      return;
+    }
+
+    const lessonId = lesson.lesson_id ?? lesson.lessonId ?? lesson.id;
+    const playerId = lesson.player_id ?? lesson.playerId;
+
+    if (!lessonId && !playerId) {
+      setCreditUsage(null);
+      setCreditUsageError('');
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadCreditUsage = async () => {
+      setCreditUsageLoading(true);
+      setCreditUsageError('');
+
+      try {
+        const response = await getCoachPlayerPackageUsage({ lessonId, playerId, perPage: 25, page: 1 });
+        const rows = Array.isArray(response)
+          ? response
+          : response?.usages || response?.data || response?.rows || response?.records || response?.results || response?.items || [];
+
+        const matchedUsage = Array.isArray(rows) ? rows[0] || null : null;
+
+        if (isMounted) {
+          setCreditUsage(matchedUsage);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setCreditUsage(null);
+          setCreditUsageError(error instanceof Error ? error.message : 'Unable to load credit usage.');
+        }
+      } finally {
+        if (isMounted) {
+          setCreditUsageLoading(false);
+        }
+      }
+    };
+
+    loadCreditUsage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, lesson]);
+
   if (!resolvedLesson) {
     return null;
   }
 
-  const title = resolvedLesson.status === 'pending' && !resolvedLesson.isCoachCreatedLesson ? 'Lesson Request' : 'Lesson Details';
+  const title = resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details';
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
@@ -419,6 +507,53 @@ const LessonDetailModal = ({
   const resolvedLessonFee = isGroupOrSemiPrivate ? groupPricePerPerson : privateHourlyRate;
   const feeSuffix = isGroupOrSemiPrivate ? '/ player' : '/ hour';
   const priceLabel = resolvedLessonFee !== null ? `$${resolvedLessonFee}` : '—';
+  const parseNumber = (value) => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const creditUsageStatusRaw =
+    creditUsage?.usage_status ??
+    creditUsage?.usageStatus ??
+    creditUsage?.usage_metadata?.status ??
+    creditUsage?.usageMetadata?.status ??
+    creditUsage?.metadata?.usage_status ??
+    creditUsage?.metadata?.usageStatus;
+  const creditUsageStatus = String(creditUsageStatusRaw || '').toLowerCase() || 'confirmed';
+  const creditStatusClasses =
+    creditUsageStatus === 'pending'
+      ? 'bg-amber-100 text-amber-700'
+      : creditUsageStatus === 'restored'
+        ? 'bg-slate-200 text-slate-700'
+        : 'bg-emerald-100 text-emerald-700';
+
+  const creditsUsed =
+    parseNumber(creditUsage?.credits_used) ??
+    parseNumber(creditUsage?.creditsUsed) ??
+    parseNumber(creditUsage?.used_credits) ??
+    parseNumber(creditUsage?.credits_delta) ??
+    0;
+  const creditsRemaining =
+    parseNumber(creditUsage?.credits_remaining) ??
+    parseNumber(creditUsage?.creditsRemaining) ??
+    parseNumber(creditUsage?.purchase?.credits_remaining) ??
+    parseNumber(creditUsage?.purchase?.creditsRemaining);
+  const creditsTotal =
+    parseNumber(creditUsage?.credits_total) ??
+    parseNumber(creditUsage?.creditsTotal) ??
+    parseNumber(creditUsage?.purchase?.credits_total) ??
+    parseNumber(creditUsage?.purchase?.creditsTotal);
+
+  const packageName =
+    creditUsage?.package_name ||
+    creditUsage?.packageName ||
+    creditUsage?.package?.name ||
+    creditUsage?.package?.title ||
+    'Package credits';
   const groupCapacity = Number(
     resolvedLesson.maxParticipants ||
       resolvedLesson.max_participants ||
@@ -447,15 +582,22 @@ const LessonDetailModal = ({
 
   const actionButtons = () => {
     if (resolvedLesson.status === 'pending') {
-      if (resolvedLesson.isCoachCreatedLesson) {
+      const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
+
+      if (isAwaitingPlayerConfirmation) {
         return (
-          <button
-            type="button"
-            onClick={onDeclineRequest}
-            className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-          >
-            ✕ Cancel Lesson
-          </button>
+          <>
+            <div className="flex-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+              Awaiting player confirmation
+            </div>
+            <button
+              type="button"
+              onClick={onDeclineRequest}
+              className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+            >
+              ✕ Cancel Lesson
+            </button>
+          </>
         );
       }
 
@@ -883,6 +1025,43 @@ const LessonDetailModal = ({
                     </p>
                   </div>
                 </div>
+
+                {!isGroupOrSemiPrivate && (
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
+                      <Tag className="h-4 w-4" />
+                      Player's Credit Usage
+                    </div>
+
+                    {creditUsageLoading ? (
+                      <p className="mt-3 text-sm text-slate-500">Loading credit usage…</p>
+                    ) : creditUsageError ? (
+                      <p className="mt-3 text-sm text-red-500">{creditUsageError}</p>
+                    ) : creditUsage ? (
+                      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white p-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{packageName}</p>
+                          <p className="text-xs text-slate-500">
+                            {creditsUsed} credit{creditsUsed === 1 ? '' : 's'} used for this lesson
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-base font-bold text-purple-600">
+                            {creditsRemaining !== null ? `${creditsRemaining} left` : '—'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {creditsTotal !== null ? `of ${creditsTotal} credits` : 'credits'}
+                          </p>
+                          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${creditStatusClasses}`}>
+                            {creditUsageStatus}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-500">No credit usage found for this lesson.</p>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>

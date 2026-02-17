@@ -248,6 +248,58 @@ export const getActivePlayerPackages = ({ playerId, player_id, search, perPage, 
   return request(path);
 };
 
+export const getCoachPlayerPackageUsage = ({
+  playerId,
+  player_id,
+  purchaseId,
+  purchase_id,
+  lessonId,
+  lesson_id,
+  usageStatus,
+  usage_status,
+  search,
+  perPage,
+  page
+} = {}) => {
+  const params = new URLSearchParams();
+  const resolvedPlayerId = playerId ?? player_id;
+  const resolvedPurchaseId = purchaseId ?? purchase_id;
+  const resolvedLessonId = lessonId ?? lesson_id;
+  const resolvedUsageStatus = usageStatus ?? usage_status;
+
+  if (resolvedPlayerId !== undefined && resolvedPlayerId !== null && resolvedPlayerId !== '') {
+    params.set('playerId', String(resolvedPlayerId));
+  }
+
+  if (resolvedPurchaseId !== undefined && resolvedPurchaseId !== null && resolvedPurchaseId !== '') {
+    params.set('purchaseId', String(resolvedPurchaseId));
+  }
+
+  if (resolvedLessonId !== undefined && resolvedLessonId !== null && resolvedLessonId !== '') {
+    params.set('lessonId', String(resolvedLessonId));
+  }
+
+  if (resolvedUsageStatus) {
+    params.set('usageStatus', String(resolvedUsageStatus));
+  }
+
+  if (search) {
+    params.set('search', String(search));
+  }
+
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query ? `/coach/players/packages/usage?${query}` : '/coach/players/packages/usage';
+  return request(path);
+};
+
 export const updateCoachPlayer = ({ playerId, status = 'PENDING', discountPercentage } = {}) => {
   if (!playerId) {
     throw new Error('A player id is required to update roster status.');
@@ -350,6 +402,7 @@ export default {
   getCoachStudents,
   getCoachLessons,
   getActivePlayerPackages,
+  getCoachPlayerPackageUsage,
   createCoachAvailability,
   createCoachAvailabilityBulk,
   updateCoachAvailability,
