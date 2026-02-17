@@ -134,12 +134,47 @@ const LessonDetailModal = ({
       return null;
     }
 
-    const createdById = Number(lesson.created_by ?? lesson.createdBy);
-    const coachId = Number(lesson.coach_id ?? lesson.coachId);
+    const resolveNumericId = (...values) => {
+      for (const value of values) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+      return null;
+    };
+
+    const createdById = resolveNumericId(
+      lesson.created_by,
+      lesson.createdBy,
+      lesson.created_by_id,
+      lesson.createdById,
+      lesson.metadata?.created_by,
+      lesson.metadata?.createdBy,
+      lesson.metadata?.created_by_id,
+      lesson.metadata?.createdById
+    );
+    const coachId = resolveNumericId(
+      lesson.coach_id,
+      lesson.coachId,
+      lesson.coach?.id,
+      lesson.coach?.coach_id,
+      lesson.metadata?.coach_id,
+      lesson.metadata?.coachId
+    );
     const updatedById = Number(lesson.updated_by ?? lesson.updatedBy);
-    const playerId = Number(lesson.player_id ?? lesson.playerId);
+    const playerId = resolveNumericId(
+      lesson.player_id,
+      lesson.playerId,
+      lesson.player?.id,
+      lesson.metadata?.player_id,
+      lesson.metadata?.playerId
+    );
+    const fallbackCoachCreated =
+      Number.isFinite(createdById) && Number.isFinite(playerId) && createdById !== playerId;
     const isCoachCreatedLesson =
-      Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+      (Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId) ||
+      fallbackCoachCreated;
 
     const normalizeStatus = (value) => {
       if (value === 2 || value === '2') {
@@ -306,7 +341,7 @@ const LessonDetailModal = ({
     return null;
   }
 
-  const title = resolvedLesson.status === 'pending' && !resolvedLesson.isCoachCreatedLesson ? 'Lesson Request' : 'Lesson Details';
+  const title = resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details';
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
@@ -547,15 +582,22 @@ const LessonDetailModal = ({
 
   const actionButtons = () => {
     if (resolvedLesson.status === 'pending') {
-      if (resolvedLesson.isCoachCreatedLesson) {
+      const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
+
+      if (isAwaitingPlayerConfirmation) {
         return (
-          <button
-            type="button"
-            onClick={onDeclineRequest}
-            className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-          >
-            ✕ Cancel Lesson
-          </button>
+          <>
+            <div className="flex-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+              Awaiting player confirmation
+            </div>
+            <button
+              type="button"
+              onClick={onDeclineRequest}
+              className="flex-1 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+            >
+              ✕ Cancel Lesson
+            </button>
+          </>
         );
       }
 
