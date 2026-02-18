@@ -55,7 +55,16 @@ const downloadIcs = (content, fileName) => {
   URL.revokeObjectURL(url);
 };
 
-function LessonConfirmationSheet({ isOpen, lesson, onDone }) {
+const parseMoney = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = null }) {
   const detail = useMemo(() => {
     if (!lesson) {
       return null;
@@ -68,15 +77,19 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone }) {
     const end = lesson.endDateTime || lesson.end_date_time_tz || lesson.end_date_time;
     const locationName = lesson.locationName || lesson.location_name || lesson.location || 'TBD';
     const locationAddress = lesson.locationAddress || lesson.location_address || lesson.locationAddressLine || '';
-    const lessonFee = Number(
-      lesson.pricePerHour
-      || lesson.price_per_hour
-      || lesson.lessonFee
-      || lesson.price_per_person
-      || lesson.private_lesson_fee
-      || lesson.lesson_fee
-      || 0
-    );
+    const lessonFee =
+      parseMoney(lesson.group_price_per_person)
+      ?? parseMoney(lesson.groupPricePerPerson)
+      ?? parseMoney(lesson.price_per_person)
+      ?? parseMoney(lesson.pricePerPerson)
+      ?? parseMoney(lesson.private_lesson_fee)
+      ?? parseMoney(lesson.lesson_fee)
+      ?? parseMoney(lesson.pricePerHour)
+      ?? parseMoney(lesson.price_per_hour)
+      ?? parseMoney(lesson.hourly_rate)
+      ?? parseMoney(lesson.hourlyRate)
+      ?? parseMoney(lesson.price)
+      ?? parseMoney(coachHourlyRate);
 
     const startDate = start ? new Date(start) : null;
     const endDate = end ? new Date(end) : null;
@@ -102,7 +115,7 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone }) {
       endDate,
       isCreditLesson
     };
-  }, [lesson]);
+  }, [lesson, coachHourlyRate]);
 
   if (!isOpen || !detail) {
     return null;
@@ -213,7 +226,7 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone }) {
               </div>
               <div className="col-span-2">
                 <p className="text-[11px] uppercase text-slate-400">Price</p>
-                <p className="font-semibold text-slate-800">${detail.lessonFee} / hour</p>
+                <p className="font-semibold text-slate-800">{detail.lessonFee !== null ? `$${detail.lessonFee} / hour` : '—'}</p>
               </div>
             </div>
           </div>
@@ -241,7 +254,9 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone }) {
               <strong>💰 Payment info:</strong>{' '}
               {detail.isCreditLesson
                 ? 'This lesson is covered by player credits, so no payout will be deposited for this booking.'
-                : `$${detail.lessonFee} will be deposited to your connected account after the lesson is completed.`}
+                : detail.lessonFee !== null
+                  ? `$${detail.lessonFee} will be deposited to your connected account after the lesson is completed.`
+                  : 'Your lesson payout will be deposited to your connected account after the lesson is completed.'}
             </p>
           </div>
 

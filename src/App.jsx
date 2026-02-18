@@ -1322,6 +1322,7 @@ function App() {
       <LessonConfirmationSheet
         isOpen={showLessonConfirmedSheet}
         lesson={confirmedLessonDetail}
+        coachHourlyRate={profileData.hourly_rate ?? profileData.price_private}
         onDone={() => {
           setShowLessonConfirmedSheet(false);
           setConfirmedLessonDetail(null);
