@@ -24,6 +24,7 @@ import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
+import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet';
 import { getCoachPlayerPreviousLessons } from './services/coach';
 
 const resolvePackagesFromPayload = (payload) => {
@@ -136,7 +137,9 @@ function App() {
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
   const [showLessonDetailModal, setShowLessonDetailModal] = useState(false);
   const [showCreateLessonModal, setShowCreateLessonModal] = useState(false);
+  const [showLessonConfirmedSheet, setShowLessonConfirmedSheet] = useState(false);
   const [lessonDraft, setLessonDraft] = useState(null);
+  const [confirmedLessonDetail, setConfirmedLessonDetail] = useState(null);
   const [lessonSubmitError, setLessonSubmitError] = useState(null);
   const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
@@ -1123,7 +1126,8 @@ function App() {
       await refreshSchedule();
 
       if (response?.status === 200 || response?.status === 201) {
-        window.alert('The lesson booked successfully!!');
+        setConfirmedLessonDetail(selectedLessonDetail);
+        setShowLessonConfirmedSheet(true);
       } else {
         window.alert('Something went wrong!!');
       }
@@ -1312,6 +1316,17 @@ function App() {
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
+      />
+
+
+      <LessonConfirmationSheet
+        isOpen={showLessonConfirmedSheet}
+        lesson={confirmedLessonDetail}
+        coachHourlyRate={profileData.hourly_rate ?? profileData.price_private}
+        onDone={() => {
+          setShowLessonConfirmedSheet(false);
+          setConfirmedLessonDetail(null);
+        }}
       />
 
       <ConfirmationDialog
