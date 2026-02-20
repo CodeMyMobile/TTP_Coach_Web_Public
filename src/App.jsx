@@ -1366,6 +1366,7 @@ function App() {
         isSubmitting={lessonSubmitLoading}
         submitError={lessonSubmitError}
         players={resolvedStudents}
+        locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
       />
     </>
   );

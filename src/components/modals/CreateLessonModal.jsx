@@ -19,7 +19,8 @@ const CreateLessonModal = ({
   onSubmit,
   isSubmitting = false,
   submitError = null,
-  players = []
+  players = [],
+  locations = []
 }) => {
   const [form, setForm] = useState(draft);
   const resolvedForm = form;
@@ -111,6 +112,22 @@ const CreateLessonModal = ({
       .filter((player) => player.id);
   }, [players]);
 
+  const locationOptions = useMemo(() => {
+    return (Array.isArray(locations) ? locations : []).map((location) => {
+      if (location && typeof location === 'object') {
+        const id = location.location_id ?? location.locationId ?? location.id ?? location.value;
+        const label = location.location ?? location.name ?? location.label ?? location.address ?? String(id ?? '');
+        return { id, label };
+      }
+      return { id: null, label: String(location) };
+    });
+  }, [locations]);
+
+  const requiresLocationId = useMemo(
+    () => locationOptions.some((option) => option.id !== null && option.id !== undefined),
+    [locationOptions]
+  );
+
   if (!resolvedForm) {
     return null;
   }
@@ -165,6 +182,32 @@ const CreateLessonModal = ({
             <option value={1}>Private (1 coach : 1 player)</option>
             <option value={2}>Semi-Private (select players)</option>
             <option value={3}>Open Group (public)</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+          <select
+            value={requiresLocationId ? resolvedForm.location_id ?? '' : resolvedForm.location || ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (requiresLocationId) {
+                const selected = locationOptions.find((option) => String(option.id) === value);
+                handleChange('location_id', selected?.id ?? null);
+                handleChange('location', selected?.label ?? '');
+              } else {
+                handleChange('location', value);
+                handleChange('location_id', null);
+              }
+            }}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">Select location</option>
+            {locationOptions.map((option) => (
+              <option key={option.id ?? option.label} value={option.id ?? option.label}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
 

@@ -94,7 +94,7 @@ const LessonDetailModal = ({
       }
 
       if (value === 0 || value === '0') {
-        return isCoachCreatedLesson ? 'confirmed' : 'pending';
+        return 'pending';
       }
 
       if (value === 1 || value === '1') {
