@@ -45,7 +45,7 @@ const parseJsonSafely = async (response) => {
   }
 };
 
-import { getAccessToken } from '../utils/tokenHelper';
+import { getAccessToken } from '../utils/tokenHelper.js';
 
 const normalizeScheduleTime = (value) => {
   if (!value) {
@@ -93,7 +93,7 @@ const buildSchedulePayload = (payload = {}) => {
 };
 
 const request = async (path, options = {}) => {
-  const { headers = {}, body, method = 'GET', ...rest } = options;
+  const { headers = {}, body, method = 'GET', authType = 'bearer', ...rest } = options;
   const accessToken = await getAccessToken();
 
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -107,7 +107,7 @@ const request = async (path, options = {}) => {
   };
 
   if (accessToken && !('Authorization' in resolvedHeaders) && !('authorization' in resolvedHeaders)) {
-    resolvedHeaders.Authorization = `Bearer ${accessToken}`;
+    resolvedHeaders.Authorization = authType === 'token' ? `token ${accessToken}` : `Bearer ${accessToken}`;
   }
 
   const response = await fetch(buildUrl(path), {
@@ -398,6 +398,30 @@ export const getGoogleCalendarSyncedEvents = ({ timeMin, timeMax } = {}) => {
   return request(path);
 };
 
+export const sendLessonInvites = (lessonId, payload = {}) => {
+  if (!lessonId) {
+    throw new Error('A lesson id is required to send invites.');
+  }
+
+  return request(`/coach/lessons/${lessonId}/invites`, {
+    method: 'POST',
+    authType: 'token',
+    body: payload
+  });
+};
+
+export const createLessonShareLink = (lessonId, payload = {}) => {
+  if (!lessonId) {
+    throw new Error('A lesson id is required to create a share link.');
+  }
+
+  return request(`/coach/lessons/${lessonId}/share-link`, {
+    method: 'POST',
+    authType: 'token',
+    body: payload
+  });
+};
+
 export default {
   getCoachStudents,
   getCoachLessons,
@@ -412,5 +436,7 @@ export default {
   getCoachAvailability,
   deleteCoachAvailability,
   getCoachStats,
-  getGoogleCalendarSyncedEvents
+  getGoogleCalendarSyncedEvents,
+  sendLessonInvites,
+  createLessonShareLink
 };

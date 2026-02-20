@@ -19,7 +19,8 @@ const CreateLessonModal = ({
   onSubmit,
   isSubmitting = false,
   submitError = null,
-  players = []
+  players = [],
+  locations = []
 }) => {
   const [form, setForm] = useState(draft);
   const resolvedForm = form;
@@ -73,6 +74,34 @@ const CreateLessonModal = ({
     });
   };
 
+  const invitees = useMemo(
+    () => (Array.isArray(resolvedForm?.invitees) ? resolvedForm.invitees : []),
+    [resolvedForm?.invitees]
+  );
+
+  const addInvitee = () => {
+    setForm((prev) => ({
+      ...(prev || {}),
+      invitees: [...(Array.isArray(prev?.invitees) ? prev.invitees : []), { full_name: '', phone: '', email: '' }]
+    }));
+  };
+
+  const removeInvitee = (index) => {
+    setForm((prev) => ({
+      ...(prev || {}),
+      invitees: (Array.isArray(prev?.invitees) ? prev.invitees : []).filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const updateInvitee = (index, field, value) => {
+    setForm((prev) => ({
+      ...(prev || {}),
+      invitees: (Array.isArray(prev?.invitees) ? prev.invitees : []).map((invitee, idx) =>
+        idx === index ? { ...invitee, [field]: value } : invitee
+      )
+    }));
+  };
+
   const sortedPlayers = useMemo(() => {
     return (Array.isArray(players) ? players : [])
       .map((player) => ({
@@ -82,6 +111,22 @@ const CreateLessonModal = ({
       }))
       .filter((player) => player.id);
   }, [players]);
+
+  const locationOptions = useMemo(() => {
+    return (Array.isArray(locations) ? locations : []).map((location) => {
+      if (location && typeof location === 'object') {
+        const id = location.location_id ?? location.locationId ?? location.id ?? location.value;
+        const label = location.location ?? location.name ?? location.label ?? location.address ?? String(id ?? '');
+        return { id, label };
+      }
+      return { id: null, label: String(location) };
+    });
+  }, [locations]);
+
+  const requiresLocationId = useMemo(
+    () => locationOptions.some((option) => option.id !== null && option.id !== undefined),
+    [locationOptions]
+  );
 
   if (!resolvedForm) {
     return null;
@@ -140,24 +185,129 @@ const CreateLessonModal = ({
           </select>
         </div>
 
-        {(Number(resolvedForm.lessontype_id) === 1 || Number(resolvedForm.lessontype_id) === 2) && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+          <select
+            value={requiresLocationId ? resolvedForm.location_id ?? '' : resolvedForm.location || ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (requiresLocationId) {
+                const selected = locationOptions.find((option) => String(option.id) === value);
+                handleChange('location_id', selected?.id ?? null);
+                handleChange('location', selected?.label ?? '');
+              } else {
+                handleChange('location', value);
+                handleChange('location_id', null);
+              }
+            }}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">Select location</option>
+            {locationOptions.map((option) => (
+              <option key={option.id ?? option.label} value={option.id ?? option.label}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(Number(resolvedForm.lessontype_id) === 1 ||
+          Number(resolvedForm.lessontype_id) === 2 ||
+          Number(resolvedForm.lessontype_id) === 3) && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Players</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {Number(resolvedForm.lessontype_id) === 1 ? 'Existing player' : 'Existing players (optional)'}
+            </label>
             <select
-              multiple={Number(resolvedForm.lessontype_id) === 2}
-              value={resolvedForm.playerIds || []}
+              multiple={Number(resolvedForm.lessontype_id) !== 1}
+              value={
+                Number(resolvedForm.lessontype_id) === 1
+                  ? resolvedForm.playerIds?.[0] ?? ''
+                  : resolvedForm.playerIds || []
+              }
               onChange={(event) => {
+                if (Number(resolvedForm.lessontype_id) === 1) {
+                  const selectedValue = event.target.value;
+                  handleChange('playerIds', selectedValue ? [Number(selectedValue)] : []);
+                  return;
+                }
                 const selectedIds = Array.from(event.target.selectedOptions, (option) => Number(option.value));
                 handleChange('playerIds', selectedIds);
               }}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
+              {Number(resolvedForm.lessontype_id) === 1 && <option value="">Select a player</option>}
               {sortedPlayers.map((player) => (
                 <option key={player.id} value={player.id}>
                   {player.name} {player.email ? `(${player.email})` : ''}
                 </option>
               ))}
             </select>
+            {Number(resolvedForm.lessontype_id) !== 1 && (
+              <p className="mt-1 text-xs text-gray-500">
+                You can select existing players, add new invitees below, or use both.
+              </p>
+            )}
+          </div>
+        )}
+
+        {(Number(resolvedForm.lessontype_id) === 1 ||
+          Number(resolvedForm.lessontype_id) === 2 ||
+          Number(resolvedForm.lessontype_id) === 3) && (
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">
+                {Number(resolvedForm.lessontype_id) === 1 ? 'Invite player by phone or email' : 'Invite players by phone or email'}
+              </label>
+              <button
+                type="button"
+                onClick={addInvitee}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Add Invitee
+              </button>
+            </div>
+            {invitees.length === 0 ? (
+              <p className="text-xs text-gray-500">No invitees added.</p>
+            ) : (
+              <div className="space-y-2">
+                {invitees.map((invitee, index) => (
+                  <div key={`invitee-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                    <input
+                      type="text"
+                      value={invitee.full_name || ''}
+                      onChange={(event) => updateInvitee(index, 'full_name', event.target.value)}
+                      placeholder="Full name"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <input
+                      type="tel"
+                      value={invitee.phone || ''}
+                      onChange={(event) => updateInvitee(index, 'phone', event.target.value)}
+                      placeholder="+1 415 555 1212"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <input
+                      type="email"
+                      value={invitee.email || ''}
+                      onChange={(event) => updateInvitee(index, 'email', event.target.value)}
+                      placeholder="player@example.com"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeInvitee(index)}
+                      className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-gray-500">
+              New invitees will receive lesson details and a Tennis Plan join link by SMS/email.
+            </p>
           </div>
         )}
 

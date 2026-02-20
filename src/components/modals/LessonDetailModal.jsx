@@ -12,6 +12,7 @@ import {
   X
 } from 'lucide-react';
 import Modal from './Modal';
+import LessonInvitePanel from './LessonInvitePanel';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -182,7 +183,7 @@ const LessonDetailModal = ({
       }
 
       if (value === 0 || value === '0') {
-        return isCoachCreatedLesson ? 'confirmed' : 'pending';
+        return 'pending';
       }
 
       if (value === 1 || value === '1') {
@@ -1064,6 +1065,8 @@ const LessonDetailModal = ({
                 )}
               </>
             )}
+
+            {resolvedLesson?.id ? <LessonInvitePanel lessonId={resolvedLesson.id} /> : null}
           </div>
         ) : (
           <div className="space-y-5">
