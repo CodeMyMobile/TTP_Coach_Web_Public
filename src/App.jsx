@@ -768,6 +768,7 @@ function App() {
       court: availability?.court ?? null,
       lessontype_id: 1,
       playerIds: [],
+      invitees: [],
       metadata: {
         title: '',
         level: 'All',
@@ -794,6 +795,7 @@ function App() {
       court: null,
       lessontype_id: 1,
       playerIds: [],
+      invitees: [],
       metadata: {
         title: '',
         level: 'All',
@@ -922,6 +924,27 @@ function App() {
         : null;
 
     const recurrence = form.metadata?.recurrence || { frequency: 'NONE', count: '' };
+    const selectedPlayerIds = Array.isArray(form.playerIds)
+      ? form.playerIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      : [];
+    const invitees = Array.isArray(form.invitees)
+      ? form.invitees
+          .map((invitee) => {
+            const fullName = String(invitee?.full_name || '').trim();
+            const phone = String(invitee?.phone || '').trim();
+            const email = String(invitee?.email || '').trim();
+
+            if (!fullName || (!phone && !email)) {
+              return null;
+            }
+
+            return phone ? { full_name: fullName, phone } : { full_name: fullName, email };
+          })
+          .filter(Boolean)
+      : [];
+
     const payload = {
       start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
       end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
@@ -945,22 +968,33 @@ function App() {
     };
 
     if (payload.lessontype_id === 1) {
-      if (!Array.isArray(form.playerIds) || form.playerIds.length !== 1) {
-        setLessonSubmitError('Select exactly one player for a private lesson.');
+      const totalPrivatePlayers = selectedPlayerIds.length + invitees.length;
+      if (totalPrivatePlayers !== 1) {
+        setLessonSubmitError('Add exactly one player for a private lesson (existing player or phone/email invitee).');
         return;
       }
-      payload.player_id = Number(form.playerIds[0]);
+
+      if (selectedPlayerIds.length === 1) {
+        payload.player_id = Number(selectedPlayerIds[0]);
+      } else {
+        payload.player = invitees[0];
+      }
       delete payload.recurrence;
     } else if (payload.lessontype_id === 2) {
-      if (!Array.isArray(form.playerIds) || form.playerIds.length === 0) {
-        setLessonSubmitError('Select at least one player for a semi-private lesson.');
+      const semiPrivatePlayers = [
+        ...selectedPlayerIds.map((id) => ({ player_id: Number(id) })),
+        ...invitees
+      ];
+
+      if (semiPrivatePlayers.length === 0) {
+        setLessonSubmitError('Add at least one player for a semi-private lesson.');
         return;
       }
       if (!form.price_per_person) {
         setLessonSubmitError('Enter a price per person for a semi-private lesson.');
         return;
       }
-      payload.player_ids_arr = form.playerIds.map((id) => ({ player_id: Number(id) }));
+      payload.player_ids_arr = semiPrivatePlayers;
       payload.price_per_person = Number(form.price_per_person);
       delete payload.recurrence;
     } else if (payload.lessontype_id === 3) {
@@ -977,6 +1011,12 @@ function App() {
       }
       payload.price_per_person = Number(form.price_per_person);
       payload.player_limit = Number(form.player_limit);
+      if (selectedPlayerIds.length > 0 || invitees.length > 0) {
+        payload.player_ids_arr = [
+          ...selectedPlayerIds.map((id) => ({ player_id: Number(id) })),
+          ...invitees
+        ];
+      }
     }
 
     setLessonSubmitError(null);

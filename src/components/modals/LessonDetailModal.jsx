@@ -11,6 +11,7 @@ import {
   X
 } from 'lucide-react';
 import Modal from './Modal';
+import LessonInvitePanel from './LessonInvitePanel';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -802,6 +803,8 @@ const LessonDetailModal = ({
                 </div>
               </>
             )}
+
+            {resolvedLesson?.id ? <LessonInvitePanel lessonId={resolvedLesson.id} /> : null}
           </div>
         ) : (
           <div className="space-y-5">
