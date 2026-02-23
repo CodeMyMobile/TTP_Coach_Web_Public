@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useAuth from '../../hooks/useAuth';
-import { useCoachCalendarEvents } from '../../hooks/useCoachCalendarEvents';
+import { useGoogleCalendarSync } from '../../hooks/useGoogleCalendarSync';
 
 const formatLocalDateTime = (value) => {
   if (!value) {
@@ -18,14 +18,31 @@ const formatLocalDateTime = (value) => {
   }).format(parsed);
 };
 
-const resolveEventTime = (value) => {
-  if (!value) {
+const resolveEventTime = (event, type) => {
+  const directValue =
+    type === 'start'
+      ? event.start_datetime || event.startDateTime || event.start_at
+      : event.end_datetime || event.endDateTime || event.end_at;
+  if (directValue) {
+    return directValue;
+  }
+
+  const rawTypeValue =
+    type === 'start'
+      ? event.raw_payload?.start?.dateTime || event.raw_payload?.start?.date
+      : event.raw_payload?.end?.dateTime || event.raw_payload?.end?.date;
+  if (rawTypeValue) {
+    return rawTypeValue;
+  }
+
+  const nestedValue = type === 'start' ? event.start : event.end;
+  if (!nestedValue) {
     return null;
   }
-  if (typeof value === 'string') {
-    return value;
+  if (typeof nestedValue === 'string') {
+    return nestedValue;
   }
-  return value.dateTime || value.date || null;
+  return nestedValue.dateTime || nestedValue.date || null;
 };
 
 const extractEvents = (payload) => {
@@ -44,11 +61,15 @@ const extractEvents = (payload) => {
 const GoogleCalendarSyncPage = ({ onBack }) => {
   const { user } = useAuth();
   const authToken = user?.session?.access_token || localStorage.getItem('token') || '';
-  const { getEvents, getAuthUrl } = useCoachCalendarEvents();
+  const { getAuthUrl, syncEvents, getSyncedEvents } = useGoogleCalendarSync();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [googleStatus, setGoogleStatus] = useState('unknown');
+  const [syncResult, setSyncResult] = useState(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => localStorage.getItem('google_calendar_last_sync') || '');
   const [activeMonth, setActiveMonth] = useState(() => {
     const today = new Date();
     return { year: today.getFullYear(), month: today.getMonth() };
@@ -83,17 +104,19 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
   }, [activeMonth.month, activeMonth.year]);
 
-  const loadEvents = useCallback(async () => {
+  const loadSyncedEvents = useCallback(async () => {
     if (!authToken) {
       setError('Unauthorized. Please sign in again.');
       setEvents([]);
+      setGoogleStatus('not_connected');
       return;
     }
     setError(null);
     setLoading(true);
     try {
-      const payload = await getEvents({ token: authToken, ...timeRange });
+      const payload = await getSyncedEvents({ token: authToken, ...timeRange });
       setEvents(extractEvents(payload));
+      setGoogleStatus('connected');
     } catch (err) {
       const status = err?.status;
       const code = err?.code || err?.data?.code;
@@ -101,6 +124,7 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
         setError('Google authorization expired. Reconnect required.');
         await handleGoogleReconnect();
       } else if (status === 404) {
+        setGoogleStatus('not_connected');
         setError('Google Calendar not connected.');
       } else if (status === 401 || status === 403) {
         setError('Unauthorized. Please sign in again.');
@@ -112,7 +136,45 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, [authToken, getEvents, handleGoogleReconnect, timeRange.timeMax, timeRange.timeMin]);
+  }, [authToken, getSyncedEvents, handleGoogleReconnect, timeRange.timeMax, timeRange.timeMin]);
+
+  useEffect(() => {
+    if (lastSyncedAt) {
+      localStorage.setItem('google_calendar_last_sync', lastSyncedAt);
+    }
+  }, [lastSyncedAt]);
+
+  const handleSyncNow = useCallback(async () => {
+    if (!authToken) {
+      setError('Unauthorized. Please sign in again.');
+      return;
+    }
+    setError(null);
+    setSyncResult(null);
+    setSyncing(true);
+    try {
+      const payload = await syncEvents({ token: authToken, ...timeRange });
+      setSyncResult(payload);
+      setGoogleStatus('connected');
+      setLastSyncedAt(new Date().toISOString());
+      await loadSyncedEvents();
+    } catch (err) {
+      const status = err?.status;
+      const code = err?.code || err?.data?.code;
+      if (code === 'google_reconnect_required') {
+        setError('Google authorization expired. Reconnect required.');
+        await handleGoogleReconnect();
+      } else if (status === 404) {
+        setGoogleStatus('not_connected');
+        setError('Google Calendar not connected.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to sync Google Calendar.';
+        setError(message);
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }, [authToken, handleGoogleReconnect, loadSyncedEvents, syncEvents, timeRange]);
 
   useEffect(() => {
     const rangeKey = `${timeRange.timeMin}|${timeRange.timeMax}`;
@@ -123,8 +185,8 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     }
     lastRangeRef.current = rangeKey;
     hasLoadedRef.current = true;
-    loadEvents();
-  }, [loadEvents, timeRange.timeMax, timeRange.timeMin]);
+    loadSyncedEvents();
+  }, [loadSyncedEvents, timeRange.timeMax, timeRange.timeMin]);
 
   const shiftMonth = (offset) => {
     setActiveMonth((prev) => {
@@ -177,6 +239,11 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
               <p className="mt-1 text-sm text-slate-500">
                 Showing events for {monthLabel}.
               </p>
+              {googleStatus === 'connected' && lastSyncedAt && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Last synced {new Date(lastSyncedAt).toLocaleString()}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -195,12 +262,22 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
               </button>
               <button
                 type="button"
-                onClick={loadEvents}
+                onClick={loadSyncedEvents}
                 disabled={loading}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loading ? 'Refreshing…' : 'Refresh'}
               </button>
+              {googleStatus !== 'not_connected' && (
+                <button
+                  type="button"
+                  onClick={handleSyncNow}
+                  disabled={syncing}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                >
+                  {syncing ? 'Syncing…' : 'Sync Now'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -221,6 +298,12 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
             </button>
           )}
 
+          {syncResult && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              Synced events. Fetched: {syncResult.fetched ?? 0}, Upserted: {syncResult.upserted ?? 0}, Deleted: {syncResult.deleted ?? 0}.
+            </div>
+          )}
+
           <div className="mt-6 space-y-4">
             {loading && (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
@@ -235,8 +318,8 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
             )}
 
             {!loading && events.map((event, index) => {
-              const startValue = resolveEventTime(event.start);
-              const endValue = resolveEventTime(event.end);
+              const startValue = resolveEventTime(event, 'start');
+              const endValue = resolveEventTime(event, 'end');
               return (
                 <div
                   key={`${event.id || event.summary || 'event'}-${index}`}
