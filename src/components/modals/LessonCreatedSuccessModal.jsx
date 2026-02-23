@@ -28,16 +28,15 @@ const smsLessonTypeLabels = {
   3: 'group'
 };
 
-const buildSmsPreview = ({ coachName, lessonTypeId, start, location, claimLink }) => {
+const buildSmsPreview = ({ coachName, lessonTypeId, start, location }) => {
   const coach = coachName || 'Coach';
   const lessonType = smsLessonTypeLabels[lessonTypeId] || 'private';
   const lessonTime = start ? moment(start).format('YYYY-MM-DD hh:mm a') : 'TBD';
   const lessonLocation = location || 'TBD';
-  const resolvedClaimLink = claimLink || 'https://app.thetennisplan.com';
   return `Coach ${coach} invited you to a ${lessonType} lesson.
 When: ${lessonTime}
 Where: ${lessonLocation}
-Coach ${coach} invited you to a lesson. Join instantly: ${resolvedClaimLink}`;
+Coach ${coach} invited you to a lesson. Tap the link to confirm.`;
 };
 
 function LessonCreatedSuccessModal({

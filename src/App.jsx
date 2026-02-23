@@ -951,6 +951,27 @@ function App() {
       selectedPlayerIds.includes(Number(player.playerId ?? player.id ?? player.user_id))
     );
 
+    const resolveLocationLabel = () => {
+      if (form.location && String(form.location).trim()) {
+        return String(form.location).trim();
+      }
+
+      const locationPool = coachLocations.length > 0 ? coachLocations : profileData.home_courts;
+      const matched = (Array.isArray(locationPool) ? locationPool : []).find((location) => {
+        if (location && typeof location === 'object') {
+          const id = location.location_id ?? location.locationId ?? location.id ?? location.value;
+          return String(id ?? '') === String(form.location_id ?? '');
+        }
+        return false;
+      });
+
+      if (matched && typeof matched === 'object') {
+        return matched.location || matched.name || matched.label || matched.address || '';
+      }
+
+      return '';
+    };
+
     const payload = {
       start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
       end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
@@ -1052,19 +1073,31 @@ function App() {
         : form.price_per_person
           ? `$${form.price_per_person} per person`
           : '$0';
-      const coachFirstName = String(profileData.full_name || '').trim().split(' ')[0];
+      const coachName = String(
+        profileData.name
+          || profileData.full_name
+          || profileData.first_name
+          || user?.user_metadata?.full_name
+          || user?.user_metadata?.name
+          || user?.session?.user?.user_metadata?.full_name
+          || ''
+      ).trim();
       const claimLink = successBody?.claimLink || successBody?.claim_link || successBody?.link || successBody?.url || '';
+      const resolvedLocation = resolveLocationLabel()
+        || successBody?.location
+        || successBody?.data?.location
+        || 'TBD location';
 
       setLessonCreatedSuccess({
         lessonId: successBody?.lesson?.id || successBody?.data?.id || successBody?.id || null,
         start: startMoment,
-        location: form.location,
+        location: resolvedLocation,
         lessonTypeId,
         priceLabel,
         playerName,
         playerFirstName,
         playerPhone: primaryInvitee?.phone || '',
-        coachName: coachFirstName || 'Coach',
+        coachName: coachName || 'Coach',
         claimLink,
         inviteMethod: primaryInvitee?.phone ? 'sms' : 'app'
       });
