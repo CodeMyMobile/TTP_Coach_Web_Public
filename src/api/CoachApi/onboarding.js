@@ -137,7 +137,11 @@ const buildOnboardingPayload = (formData = {}) => {
     email: isNonEmptyString(formData.email) ? formData.email.trim() : '',
     bio: typeof formData.bio === 'string' ? formData.bio.trim() : '',
     experience_years:
-      typeof formData.experience_years === 'string' ? formData.experience_years : formData.experience_years ?? '',
+      typeof formData.experience_years === 'string'
+        ? formData.experience_years.trim()
+        : formData.experience_years != null
+          ? String(formData.experience_years).trim()
+          : '',
     phone: isNonEmptyString(formData.phone) ? formData.phone.trim() : '',
     certifications:
       typeof formData.certifications === 'string' ? formData.certifications.trim() : formData.certifications ?? '',

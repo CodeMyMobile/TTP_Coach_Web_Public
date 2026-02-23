@@ -322,17 +322,17 @@ const OnboardingFlow = ({
     clearProfileImageError();
   };
 
-  const validateStep = () => {
+  const validateStep = (stepToValidate = currentStep) => {
     const newErrors = {};
 
-    switch (currentStep) {
+    switch (stepToValidate) {
       case 0: {
         if (!formData.profileImage && !profileImagePreview) newErrors.profileImage = 'Profile image is required';
         if (!formData.name.trim()) newErrors.name = 'Name is required';
         if (!formData.email.trim()) newErrors.email = 'Email is required';
         if (!formData.bio.trim()) newErrors.bio = 'Bio is required';
         if (formData.bio.trim() && formData.bio.length < 100) newErrors.bio = 'Bio should be at least 100 characters';
-        if (!formData.experience_years) newErrors.experience_years = 'Years of experience is required';
+        if (!String(formData.experience_years || '').trim()) newErrors.experience_years = 'Years of experience is required';
         break;
       }
       case 1: {
@@ -359,6 +359,19 @@ const OnboardingFlow = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  const validateRequiredOnSubmit = () => {
+    const stepsToValidate = [0, 1, 2, 8];
+
+    for (const step of stepsToValidate) {
+      if (!validateStep(step)) {
+        setCurrentStep(step);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const nextStep = () => {
     if (validateStep() && currentStep < activeSteps.length - 1) {
       setCurrentStep((step) => step + 1);
@@ -370,7 +383,7 @@ const OnboardingFlow = ({
   };
 
   const handleSubmit = async () => {
-    if (!validateStep() || !onComplete) {
+    if (!validateRequiredOnSubmit() || !onComplete) {
       return;
     }
 
