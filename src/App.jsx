@@ -20,6 +20,7 @@ import {
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
+import LessonCreatedSuccessModal from './components/modals/LessonCreatedSuccessModal';
 import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
@@ -139,6 +140,7 @@ function App() {
   const [lessonDraft, setLessonDraft] = useState(null);
   const [lessonSubmitError, setLessonSubmitError] = useState(null);
   const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
+  const [lessonCreatedSuccess, setLessonCreatedSuccess] = useState(null);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [isEditingLesson, setIsEditingLesson] = useState(false);
@@ -945,6 +947,31 @@ function App() {
           .filter(Boolean)
       : [];
 
+    const selectedPlayersForSummary = resolvedStudents.filter((player) =>
+      selectedPlayerIds.includes(Number(player.playerId ?? player.id ?? player.user_id))
+    );
+
+    const resolveLocationLabel = () => {
+      if (form.location && String(form.location).trim()) {
+        return String(form.location).trim();
+      }
+
+      const locationPool = coachLocations.length > 0 ? coachLocations : profileData.home_courts;
+      const matched = (Array.isArray(locationPool) ? locationPool : []).find((location) => {
+        if (location && typeof location === 'object') {
+          const id = location.location_id ?? location.locationId ?? location.id ?? location.value;
+          return String(id ?? '') === String(form.location_id ?? '');
+        }
+        return false;
+      });
+
+      if (matched && typeof matched === 'object') {
+        return matched.location || matched.name || matched.label || matched.address || '';
+      }
+
+      return '';
+    };
+
     const payload = {
       start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
       end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
@@ -1032,7 +1059,49 @@ function App() {
         throw new Error(errorBody?.message || errorBody?.error || 'Failed to create lesson.');
       }
 
+      const successBody = await response?.json().catch(() => null);
+
       await refreshSchedule();
+
+      const primaryExistingPlayer = selectedPlayersForSummary[0];
+      const primaryInvitee = invitees[0];
+      const playerName = primaryExistingPlayer?.full_name || primaryExistingPlayer?.name || primaryInvitee?.full_name || 'Player';
+      const playerFirstName = playerName.split(' ')[0] || playerName;
+      const lessonTypeId = Number(payload.lessontype_id);
+      const priceLabel = lessonTypeId === 1
+        ? `$${Math.round(Number(profileData.hourly_rate ?? profileData.price_private ?? 0) || 0)}`
+        : form.price_per_person
+          ? `$${form.price_per_person} per person`
+          : '$0';
+      const coachName = String(
+        profileData.name
+          || profileData.full_name
+          || profileData.first_name
+          || user?.user_metadata?.full_name
+          || user?.user_metadata?.name
+          || user?.session?.user?.user_metadata?.full_name
+          || ''
+      ).trim();
+      const claimLink = successBody?.claimLink || successBody?.claim_link || successBody?.link || successBody?.url || '';
+      const resolvedLocation = resolveLocationLabel()
+        || successBody?.location
+        || successBody?.data?.location
+        || 'TBD location';
+
+      setLessonCreatedSuccess({
+        lessonId: successBody?.lesson?.id || successBody?.data?.id || successBody?.id || null,
+        start: startMoment,
+        location: resolvedLocation,
+        lessonTypeId,
+        priceLabel,
+        playerName,
+        playerFirstName,
+        playerPhone: primaryInvitee?.phone || '',
+        coachName: coachName || 'Coach',
+        claimLink,
+        inviteMethod: primaryInvitee?.phone ? 'sms' : 'app'
+      });
+
       setShowCreateLessonModal(false);
       setLessonDraft(null);
     } catch (error) {
@@ -1367,6 +1436,16 @@ function App() {
         submitError={lessonSubmitError}
         players={resolvedStudents}
         locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
+      />
+
+      <LessonCreatedSuccessModal
+        isOpen={!!lessonCreatedSuccess}
+        data={lessonCreatedSuccess}
+        onClose={() => setLessonCreatedSuccess(null)}
+        onViewLesson={() => {
+          setLessonCreatedSuccess(null);
+          refreshSchedule();
+        }}
       />
     </>
   );
