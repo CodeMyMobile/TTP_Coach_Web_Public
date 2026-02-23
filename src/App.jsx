@@ -20,6 +20,7 @@ import {
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
+import LessonCreatedSuccessModal from './components/modals/LessonCreatedSuccessModal';
 import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
@@ -142,6 +143,7 @@ function App() {
   const [confirmedLessonDetail, setConfirmedLessonDetail] = useState(null);
   const [lessonSubmitError, setLessonSubmitError] = useState(null);
   const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
+  const [lessonCreatedSuccess, setLessonCreatedSuccess] = useState(null);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [isEditingLesson, setIsEditingLesson] = useState(false);
@@ -797,6 +799,7 @@ function App() {
       court: availability?.court ?? null,
       lessontype_id: 1,
       playerIds: [],
+      invitees: [],
       metadata: {
         title: '',
         level: 'All',
@@ -823,6 +826,7 @@ function App() {
       court: null,
       lessontype_id: 1,
       playerIds: [],
+      invitees: [],
       metadata: {
         title: '',
         level: 'All',
@@ -951,6 +955,52 @@ function App() {
         : null;
 
     const recurrence = form.metadata?.recurrence || { frequency: 'NONE', count: '' };
+    const selectedPlayerIds = Array.isArray(form.playerIds)
+      ? form.playerIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      : [];
+    const invitees = Array.isArray(form.invitees)
+      ? form.invitees
+          .map((invitee) => {
+            const fullName = String(invitee?.full_name || '').trim();
+            const phone = String(invitee?.phone || '').trim();
+            const email = String(invitee?.email || '').trim();
+
+            if (!fullName || (!phone && !email)) {
+              return null;
+            }
+
+            return phone ? { full_name: fullName, phone } : { full_name: fullName, email };
+          })
+          .filter(Boolean)
+      : [];
+
+    const selectedPlayersForSummary = resolvedStudents.filter((player) =>
+      selectedPlayerIds.includes(Number(player.playerId ?? player.id ?? player.user_id))
+    );
+
+    const resolveLocationLabel = () => {
+      if (form.location && String(form.location).trim()) {
+        return String(form.location).trim();
+      }
+
+      const locationPool = coachLocations.length > 0 ? coachLocations : profileData.home_courts;
+      const matched = (Array.isArray(locationPool) ? locationPool : []).find((location) => {
+        if (location && typeof location === 'object') {
+          const id = location.location_id ?? location.locationId ?? location.id ?? location.value;
+          return String(id ?? '') === String(form.location_id ?? '');
+        }
+        return false;
+      });
+
+      if (matched && typeof matched === 'object') {
+        return matched.location || matched.name || matched.label || matched.address || '';
+      }
+
+      return '';
+    };
+
     const payload = {
       start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
       end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
@@ -974,22 +1024,33 @@ function App() {
     };
 
     if (payload.lessontype_id === 1) {
-      if (!Array.isArray(form.playerIds) || form.playerIds.length !== 1) {
-        setLessonSubmitError('Select exactly one player for a private lesson.');
+      const totalPrivatePlayers = selectedPlayerIds.length + invitees.length;
+      if (totalPrivatePlayers !== 1) {
+        setLessonSubmitError('Add exactly one player for a private lesson (existing player or phone/email invitee).');
         return;
       }
-      payload.player_id = Number(form.playerIds[0]);
+
+      if (selectedPlayerIds.length === 1) {
+        payload.player_id = Number(selectedPlayerIds[0]);
+      } else {
+        payload.player = invitees[0];
+      }
       delete payload.recurrence;
     } else if (payload.lessontype_id === 2) {
-      if (!Array.isArray(form.playerIds) || form.playerIds.length === 0) {
-        setLessonSubmitError('Select at least one player for a semi-private lesson.');
+      const semiPrivatePlayers = [
+        ...selectedPlayerIds.map((id) => ({ player_id: Number(id) })),
+        ...invitees
+      ];
+
+      if (semiPrivatePlayers.length === 0) {
+        setLessonSubmitError('Add at least one player for a semi-private lesson.');
         return;
       }
       if (!form.price_per_person) {
         setLessonSubmitError('Enter a price per person for a semi-private lesson.');
         return;
       }
-      payload.player_ids_arr = form.playerIds.map((id) => ({ player_id: Number(id) }));
+      payload.player_ids_arr = semiPrivatePlayers;
       payload.price_per_person = Number(form.price_per_person);
       delete payload.recurrence;
     } else if (payload.lessontype_id === 3) {
@@ -1006,6 +1067,12 @@ function App() {
       }
       payload.price_per_person = Number(form.price_per_person);
       payload.player_limit = Number(form.player_limit);
+      if (selectedPlayerIds.length > 0 || invitees.length > 0) {
+        payload.player_ids_arr = [
+          ...selectedPlayerIds.map((id) => ({ player_id: Number(id) })),
+          ...invitees
+        ];
+      }
     }
 
     setLessonSubmitError(null);
@@ -1021,7 +1088,49 @@ function App() {
         throw new Error(errorBody?.message || errorBody?.error || 'Failed to create lesson.');
       }
 
+      const successBody = await response?.json().catch(() => null);
+
       await refreshSchedule();
+
+      const primaryExistingPlayer = selectedPlayersForSummary[0];
+      const primaryInvitee = invitees[0];
+      const playerName = primaryExistingPlayer?.full_name || primaryExistingPlayer?.name || primaryInvitee?.full_name || 'Player';
+      const playerFirstName = playerName.split(' ')[0] || playerName;
+      const lessonTypeId = Number(payload.lessontype_id);
+      const priceLabel = lessonTypeId === 1
+        ? `$${Math.round(Number(profileData.hourly_rate ?? profileData.price_private ?? 0) || 0)}`
+        : form.price_per_person
+          ? `$${form.price_per_person} per person`
+          : '$0';
+      const coachName = String(
+        profileData.name
+          || profileData.full_name
+          || profileData.first_name
+          || user?.user_metadata?.full_name
+          || user?.user_metadata?.name
+          || user?.session?.user?.user_metadata?.full_name
+          || ''
+      ).trim();
+      const claimLink = successBody?.claimLink || successBody?.claim_link || successBody?.link || successBody?.url || '';
+      const resolvedLocation = resolveLocationLabel()
+        || successBody?.location
+        || successBody?.data?.location
+        || 'TBD location';
+
+      setLessonCreatedSuccess({
+        lessonId: successBody?.lesson?.id || successBody?.data?.id || successBody?.id || null,
+        start: startMoment,
+        location: resolvedLocation,
+        lessonTypeId,
+        priceLabel,
+        playerName,
+        playerFirstName,
+        playerPhone: primaryInvitee?.phone || '',
+        coachName: coachName || 'Coach',
+        claimLink,
+        inviteMethod: primaryInvitee?.phone ? 'sms' : 'app'
+      });
+
       setShowCreateLessonModal(false);
       setLessonDraft(null);
     } catch (error) {
@@ -1367,6 +1476,17 @@ function App() {
         isSubmitting={lessonSubmitLoading}
         submitError={lessonSubmitError}
         players={resolvedStudents}
+        locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
+      />
+
+      <LessonCreatedSuccessModal
+        isOpen={!!lessonCreatedSuccess}
+        data={lessonCreatedSuccess}
+        onClose={() => setLessonCreatedSuccess(null)}
+        onViewLesson={() => {
+          setLessonCreatedSuccess(null);
+          refreshSchedule();
+        }}
       />
     </>
   );

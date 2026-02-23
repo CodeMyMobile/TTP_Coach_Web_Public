@@ -45,6 +45,7 @@ const request = async (path, token, method = 'GET') => {
       data?.message || data?.error || response.statusText || 'Request failed.';
     const error = new Error(message);
     error.status = response.status;
+    error.code = data?.code || null;
     error.data = data;
     throw error;
   }

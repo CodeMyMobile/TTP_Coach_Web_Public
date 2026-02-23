@@ -4,6 +4,8 @@ import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../a
 import { useGoogleCalendarSync } from '../../hooks/useGoogleCalendarSync';
 import useAuth from '../../hooks/useAuth';
 
+const GOOGLE_RETRY_ACTION_KEY = 'google_calendar_retry_action';
+
 const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
   const { user } = useAuth();
   const [form, setForm] = useState({
@@ -196,27 +198,34 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
     }
   }, [openStripeWindow]);
 
+  const handleGoogleReconnect = useCallback(async () => {
+    if (!authToken) {
+      throw new Error('Unauthorized. Please sign in again.');
+    }
+    const authPayload = await getAuthUrl({ token: authToken });
+    const redirectUrl =
+      authPayload?.redirect_url ||
+      authPayload?.url ||
+      authPayload?.auth_url ||
+      authPayload?.authorization_url;
+    if (!redirectUrl) {
+      throw new Error('No Google auth URL returned.');
+    }
+    window.location.assign(redirectUrl);
+  }, [authToken, getAuthUrl]);
+
   const handleGoogleConnect = useCallback(async () => {
     setGoogleError(null);
     setGoogleLoading(true);
     try {
-      if (!authToken) {
-        throw new Error('Unauthorized. Please sign in again.');
-      }
-      const payload = await getAuthUrl({ token: authToken });
-      const redirectUrl =
-        payload?.redirect_url || payload?.url || payload?.auth_url || payload?.authorization_url;
-      if (!redirectUrl) {
-        throw new Error('No Google auth URL returned.');
-      }
-      window.location.assign(redirectUrl);
+      await handleGoogleReconnect();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to connect Google Calendar.';
       setGoogleError(message);
     } finally {
       setGoogleLoading(false);
     }
-  }, [authToken, getAuthUrl]);
+  }, [handleGoogleReconnect]);
 
   const handleGoogleSync = useCallback(async () => {
     setGoogleError(null);
@@ -231,12 +240,18 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
         timeMin: timeRange.timeMin,
         timeMax: timeRange.timeMax
       });
+      sessionStorage.removeItem(GOOGLE_RETRY_ACTION_KEY);
       setGoogleSyncResult(payload);
       setLastGoogleSyncAt(new Date().toISOString());
       setGoogleStatus('connected');
     } catch (err) {
       const status = err?.status;
-      if (status === 404) {
+      const code = err?.code || err?.data?.code;
+      if (code === 'google_reconnect_required') {
+        sessionStorage.setItem(GOOGLE_RETRY_ACTION_KEY, 'sync');
+        setGoogleError('Google authorization expired. Reconnect required.');
+        await handleGoogleReconnect();
+      } else if (status === 404) {
         setGoogleStatus('not_connected');
         setGoogleError('Google Calendar not connected.');
       } else {
@@ -246,7 +261,7 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
     } finally {
       setGoogleSyncLoading(false);
     }
-  }, [authToken, syncEvents, timeRange.timeMax, timeRange.timeMin]);
+  }, [authToken, handleGoogleReconnect, syncEvents, timeRange.timeMax, timeRange.timeMin]);
 
   const handleLoadSyncedEvents = useCallback(async () => {
     setGoogleError(null);
@@ -260,12 +275,18 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
         timeMin: timeRange.timeMin,
         timeMax: timeRange.timeMax
       });
+      sessionStorage.removeItem(GOOGLE_RETRY_ACTION_KEY);
       const items = Array.isArray(payload) ? payload : payload?.events || payload?.items || [];
       setGoogleEvents(items);
       setGoogleStatus('connected');
     } catch (err) {
       const status = err?.status;
-      if (status === 404) {
+      const code = err?.code || err?.data?.code;
+      if (code === 'google_reconnect_required') {
+        sessionStorage.setItem(GOOGLE_RETRY_ACTION_KEY, 'events');
+        setGoogleError('Google authorization expired. Reconnect required.');
+        await handleGoogleReconnect();
+      } else if (status === 404) {
         setGoogleStatus('not_connected');
         setGoogleError('Google Calendar not connected.');
       } else if (status === 401 || status === 403) {
@@ -278,7 +299,27 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
     } finally {
       setGoogleEventsLoading(false);
     }
-  }, [authToken, getSyncedEvents, timeRange.timeMax, timeRange.timeMin]);
+  }, [authToken, getSyncedEvents, handleGoogleReconnect, timeRange.timeMax, timeRange.timeMin]);
+
+
+  const triggerPendingGoogleRetry = useCallback(async () => {
+    const pendingAction = sessionStorage.getItem(GOOGLE_RETRY_ACTION_KEY);
+    if (!pendingAction) {
+      return;
+    }
+    sessionStorage.removeItem(GOOGLE_RETRY_ACTION_KEY);
+    if (pendingAction === 'sync') {
+      await handleGoogleSync();
+      return;
+    }
+    if (pendingAction === 'events') {
+      await handleLoadSyncedEvents();
+    }
+  }, [handleGoogleSync, handleLoadSyncedEvents]);
+
+  useEffect(() => {
+    triggerPendingGoogleRetry();
+  }, [triggerPendingGoogleRetry]);
 
   const shiftGoogleMonth = (offset) => {
     setActiveMonth((prev) => {
