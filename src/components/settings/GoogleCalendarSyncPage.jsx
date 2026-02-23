@@ -56,6 +56,19 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
   const hasLoadedRef = useRef(false);
   const lastRangeRef = useRef('');
 
+  const handleGoogleReconnect = useCallback(async () => {
+    if (!authToken) {
+      throw new Error('Unauthorized. Please sign in again.');
+    }
+    const payload = await getAuthUrl({ token: authToken });
+    const redirectUrl =
+      payload?.redirect_url || payload?.url || payload?.auth_url || payload?.authorization_url;
+    if (!redirectUrl) {
+      throw new Error('No Google auth URL returned.');
+    }
+    window.location.assign(redirectUrl);
+  }, [authToken, getAuthUrl]);
+
   const timeRange = useMemo(() => {
     const start = new Date(activeMonth.year, activeMonth.month, 1, 0, 0, 0, 0);
     const end = new Date(activeMonth.year, activeMonth.month + 1, 0, 23, 59, 59, 999);
@@ -83,7 +96,11 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
       setEvents(extractEvents(payload));
     } catch (err) {
       const status = err?.status;
-      if (status === 404) {
+      const code = err?.code || err?.data?.code;
+      if (code === 'google_reconnect_required') {
+        setError('Google authorization expired. Reconnect required.');
+        await handleGoogleReconnect();
+      } else if (status === 404) {
         setError('Google Calendar not connected.');
       } else if (status === 401 || status === 403) {
         setError('Unauthorized. Please sign in again.');
@@ -95,7 +112,7 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, [authToken, getEvents, timeRange.timeMax, timeRange.timeMin]);
+  }, [authToken, getEvents, handleGoogleReconnect, timeRange.timeMax, timeRange.timeMin]);
 
   useEffect(() => {
     const rangeKey = `${timeRange.timeMin}|${timeRange.timeMax}`;
@@ -124,20 +141,14 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     setConnecting(true);
     setError(null);
     try {
-      const payload = await getAuthUrl({ token: authToken });
-      const redirectUrl =
-        payload?.redirect_url || payload?.url || payload?.auth_url || payload?.authorization_url;
-      if (!redirectUrl) {
-        throw new Error('No Google auth URL returned.');
-      }
-      window.location.assign(redirectUrl);
+      await handleGoogleReconnect();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start Google connection.';
       setError(message);
     } finally {
       setConnecting(false);
     }
-  }, [authToken, getAuthUrl]);
+  }, [authToken, handleGoogleReconnect]);
 
   return (
     <div className="min-h-screen bg-slate-50">
