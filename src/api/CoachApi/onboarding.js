@@ -11,6 +11,71 @@ const normaliseStringArray = (value = []) =>
         .filter((entry) => entry.length > 0)
     : [];
 
+const normaliseAddressComponents = (components = {}) => {
+  if (!isObject(components)) {
+    return {};
+  }
+
+  const normalised = {};
+  const allowed = ['zip', 'city', 'state', 'country'];
+
+  for (const key of allowed) {
+    if (isNonEmptyString(components[key])) {
+      normalised[key] = components[key].trim();
+    }
+  }
+
+  return normalised;
+};
+
+const normaliseHomeCourts = (homeCourts = []) => {
+  if (!Array.isArray(homeCourts)) {
+    return [];
+  }
+
+  return homeCourts
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const location = entry.trim();
+        if (!location) {
+          return null;
+        }
+
+        return {
+          location,
+          latitude: null,
+          longitude: null,
+          address_components: {}
+        };
+      }
+
+      if (!isObject(entry)) {
+        return null;
+      }
+
+      const location = isNonEmptyString(entry.location)
+        ? entry.location.trim()
+        : isNonEmptyString(entry.name)
+          ? entry.name.trim()
+          : '';
+
+      if (!location) {
+        return null;
+      }
+
+      const latitude = entry.latitude != null && `${entry.latitude}`.trim() ? `${entry.latitude}`.trim() : null;
+      const longitude = entry.longitude != null && `${entry.longitude}`.trim() ? `${entry.longitude}`.trim() : null;
+
+      return {
+        location,
+        latitude,
+        longitude,
+        address_components: normaliseAddressComponents(entry.address_components)
+      };
+    })
+    .filter(Boolean);
+};
+
 const normaliseAvailability = (availability = {}) => {
   if (!isObject(availability)) {
     return createDefaultProfile().availability;
@@ -145,7 +210,7 @@ const buildOnboardingPayload = (formData = {}) => {
     phone: isNonEmptyString(formData.phone) ? formData.phone.trim() : '',
     certifications:
       typeof formData.certifications === 'string' ? formData.certifications.trim() : formData.certifications ?? '',
-    home_courts: normaliseStringArray(formData.home_courts),
+    home_courts: normaliseHomeCourts(formData.home_courts),
     levels: normaliseStringArray(formData.levels),
     specialties: normaliseStringArray(formData.specialties),
     formats: normaliseStringArray(formData.formats),

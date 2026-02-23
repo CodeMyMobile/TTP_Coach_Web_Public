@@ -45,6 +45,70 @@ const stepsConfig = [
 
 const settingsStepsConfig = stepsConfig.slice(0, 8);
 
+const getCourtLocationLabel = (court) => {
+  if (typeof court === 'string') {
+    return court.trim();
+  }
+
+  if (court && typeof court === 'object' && typeof court.location === 'string') {
+    return court.location.trim();
+  }
+
+  return '';
+};
+
+const getCourtOptionKey = (court, index) => {
+  if (typeof court === 'string') {
+    return `${court}-${index}`;
+  }
+
+  if (court && typeof court === 'object') {
+    return `${court.location || 'court'}-${court.latitude || 'na'}-${court.longitude || 'na'}-${index}`;
+  }
+
+  return `court-${index}`;
+};
+
+const buildLocationLabel = (place) => {
+  const name = typeof place?.name === 'string' ? place.name.trim() : '';
+  const formattedAddress = typeof place?.formatted_address === 'string' ? place.formatted_address.trim() : '';
+  const vicinity = typeof place?.vicinity === 'string' ? place.vicinity.trim() : '';
+
+  if (name && formattedAddress && !formattedAddress.toLowerCase().includes(name.toLowerCase())) {
+    return `${name} ${formattedAddress}`;
+  }
+
+  return name || formattedAddress || vicinity || '';
+};
+
+const extractAddressComponents = (components = []) => {
+  if (!Array.isArray(components)) {
+    return {};
+  }
+
+  const get = (type, fallbackType = null) => {
+    const match = components.find((component) => component?.types?.includes(type));
+    if (match?.short_name) {
+      return match.short_name;
+    }
+    if (match?.long_name) {
+      return match.long_name;
+    }
+    if (!fallbackType) {
+      return '';
+    }
+    const fallback = components.find((component) => component?.types?.includes(fallbackType));
+    return fallback?.short_name || fallback?.long_name || '';
+  };
+
+  return {
+    zip: get('postal_code'),
+    city: get('locality', 'administrative_area_level_2'),
+    state: get('administrative_area_level_1'),
+    country: get('country')
+  };
+};
+
 const OnboardingFlow = ({
   initialData,
   onComplete,
@@ -59,6 +123,7 @@ const OnboardingFlow = ({
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const [errors, setErrors] = useState({});
   const [locationInput, setLocationInput] = useState('');
+  const [selectedLocationDetails, setSelectedLocationDetails] = useState(null);
   const [stripeStatus, setStripeStatus] = useState('not_connected');
   const [stripeLoading, setStripeLoading] = useState(false);
   const [stripeError, setStripeError] = useState(null);
@@ -411,10 +476,33 @@ const OnboardingFlow = ({
   };
 
   const addLocation = () => {
-    if (locationInput.trim() && !formData.home_courts.includes(locationInput)) {
-      setFormData({ ...formData, home_courts: [...formData.home_courts, locationInput.trim()] });
-      setLocationInput('');
+    const trimmedInput = locationInput.trim();
+    if (!trimmedInput) {
+      return;
     }
+
+    const locationEntry =
+      selectedLocationDetails && selectedLocationDetails.location === trimmedInput
+        ? selectedLocationDetails
+        : {
+            location: trimmedInput,
+            latitude: null,
+            longitude: null,
+            address_components: {}
+          };
+
+    const hasDuplicateLocation = formData.home_courts.some((court) => {
+      const existingLocation = getCourtLocationLabel(court);
+      return existingLocation.toLowerCase() === trimmedInput.toLowerCase();
+    });
+
+    if (hasDuplicateLocation) {
+      return;
+    }
+
+    setFormData({ ...formData, home_courts: [...formData.home_courts, locationEntry] });
+    setLocationInput('');
+    setSelectedLocationDetails(null);
   };
 
   const removeLocation = (index) => {
@@ -553,6 +641,14 @@ const OnboardingFlow = ({
     }
   };
 
+  const courtLocationOptions = useMemo(
+    () =>
+      formData.home_courts
+        .map((court) => getCourtLocationLabel(court))
+        .filter((location) => Boolean(location)),
+    [formData.home_courts]
+  );
+
   const removeTimeSlot = (day, index) => {
     const slots = [...formData.availability[day]];
     const removedSlot = slots[index];
@@ -583,7 +679,7 @@ const OnboardingFlow = ({
       duration: 90,
       levels: [],
       maxStudents: 8,
-      court: formData.home_courts[0] || '',
+      court: courtLocationOptions[0] || '',
       price: 30
     };
 
@@ -1113,22 +1209,31 @@ const OnboardingFlow = ({
                 <Autocomplete
                   apiKey={googleApiKey}
                   value={locationInput}
-                  onChange={(event) => setLocationInput(event.target.value)}
+                  onChange={(event) => {
+                    setLocationInput(event.target.value);
+                    setSelectedLocationDetails(null);
+                  }}
                   onKeyDown={(event) => event.key === 'Enter' && addLocation()}
                   onPlaceSelected={(place) => {
-                    const selectedLocation =
-                      place?.name ||
-                      place?.formatted_address ||
-                      place?.vicinity ||
-                      '';
+                    const selectedLocation = buildLocationLabel(place);
 
                     if (selectedLocation) {
+                      const latitude = place?.geometry?.location?.lat ? String(place.geometry.location.lat()) : null;
+                      const longitude = place?.geometry?.location?.lng ? String(place.geometry.location.lng()) : null;
+                      const addressComponents = extractAddressComponents(place?.address_components || []);
+
                       setLocationInput(selectedLocation);
+                      setSelectedLocationDetails({
+                        location: selectedLocation,
+                        latitude,
+                        longitude,
+                        address_components: addressComponents
+                      });
                     }
                   }}
                   options={{
                     types: ['establishment', 'geocode'],
-                    fields: ['name', 'formatted_address', 'vicinity'],
+                    fields: ['name', 'formatted_address', 'vicinity', 'geometry', 'address_components'],
                   }}
                   className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Enter tennis court or location..."
@@ -1146,10 +1251,10 @@ const OnboardingFlow = ({
               <div className="space-y-2">
                 {formData.home_courts.map((court, index) => (
                   <div
-                    key={court}
+                    key={getCourtOptionKey(court, index)}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700"
                   >
-                    <span className="break-words">{court}</span>
+                    <span className="break-words">{getCourtLocationLabel(court)}</span>
                     <button
                       type="button"
                       onClick={() => removeLocation(index)}
@@ -1520,7 +1625,7 @@ const OnboardingFlow = ({
                         className="w-full rounded border border-gray-300 px-2 py-1 text-sm sm:w-auto"
                       >
                         <option value="">Select court</option>
-                        {formData.home_courts.map((court) => (
+                        {courtLocationOptions.map((court) => (
                           <option key={court} value={court}>
                             {court}
                           </option>
@@ -1639,7 +1744,7 @@ const OnboardingFlow = ({
                                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                               >
                                 <option value="">Select court</option>
-                                {formData.home_courts.map((court) => (
+                                {courtLocationOptions.map((court) => (
                                   <option key={court} value={court}>
                                     {court}
                                   </option>
@@ -1739,7 +1844,7 @@ const OnboardingFlow = ({
                   </h3>
                   <div className="space-y-2 text-sm text-gray-700">
                     <p>
-                      <strong>Locations:</strong> {formData.home_courts.length > 0 ? formData.home_courts.join(', ') : 'None added'}
+                      <strong>Locations:</strong> {courtLocationOptions.length > 0 ? courtLocationOptions.join(', ') : 'None added'}
                     </p>
                     <p>
                       <strong>Private Slots:</strong> {Object.values(formData.availability).flat().length} total
