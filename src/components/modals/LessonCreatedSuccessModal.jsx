@@ -22,12 +22,22 @@ const initials = (name = '') => {
   return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
 };
 
-const buildSmsPreview = ({ playerName, coachName, start, location }) => {
-  const firstName = String(playerName || '').trim().split(' ')[0] || 'there';
+const smsLessonTypeLabels = {
+  1: 'private',
+  2: 'semi-private',
+  3: 'group'
+};
+
+const buildSmsPreview = ({ coachName, lessonTypeId, start, location, claimLink }) => {
   const coach = coachName || 'Coach';
-  const lessonTime = start ? moment(start).format('ddd, MMM D [at] h:mm A') : 'your scheduled time';
-  const lessonLocation = location || 'the court';
-  return `Hi ${firstName}! You have a tennis lesson with ${coach} on ${lessonTime} at ${lessonLocation}. Tap here to confirm →`;
+  const lessonType = smsLessonTypeLabels[lessonTypeId] || 'private';
+  const lessonTime = start ? moment(start).format('YYYY-MM-DD hh:mm a') : 'TBD';
+  const lessonLocation = location || 'TBD';
+  const resolvedClaimLink = claimLink || 'https://app.thetennisplan.com';
+  return `Coach ${coach} invited you to a ${lessonType} lesson.
+When: ${lessonTime}
+Where: ${lessonLocation}
+Coach ${coach} invited you to a lesson. Join instantly: ${resolvedClaimLink}`;
 };
 
 function LessonCreatedSuccessModal({
@@ -95,7 +105,7 @@ function LessonCreatedSuccessModal({
                 <span>📲</span>
                 <span>Message sent</span>
               </div>
-              <p className="rounded-2xl rounded-bl-md bg-slate-200 px-3 py-2 text-sm leading-relaxed text-slate-800">
+              <p className="whitespace-pre-line rounded-2xl rounded-bl-md bg-slate-200 px-3 py-2 text-sm leading-relaxed text-slate-800">
                 {buildSmsPreview(data)}
               </p>
             </div>

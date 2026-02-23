@@ -1038,6 +1038,8 @@ function App() {
         throw new Error(errorBody?.message || errorBody?.error || 'Failed to create lesson.');
       }
 
+      const successBody = await response?.json().catch(() => null);
+
       await refreshSchedule();
 
       const primaryExistingPlayer = selectedPlayersForSummary[0];
@@ -1051,9 +1053,10 @@ function App() {
           ? `$${form.price_per_person} per person`
           : '$0';
       const coachFirstName = String(profileData.full_name || '').trim().split(' ')[0];
+      const claimLink = successBody?.claimLink || successBody?.claim_link || successBody?.link || successBody?.url || '';
 
       setLessonCreatedSuccess({
-        lessonId: response?.lesson?.id || response?.data?.id || null,
+        lessonId: successBody?.lesson?.id || successBody?.data?.id || successBody?.id || null,
         start: startMoment,
         location: form.location,
         lessonTypeId,
@@ -1061,7 +1064,8 @@ function App() {
         playerName,
         playerFirstName,
         playerPhone: primaryInvitee?.phone || '',
-        coachName: coachFirstName ? `Coach ${coachFirstName}` : 'Coach',
+        coachName: coachFirstName || 'Coach',
+        claimLink,
         inviteMethod: primaryInvitee?.phone ? 'sms' : 'app'
       });
 
