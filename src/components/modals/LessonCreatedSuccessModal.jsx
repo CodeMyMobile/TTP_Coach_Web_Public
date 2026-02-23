@@ -42,7 +42,6 @@ Coach ${coach} invited you to a lesson. Tap the link to confirm.`;
 function LessonCreatedSuccessModal({
   isOpen,
   onClose,
-  onViewLesson,
   data
 }) {
   if (!isOpen || !data) {
@@ -54,6 +53,50 @@ function LessonCreatedSuccessModal({
   const statusText = isSms
     ? `${formatPhone(data.playerPhone)} · Text sent`
     : 'Notification sent · Awaiting response';
+
+  const handleAddToCalendar = () => {
+    const startAt = data.start ? moment(data.start) : null;
+    if (!startAt || !startAt.isValid()) {
+      return;
+    }
+
+    const endAt = data.end && moment(data.end).isValid()
+      ? moment(data.end)
+      : moment(startAt).add(1, 'hour');
+
+    const formatIcsDate = (time) => moment(time).utc().format('YYYYMMDD[T]HHmmss[Z]');
+    const fileSafeName = String(data.playerName || 'lesson').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const title = `${lessonTypeLabels[data.lessonTypeId] || 'Lesson'} with ${data.playerName || 'Player'}`;
+    const details = isSms
+      ? buildSmsPreview(data).replace(/\n/g, '\\n')
+      : `Invite sent to ${data.playerName || 'player'} via app notification.`;
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//TTP Coach//Lesson Calendar//EN',
+      'BEGIN:VEVENT',
+      `UID:${Date.now()}-${fileSafeName}@ttpcoach`,
+      `DTSTAMP:${formatIcsDate(moment())}`,
+      `DTSTART:${formatIcsDate(startAt)}`,
+      `DTEND:${formatIcsDate(endAt)}`,
+      `SUMMARY:${title}`,
+      `LOCATION:${(data.location || 'TBD location').replace(/,/g, '\\,')}`,
+      `DESCRIPTION:${details}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileSafeName || 'lesson'}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} placement="bottom" panelClassName="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl">
@@ -115,12 +158,11 @@ function LessonCreatedSuccessModal({
               <span>📅</span>
               <span>Add to your calendar</span>
             </div>
-            <button type="button" className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-600">Add</button>
+            <button type="button" onClick={handleAddToCalendar} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-600">Add</button>
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
-          <button type="button" onClick={onViewLesson} className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">View Lesson</button>
+        <div className="mt-3 border-t border-slate-100 pt-4">
           <button type="button" onClick={onClose} className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white">Done</button>
         </div>
       </div>
