@@ -25,10 +25,24 @@ const CreateLessonModal = ({
   const [form, setForm] = useState(draft);
   const [playerTab, setPlayerTab] = useState('students');
   const [playerSearch, setPlayerSearch] = useState('');
+  const [currentWeekStart, setCurrentWeekStart] = useState(() =>
+    draft?.start ? moment(draft.start).startOf('day') : moment().startOf('day')
+  );
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() =>
+    draft?.start ? moment(draft.start).startOf('month') : moment().startOf('month')
+  );
+  const [calendarSelection, setCalendarSelection] = useState(() =>
+    draft?.start ? moment(draft.start).startOf('day') : moment().startOf('day')
+  );
   const resolvedForm = form;
 
   useEffect(() => {
     setForm(draft);
+    const nextStart = draft?.start ? moment(draft.start).startOf('day') : moment().startOf('day');
+    setCurrentWeekStart(nextStart);
+    setViewMonth(nextStart.clone().startOf('month'));
+    setCalendarSelection(nextStart);
   }, [draft]);
 
   useEffect(() => {
@@ -161,7 +175,20 @@ const CreateLessonModal = ({
   const endTimeValue = resolvedForm.end ? moment(resolvedForm.end).format('HH:mm') : '';
   const recurrence = resolvedForm.metadata?.recurrence || { frequency: 'NONE', count: '' };
   const baseDate = resolvedForm.start ? moment(resolvedForm.start) : moment();
-  const dateOptions = Array.from({ length: 5 }, (_, index) => baseDate.clone().startOf('day').add(index, 'days'));
+  const dateOptions = Array.from({ length: 5 }, (_, index) => currentWeekStart.clone().add(index, 'days'));
+  const weekRangeLabel = `${currentWeekStart.format('MMM D')} – ${currentWeekStart.clone().add(4, 'days').format('MMM D')}`;
+  const isCurrentWeek = moment().isBetween(currentWeekStart, currentWeekStart.clone().add(4, 'days'), 'day', '[]');
+  const canGoToPreviousWeek = currentWeekStart.isAfter(moment().startOf('day'), 'day');
+  const monthStart = viewMonth.clone().startOf('month');
+  const monthEnd = viewMonth.clone().endOf('month');
+  const calendarStart = monthStart.clone().startOf('week');
+  const calendarEnd = monthEnd.clone().endOf('week');
+  const calendarDays = [];
+  const dayPointer = calendarStart.clone();
+  while (dayPointer.isSameOrBefore(calendarEnd, 'day')) {
+    calendarDays.push(dayPointer.clone());
+    dayPointer.add(1, 'day');
+  }
   const durationMinutes = resolvedForm.start && resolvedForm.end
     ? Math.max(moment(resolvedForm.end).diff(moment(resolvedForm.start), 'minutes'), 0)
     : null;
@@ -188,6 +215,35 @@ const CreateLessonModal = ({
       nextMoment.hour(Number(hour)).minute(Number(minute)).second(0).millisecond(0);
       return { ...(prev || {}), [field]: nextMoment.toDate() };
     });
+  };
+
+  const goToPreviousWeek = () => {
+    if (!canGoToPreviousWeek) {
+      return;
+    }
+    setCurrentWeekStart((prev) => prev.clone().subtract(7, 'days'));
+  };
+
+  const goToNextWeek = () => {
+    setCurrentWeekStart((prev) => prev.clone().add(7, 'days'));
+  };
+
+  const openCalendarPicker = () => {
+    setCalendarSelection(baseDate.clone().startOf('day'));
+    setViewMonth(baseDate.clone().startOf('month'));
+    setIsCalendarOpen(true);
+  };
+
+  const closeCalendarPicker = () => {
+    setIsCalendarOpen(false);
+  };
+
+  const confirmCalendarSelection = () => {
+    if (calendarSelection) {
+      setDatePart(calendarSelection.clone());
+      setCurrentWeekStart(calendarSelection.clone().startOf('day'));
+    }
+    setIsCalendarOpen(false);
   };
 
   const updateSingleInvitee = (field, value) => {
@@ -238,7 +294,20 @@ const CreateLessonModal = ({
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-800">Date</label>
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+            <strong className="font-semibold text-slate-800">{weekRangeLabel}</strong>
+            {isCurrentWeek && <span>This Week</span>}
+          </div>
+          <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
+            <button
+              type="button"
+              onClick={goToPreviousWeek}
+              disabled={!canGoToPreviousWeek}
+              aria-label="Previous week"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-lg text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ‹
+            </button>
             {dateOptions.map((dateMoment) => {
               const isSelected = baseDate.isSame(dateMoment, 'day');
               const isToday = moment().isSame(dateMoment, 'day');
@@ -262,8 +331,114 @@ const CreateLessonModal = ({
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={goToNextWeek}
+              aria-label="Next week"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-lg text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              onClick={openCalendarPicker}
+              aria-label="Pick a specific date"
+              className={`flex min-w-[60px] shrink-0 flex-col items-center justify-center rounded-xl border-2 border-dashed px-3 py-2 transition ${
+                isCalendarOpen
+                  ? 'border-violet-500 bg-violet-100'
+                  : 'border-slate-200 bg-slate-50 hover:border-violet-500 hover:bg-violet-50'
+              }`}
+            >
+              <span className="text-lg">📅</span>
+              <span className="text-[9px] font-semibold uppercase text-slate-500">Pick</span>
+            </button>
           </div>
         </div>
+
+        {isCalendarOpen && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4"
+            onClick={closeCalendarPicker}
+          >
+            <div
+              className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closeCalendarPicker}
+                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+              >
+                ✕
+              </button>
+              <h3 className="mb-5 text-center text-lg font-bold text-slate-800">Select a Date</h3>
+              <div className="mb-4 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setViewMonth((prev) => prev.clone().subtract(1, 'month'))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                >
+                  ‹
+                </button>
+                <span className="text-sm font-semibold text-slate-800">{viewMonth.format('MMMM YYYY')}</span>
+                <button
+                  type="button"
+                  onClick={() => setViewMonth((prev) => prev.clone().add(1, 'month'))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                >
+                  ›
+                </button>
+              </div>
+              <div className="mb-2 grid grid-cols-7 gap-1">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <span key={day} className="py-2 text-center text-[11px] font-semibold text-slate-400">{day}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {calendarDays.map((date) => {
+                  const isSelected = calendarSelection?.isSame(date, 'day');
+                  const isToday = moment().isSame(date, 'day');
+                  const isPast = date.isBefore(moment().startOf('day'), 'day');
+                  const isOtherMonth = !date.isSame(viewMonth, 'month');
+                  return (
+                    <button
+                      key={date.format('YYYY-MM-DD')}
+                      type="button"
+                      disabled={isPast}
+                      onClick={() => setCalendarSelection(date.clone())}
+                      className={`relative aspect-square rounded-full border-2 text-sm transition ${
+                        isSelected
+                          ? 'border-amber-500 bg-amber-100 font-bold text-amber-700'
+                          : 'border-transparent text-slate-800 hover:bg-slate-100'
+                      } ${isPast ? 'cursor-not-allowed text-slate-300 hover:bg-transparent' : ''} ${
+                        isOtherMonth ? 'text-slate-300' : ''
+                      }`}
+                    >
+                      {date.date()}
+                      {isToday && <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-violet-500" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeCalendarPicker}
+                  className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-200 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCalendarSelection}
+                  className="flex-1 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-700"
+                >
+                  Select
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-800">Time</label>
