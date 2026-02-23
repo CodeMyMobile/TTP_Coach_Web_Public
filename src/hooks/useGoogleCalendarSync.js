@@ -13,10 +13,14 @@ const buildUrl = (path) => {
   if (!path) {
     throw new Error('A path is required.');
   }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   if (!API_BASE_URL) {
-    return path.startsWith('/') ? path : `/${path}`;
+    return normalizedPath;
   }
-  return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  const pathForBase = API_BASE_URL.endsWith('/api') && normalizedPath.startsWith('/api/')
+    ? normalizedPath.slice(4)
+    : normalizedPath;
+  return `${API_BASE_URL}${pathForBase}`;
 };
 
 const parseJsonSafely = async (response) => {
@@ -58,7 +62,7 @@ export const useGoogleCalendarSync = () => {
     if (!token) {
       throw new Error('Auth token is required.');
     }
-    return request('/coach/google-calendar/auth-url', token);
+    return request('/api/coach/google-calendar/auth-url', token);
   };
 
   const syncEvents = async ({ token, timeMin, timeMax }) => {
@@ -74,8 +78,8 @@ export const useGoogleCalendarSync = () => {
     }
     const query = params.toString();
     const path = query
-      ? `/coach/google-calendar/sync?${query}`
-      : '/coach/google-calendar/sync';
+      ? `/api/coach/google-calendar/sync?${query}`
+      : '/api/coach/google-calendar/sync';
     return request(path, token, 'POST');
   };
 
@@ -92,8 +96,8 @@ export const useGoogleCalendarSync = () => {
     }
     const query = params.toString();
     const path = query
-      ? `/coach/google-calendar/synced-events?${query}`
-      : '/coach/google-calendar/synced-events';
+      ? `/api/coach/google-calendar/synced-events?${query}`
+      : '/api/coach/google-calendar/synced-events';
     return request(path, token);
   };
 
