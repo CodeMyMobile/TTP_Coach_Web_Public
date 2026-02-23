@@ -23,11 +23,18 @@ const CreateLessonModal = ({
   locations = []
 }) => {
   const [form, setForm] = useState(draft);
+  const [playerTab, setPlayerTab] = useState('students');
+  const [playerSearch, setPlayerSearch] = useState('');
   const resolvedForm = form;
 
   useEffect(() => {
     setForm(draft);
   }, [draft]);
+
+  useEffect(() => {
+    setPlayerTab('students');
+    setPlayerSearch('');
+  }, [isOpen]);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...(prev || {}), [field]: value }));
@@ -112,6 +119,24 @@ const CreateLessonModal = ({
       .filter((player) => player.id);
   }, [players]);
 
+  const selectedPlayerIds = useMemo(
+    () => (Array.isArray(resolvedForm?.playerIds) ? resolvedForm.playerIds.map((id) => String(id)) : []),
+    [resolvedForm?.playerIds]
+  );
+
+  const filteredPlayers = useMemo(() => {
+    const normalizedQuery = playerSearch.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return sortedPlayers;
+    }
+    return sortedPlayers.filter((player) => (`${player.name} ${player.email}`).toLowerCase().includes(normalizedQuery));
+  }, [playerSearch, sortedPlayers]);
+
+  const selectedPlayers = useMemo(
+    () => sortedPlayers.filter((player) => selectedPlayerIds.includes(String(player.id))),
+    [selectedPlayerIds, sortedPlayers]
+  );
+
   const locationOptions = useMemo(() => {
     return (Array.isArray(locations) ? locations : []).map((location) => {
       if (location && typeof location === 'object') {
@@ -132,9 +157,69 @@ const CreateLessonModal = ({
     return null;
   }
 
-  const startValue = resolvedForm.start ? moment(resolvedForm.start).format('YYYY-MM-DDTHH:mm') : '';
-  const endValue = resolvedForm.end ? moment(resolvedForm.end).format('YYYY-MM-DDTHH:mm') : '';
+  const startTimeValue = resolvedForm.start ? moment(resolvedForm.start).format('HH:mm') : '';
+  const endTimeValue = resolvedForm.end ? moment(resolvedForm.end).format('HH:mm') : '';
   const recurrence = resolvedForm.metadata?.recurrence || { frequency: 'NONE', count: '' };
+  const baseDate = resolvedForm.start ? moment(resolvedForm.start) : moment();
+  const dateOptions = Array.from({ length: 5 }, (_, index) => baseDate.clone().startOf('day').add(index, 'days'));
+  const durationMinutes = resolvedForm.start && resolvedForm.end
+    ? Math.max(moment(resolvedForm.end).diff(moment(resolvedForm.start), 'minutes'), 0)
+    : null;
+
+  const setDatePart = (dateMoment) => {
+    setForm((prev) => {
+      const nextStart = prev?.start ? moment(prev.start) : moment();
+      let nextEnd = prev?.end ? moment(prev.end) : nextStart.clone().add(60, 'minutes');
+      nextStart.year(dateMoment.year()).month(dateMoment.month()).date(dateMoment.date());
+      const previousDiff = Math.max(nextEnd.diff(nextStart, 'minutes'), 0) || 60;
+      nextEnd.year(dateMoment.year()).month(dateMoment.month()).date(dateMoment.date());
+      if (!nextEnd.isAfter(nextStart)) {
+        nextEnd = nextStart.clone().add(previousDiff, 'minutes');
+      }
+      return { ...(prev || {}), start: nextStart.toDate(), end: nextEnd.toDate() };
+    });
+  };
+
+  const setTimePart = (field, value) => {
+    const [hour = '0', minute = '0'] = String(value || '').split(':');
+    setForm((prev) => {
+      const target = field === 'start' ? prev?.start : prev?.end;
+      const nextMoment = target ? moment(target) : moment();
+      nextMoment.hour(Number(hour)).minute(Number(minute)).second(0).millisecond(0);
+      return { ...(prev || {}), [field]: nextMoment.toDate() };
+    });
+  };
+
+  const updateSingleInvitee = (field, value) => {
+    setForm((prev) => {
+      const firstInvitee = Array.isArray(prev?.invitees) && prev.invitees.length > 0
+        ? prev.invitees[0]
+        : { full_name: '', phone: '', email: '' };
+      return {
+        ...(prev || {}),
+        invitees: [{ ...firstInvitee, [field]: value }]
+      };
+    });
+  };
+
+  const primaryInvitee = invitees[0] || { full_name: '', phone: '', email: '' };
+
+  const avatarColor = (name = '') => {
+    const palette = [
+      'from-violet-500 to-purple-400',
+      'from-sky-500 to-blue-400',
+      'from-emerald-500 to-green-400',
+      'from-amber-500 to-orange-400'
+    ];
+    const code = (name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return palette[code % palette.length];
+  };
+
+  const initials = (name = '') => {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return 'PL';
+    return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
+  };
 
   return (
     <Modal
@@ -143,50 +228,100 @@ const CreateLessonModal = ({
       placement="bottom"
       panelClassName="w-full sm:max-w-3xl"
     >
-      <ModalHeader title="Create Lesson" onClose={onClose} />
-      <ModalBody className="space-y-4">
+      <ModalHeader title="Add Lesson" onClose={onClose} />
+      <ModalBody className="space-y-5 bg-slate-50">
         {submitError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {submitError}
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
-            <input
-              type="datetime-local"
-              value={startValue}
-              onChange={(event) => handleChange('start', new Date(event.target.value))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End</label>
-            <input
-              type="datetime-local"
-              value={endValue}
-              onChange={(event) => handleChange('end', new Date(event.target.value))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-slate-800">Date</label>
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {dateOptions.map((dateMoment) => {
+              const isSelected = baseDate.isSame(dateMoment, 'day');
+              const isToday = moment().isSame(dateMoment, 'day');
+              return (
+                <button
+                  key={dateMoment.format('YYYY-MM-DD')}
+                  type="button"
+                  onClick={() => setDatePart(dateMoment)}
+                  className={`min-w-[66px] rounded-xl border-2 px-3 py-2 text-center transition ${
+                    isSelected
+                      ? 'border-violet-500 bg-violet-100'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <p className={`text-[10px] font-semibold uppercase ${isSelected ? 'text-violet-700' : 'text-slate-500'}`}>
+                    {dateMoment.format('ddd')}
+                  </p>
+                  <p className={`text-lg font-bold ${isSelected ? 'text-violet-700' : 'text-slate-800'}`}>{dateMoment.format('D')}</p>
+                  <p className="text-[10px] text-slate-400">{dateMoment.format('MMM')}</p>
+                  {isToday && <span className="mx-auto mt-1 block h-1 w-1 rounded-full bg-violet-500" />}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Lesson Type</label>
-          <select
-            value={resolvedForm.lessontype_id}
-            onChange={(event) => handleChange('lessontype_id', Number(event.target.value))}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          >
-            <option value={1}>Private (1 coach : 1 player)</option>
-            <option value={2}>Semi-Private (select players)</option>
-            <option value={3}>Open Group (public)</option>
-          </select>
+          <label className="mb-2 block text-sm font-semibold text-slate-800">Time</label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="rounded-xl border-2 border-slate-200 bg-white px-3 py-2">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Start</span>
+              <input
+                type="time"
+                value={startTimeValue}
+                onChange={(event) => setTimePart('start', event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+              />
+            </label>
+            <label className="rounded-xl border-2 border-slate-200 bg-white px-3 py-2">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">End</span>
+              <input
+                type="time"
+                value={endTimeValue}
+                onChange={(event) => setTimePart('end', event.target.value)}
+                className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+              />
+            </label>
+          </div>
+          {durationMinutes !== null && (
+            <span className="mt-2 inline-flex rounded-md bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-700">
+              ⏱ {durationMinutes} min
+            </span>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+          <label className="mb-2 block text-sm font-semibold text-slate-800">Lesson Type</label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {[
+              { id: 1, name: 'Private', subtitle: '$100/hr', selectedClass: 'border-red-400 bg-red-100' },
+              { id: 2, name: 'Semi-Private', subtitle: '$75/hr ea', selectedClass: 'border-amber-400 bg-amber-100' },
+              { id: 3, name: 'Open Group', subtitle: 'Public', selectedClass: 'border-sky-400 bg-sky-100' }
+            ].map((option) => {
+              const isSelected = Number(resolvedForm.lessontype_id) === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleChange('lessontype_id', option.id)}
+                  className={`rounded-xl border-2 px-3 py-3 text-center transition ${
+                    isSelected ? option.selectedClass : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <p className="text-sm font-bold text-slate-800">{option.name}</p>
+                  <p className="text-xs text-slate-500">{option.subtitle}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-slate-800">Location</label>
           <select
             value={requiresLocationId ? resolvedForm.location_id ?? '' : resolvedForm.location || ''}
             onChange={(event) => {
@@ -200,7 +335,7 @@ const CreateLessonModal = ({
                 handleChange('location_id', null);
               }
             }}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500"
           >
             <option value="">Select location</option>
             {locationOptions.map((option) => (
@@ -211,48 +346,132 @@ const CreateLessonModal = ({
           </select>
         </div>
 
-        {(Number(resolvedForm.lessontype_id) === 1 ||
-          Number(resolvedForm.lessontype_id) === 2 ||
+        {Number(resolvedForm.lessontype_id) === 1 && (
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+            <label className="block text-sm font-semibold text-slate-800">Player</label>
+            <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setPlayerTab('students')}
+                className={`rounded-md px-3 py-2 text-sm font-semibold ${playerTab === 'students' ? 'bg-white text-slate-800 shadow' : 'text-slate-500'}`}
+              >
+                My Students
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlayerTab('new')}
+                className={`rounded-md px-3 py-2 text-sm font-semibold ${playerTab === 'new' ? 'bg-white text-slate-800 shadow' : 'text-slate-500'}`}
+              >
+                New Player
+              </button>
+            </div>
+
+            {playerTab === 'students' ? (
+              <>
+                {selectedPlayers.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPlayers.map((player) => (
+                      <span key={`selected-${player.id}`} className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800">
+                        <span className={`flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br ${avatarColor(player.name)} text-[10px] text-white`}>
+                          {initials(player.name)}
+                        </span>
+                        {player.name}
+                        <button type="button" onClick={() => handleChange('playerIds', [])}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={playerSearch}
+                  onChange={(event) => setPlayerSearch(event.target.value)}
+                  placeholder="Search players..."
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-violet-500"
+                />
+                <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                  {filteredPlayers.map((player) => {
+                    const isSelected = selectedPlayerIds.includes(String(player.id));
+                    return (
+                      <button
+                        key={player.id}
+                        type="button"
+                        onClick={() => handleChange('playerIds', isSelected ? [] : [Number(player.id)])}
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ${isSelected ? 'bg-violet-100' : 'bg-slate-50 hover:bg-slate-100'}`}
+                      >
+                        <span className={`flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br ${avatarColor(player.name)} text-xs font-bold text-white`}>
+                          {initials(player.name)}
+                        </span>
+                        <span className="flex-1">
+                          <span className="block text-sm font-semibold text-slate-800">{player.name}</span>
+                          <span className="block text-xs text-slate-500">{player.email || 'Student'}</span>
+                        </span>
+                        {isSelected && <span className="text-violet-700">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={primaryInvitee.full_name || ''}
+                  onChange={(event) => updateSingleInvitee('full_name', event.target.value)}
+                  placeholder="Player name"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-violet-500"
+                />
+                <input
+                  type="tel"
+                  value={primaryInvitee.phone || ''}
+                  onChange={(event) => updateSingleInvitee('phone', event.target.value)}
+                  placeholder="Phone number (optional)"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-violet-500"
+                />
+                <input
+                  type="email"
+                  value={primaryInvitee.email || ''}
+                  onChange={(event) => updateSingleInvitee('email', event.target.value)}
+                  placeholder="Email (optional)"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-violet-500"
+                />
+                <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  📲 Add a phone number or email for invites. New players will receive lesson details and a Tennis Plan join link.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(Number(resolvedForm.lessontype_id) === 2 ||
           Number(resolvedForm.lessontype_id) === 3) && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {Number(resolvedForm.lessontype_id) === 1 ? 'Existing player' : 'Existing players (optional)'}
+              Existing players (optional)
             </label>
             <select
-              multiple={Number(resolvedForm.lessontype_id) !== 1}
+              multiple
               value={
-                Number(resolvedForm.lessontype_id) === 1
-                  ? resolvedForm.playerIds?.[0] ?? ''
-                  : resolvedForm.playerIds || []
+                resolvedForm.playerIds || []
               }
               onChange={(event) => {
-                if (Number(resolvedForm.lessontype_id) === 1) {
-                  const selectedValue = event.target.value;
-                  handleChange('playerIds', selectedValue ? [Number(selectedValue)] : []);
-                  return;
-                }
                 const selectedIds = Array.from(event.target.selectedOptions, (option) => Number(option.value));
                 handleChange('playerIds', selectedIds);
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
-              {Number(resolvedForm.lessontype_id) === 1 && <option value="">Select a player</option>}
               {sortedPlayers.map((player) => (
                 <option key={player.id} value={player.id}>
                   {player.name} {player.email ? `(${player.email})` : ''}
                 </option>
               ))}
             </select>
-            {Number(resolvedForm.lessontype_id) !== 1 && (
-              <p className="mt-1 text-xs text-gray-500">
-                You can select existing players, add new invitees below, or use both.
-              </p>
-            )}
+            <p className="mt-1 text-xs text-gray-500">
+              You can select existing players, add new invitees below, or use both.
+            </p>
           </div>
         )}
 
-        {(Number(resolvedForm.lessontype_id) === 1 ||
-          Number(resolvedForm.lessontype_id) === 2 ||
+        {(Number(resolvedForm.lessontype_id) === 2 ||
           Number(resolvedForm.lessontype_id) === 3) && (
           <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
             <div className="flex items-center justify-between">
