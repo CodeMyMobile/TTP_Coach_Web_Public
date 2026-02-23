@@ -20,6 +20,7 @@ import {
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
+import LessonCreatedSuccessModal from './components/modals/LessonCreatedSuccessModal';
 import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
@@ -139,6 +140,7 @@ function App() {
   const [lessonDraft, setLessonDraft] = useState(null);
   const [lessonSubmitError, setLessonSubmitError] = useState(null);
   const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
+  const [lessonCreatedSuccess, setLessonCreatedSuccess] = useState(null);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [isEditingLesson, setIsEditingLesson] = useState(false);
@@ -945,6 +947,10 @@ function App() {
           .filter(Boolean)
       : [];
 
+    const selectedPlayersForSummary = resolvedStudents.filter((player) =>
+      selectedPlayerIds.includes(Number(player.playerId ?? player.id ?? player.user_id))
+    );
+
     const payload = {
       start_date_time: new Date(`${formatLocalIso(startMoment)}Z`).toISOString(),
       end_date_time: new Date(`${formatLocalIso(resolvedEnd)}Z`).toISOString(),
@@ -1033,6 +1039,32 @@ function App() {
       }
 
       await refreshSchedule();
+
+      const primaryExistingPlayer = selectedPlayersForSummary[0];
+      const primaryInvitee = invitees[0];
+      const playerName = primaryExistingPlayer?.full_name || primaryExistingPlayer?.name || primaryInvitee?.full_name || 'Player';
+      const playerFirstName = playerName.split(' ')[0] || playerName;
+      const lessonTypeId = Number(payload.lessontype_id);
+      const priceLabel = lessonTypeId === 1
+        ? `$${Math.round(Number(profileData.hourly_rate ?? profileData.price_private ?? 0) || 0)}`
+        : form.price_per_person
+          ? `$${form.price_per_person} per person`
+          : '$0';
+      const coachFirstName = String(profileData.full_name || '').trim().split(' ')[0];
+
+      setLessonCreatedSuccess({
+        lessonId: response?.lesson?.id || response?.data?.id || null,
+        start: startMoment,
+        location: form.location,
+        lessonTypeId,
+        priceLabel,
+        playerName,
+        playerFirstName,
+        playerPhone: primaryInvitee?.phone || '',
+        coachName: coachFirstName ? `Coach ${coachFirstName}` : 'Coach',
+        inviteMethod: primaryInvitee?.phone ? 'sms' : 'app'
+      });
+
       setShowCreateLessonModal(false);
       setLessonDraft(null);
     } catch (error) {
@@ -1367,6 +1399,16 @@ function App() {
         submitError={lessonSubmitError}
         players={resolvedStudents}
         locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
+      />
+
+      <LessonCreatedSuccessModal
+        isOpen={!!lessonCreatedSuccess}
+        data={lessonCreatedSuccess}
+        onClose={() => setLessonCreatedSuccess(null)}
+        onViewLesson={() => {
+          setLessonCreatedSuccess(null);
+          refreshSchedule();
+        }}
       />
     </>
   );
