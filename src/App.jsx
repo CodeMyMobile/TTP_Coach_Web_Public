@@ -1442,10 +1442,6 @@ function App() {
         isOpen={!!lessonCreatedSuccess}
         data={lessonCreatedSuccess}
         onClose={() => setLessonCreatedSuccess(null)}
-        onViewLesson={() => {
-          setLessonCreatedSuccess(null);
-          refreshSchedule();
-        }}
       />
     </>
   );
