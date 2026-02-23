@@ -408,6 +408,27 @@ const OnboardingFlow = ({
         if (formData.levels.length === 0) newErrors.levels = 'Select at least one level';
         break;
       }
+      case 5: {
+        const privatePrice = Number(formData.price_private);
+        if (!Number.isFinite(privatePrice) || privatePrice < 40) {
+          newErrors.price_private = 'Private lesson price must be at least $40/hour';
+        }
+
+        if (formData.formats.includes('semi')) {
+          const semiPrice = Number(formData.price_semi);
+          if (!Number.isFinite(semiPrice) || semiPrice <= 0) {
+            newErrors.price_semi = 'Enter a valid semi-private price';
+          }
+        }
+
+        if (formData.formats.includes('group')) {
+          const groupPrice = Number(formData.price_group);
+          if (!Number.isFinite(groupPrice) || groupPrice <= 0) {
+            newErrors.price_group = 'Enter a valid group class price';
+          }
+        }
+        break;
+      }
       case 8: {
         const hasAvailability = Object.values(formData.availability).some((slots) => slots.length > 0);
         const hasGroupClasses = formData.groupClasses.length > 0;
@@ -425,7 +446,7 @@ const OnboardingFlow = ({
   };
 
   const validateRequiredOnSubmit = () => {
-    const stepsToValidate = [0, 1, 2, 8];
+    const stepsToValidate = [0, 1, 2, 5, 8];
 
     for (const step of stepsToValidate) {
       if (!validateStep(step)) {
@@ -769,9 +790,10 @@ const OnboardingFlow = ({
     2: Array.isArray(formData.levels) && formData.levels.length > 0,
     3: Array.isArray(formData.specialties) && formData.specialties.length > 0,
     4: Array.isArray(formData.formats) && formData.formats.length > 0,
-    5: Boolean(formData.price_private) &&
-      (!formData.formats.includes('semi') || Boolean(formData.price_semi)) &&
-      (!formData.formats.includes('group') || Boolean(formData.price_group)),
+    5: Number.isFinite(Number(formData.price_private)) &&
+      Number(formData.price_private) >= 40 &&
+      (!formData.formats.includes('semi') || Number.isFinite(Number(formData.price_semi)) && Number(formData.price_semi) > 0) &&
+      (!formData.formats.includes('group') || Number.isFinite(Number(formData.price_group)) && Number(formData.price_group) > 0),
     6: Boolean(formData.stripe_account_id),
     7: (Array.isArray(formData.languages) && formData.languages.length > 0) || Boolean(formData.otherLanguage?.trim())
   }), [formData]);
@@ -1398,6 +1420,7 @@ const OnboardingFlow = ({
                       min="40"
                     />
                   </div>
+                  {errors.price_private && <p className="mt-1 text-xs text-red-500">{errors.price_private}</p>}
                   <p className="mt-1 text-xs text-gray-500">Recommended: $80-150/hour</p>
                 </div>
 
@@ -1416,6 +1439,7 @@ const OnboardingFlow = ({
                         min="30"
                       />
                     </div>
+                  {errors.price_semi && <p className="mt-1 text-xs text-red-500">{errors.price_semi}</p>}
                   </div>
                 )}
 
@@ -1434,6 +1458,7 @@ const OnboardingFlow = ({
                         min="20"
                       />
                     </div>
+                    {errors.price_group && <p className="mt-1 text-xs text-red-500">{errors.price_group}</p>}
                   </div>
                 )}
               </div>
