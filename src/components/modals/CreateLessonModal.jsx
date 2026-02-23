@@ -202,7 +202,7 @@ const CreateLessonModal = ({
     });
   };
 
-  const primaryInvitee = invitees[0] || { full_name: '', phone: '' };
+  const primaryInvitee = invitees[0] || { full_name: '', phone: '', email: '' };
 
   const avatarColor = (name = '') => {
     const palette = [
@@ -424,11 +424,18 @@ const CreateLessonModal = ({
                   type="tel"
                   value={primaryInvitee.phone || ''}
                   onChange={(event) => updateSingleInvitee('phone', event.target.value)}
-                  placeholder="Phone number"
+                  placeholder="Phone number (optional)"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-violet-500"
+                />
+                <input
+                  type="email"
+                  value={primaryInvitee.email || ''}
+                  onChange={(event) => updateSingleInvitee('email', event.target.value)}
+                  placeholder="Email (optional)"
                   className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-violet-500"
                 />
                 <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                  📲 New players will receive lesson details and a Tennis Plan join link by SMS/email.
+                  📲 Add a phone number or email for invites. New players will receive lesson details and a Tennis Plan join link.
                 </p>
               </div>
             )}
