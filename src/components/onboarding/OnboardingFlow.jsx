@@ -1103,12 +1103,20 @@ const OnboardingFlow = ({
                   onChange={(event) => setLocationInput(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && addLocation()}
                   onPlaceSelected={(place) => {
-                    const address = place?.formatted_address || place?.name || '';
-                    if (address) {
-                      setLocationInput(address);
+                    const selectedLocation =
+                      place?.name ||
+                      place?.formatted_address ||
+                      place?.vicinity ||
+                      '';
+
+                    if (selectedLocation) {
+                      setLocationInput(selectedLocation);
                     }
                   }}
-                  options={{ types: ['establishment', 'geocode'] }}
+                  options={{
+                    types: ['establishment', 'geocode'],
+                    fields: ['name', 'formatted_address', 'vicinity'],
+                  }}
                   className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Enter tennis court or location..."
                   defaultValue=""
