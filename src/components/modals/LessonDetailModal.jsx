@@ -576,6 +576,16 @@ const LessonDetailModal = ({
     onEditChange({ ...editData, [field]: value });
   };
 
+  const handleMetadataFieldChange = (field, value) => {
+    onEditChange({
+      ...editData,
+      metadata: {
+        ...(editData?.metadata || {}),
+        [field]: value
+      }
+    });
+  };
+
   const closeModal = () => {
     onClose?.();
     onCancelEdit?.();
@@ -1128,6 +1138,26 @@ const LessonDetailModal = ({
                     className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-center text-base font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   <p className="mt-2 text-xs text-slate-500">{filledSpots} already booked</p>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">Skill Level</label>
+                  <input
+                    type="text"
+                    value={editData?.metadata?.level || editData?.level || ''}
+                    onChange={(event) => handleMetadataFieldChange('level', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Intermediate (NTRP 3.5)"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">Description</label>
+                  <textarea
+                    value={editData?.metadata?.description || editData?.description || ''}
+                    onChange={(event) => handleMetadataFieldChange('description', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    rows={4}
+                    placeholder="All levels welcome"
+                  />
                 </div>
                 <div className="rounded-xl bg-amber-100 px-4 py-3 text-sm text-amber-900">
                   📲 Notify participants? {filledSpots} booked participants will be notified of changes.
