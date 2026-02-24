@@ -78,6 +78,16 @@ const normalizeLessonStatus = (value) => {
   return String(value).toLowerCase().includes('cancel') ? 'cancelled' : 'confirmed';
 };
 
+const resolveNumericId = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
 const resolveCancelledBy = (lesson) => {
   const rawValue =
     lesson?.cancelledBy ||
@@ -97,6 +107,36 @@ const resolveCancelledBy = (lesson) => {
   if (normalized.includes('player') || normalized.includes('student')) {
     return 'player';
   }
+
+  const updatedById = resolveNumericId(
+    lesson?.updated_by,
+    lesson?.updatedBy,
+    lesson?.metadata?.updated_by,
+    lesson?.metadata?.updatedBy
+  );
+  const coachId = resolveNumericId(
+    lesson?.coach_id,
+    lesson?.coachId,
+    lesson?.coach?.id,
+    lesson?.coach?.coach_id,
+    lesson?.metadata?.coach_id,
+    lesson?.metadata?.coachId
+  );
+  const playerId = resolveNumericId(
+    lesson?.player_id,
+    lesson?.playerId,
+    lesson?.player?.id,
+    lesson?.metadata?.player_id,
+    lesson?.metadata?.playerId
+  );
+
+  if (updatedById !== null && coachId !== null && updatedById === coachId) {
+    return 'coach';
+  }
+  if (updatedById !== null && playerId !== null && updatedById === playerId) {
+    return 'player';
+  }
+
   return '';
 };
 
@@ -236,6 +276,11 @@ const buildLessonEvents = (lessons) => {
       ...existing,
       start: existing.start <= start ? existing.start : start,
       end: existing.end >= end ? existing.end : end,
+      status:
+        existing.status === 'cancelled' || event.status === 'cancelled'
+          ? 'cancelled'
+          : existing.status,
+      cancelledBy: existing.cancelledBy || event.cancelledBy,
       resource: {
         ...existing.resource,
         ...resource,
