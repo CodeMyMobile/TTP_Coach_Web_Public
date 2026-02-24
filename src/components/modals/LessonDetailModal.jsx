@@ -1099,8 +1099,8 @@ const LessonDetailModal = ({
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Lesson Title</label>
                   <input
                     type="text"
-                    value={editData?.title || editData?.lesson_title || ''}
-                    onChange={(event) => handleFieldChange('title', event.target.value)}
+                    value={editData?.metadata?.title || editData?.title || editData?.lesson_title || ''}
+                    onChange={(event) => handleMetadataFieldChange('title', event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -1112,26 +1112,15 @@ const LessonDetailModal = ({
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Location</label>
-                  <select
-                    value={editData?.location || editData?.location_name || resolvedLesson.locationName || ''}
-                    onChange={(event) => handleFieldChange('location', event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {[resolvedLesson.locationName, ...coachCourts].filter(Boolean).map((court) => (
-                      <option key={court} value={court}>{court}</option>
-                    ))}
-                  </select>
+                  <div className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+                    {resolvedLesson.locationName || 'TBD'}
+                  </div>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Price per Person</label>
-                  <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2">
                     <span className="mr-1 text-lg text-slate-500">$</span>
-                    <input
-                      type="number"
-                      value={editData?.group_price_per_person || editData?.price_per_person || resolvedLessonFee || ''}
-                      onChange={(event) => handleFieldChange('group_price_per_person', event.target.value)}
-                      className="w-24 bg-transparent text-lg font-semibold text-slate-800 focus:outline-none"
-                    />
+                    <span className="w-24 text-lg font-semibold text-slate-800">{resolvedLessonFee ?? '—'}</span>
                   </div>
                 </div>
                 <div>
@@ -1139,8 +1128,8 @@ const LessonDetailModal = ({
                   <input
                     type="number"
                     min={filledSpots}
-                    value={editData?.max_participants || editData?.maxParticipants || groupCapacity}
-                    onChange={(event) => handleFieldChange('max_participants', event.target.value)}
+                    value={editData?.player_limit || editData?.max_participants || editData?.maxParticipants || groupCapacity}
+                    onChange={(event) => handleFieldChange('player_limit', event.target.value)}
                     className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-center text-base font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   <p className="mt-2 text-xs text-slate-500">{filledSpots} already booked</p>
