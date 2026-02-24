@@ -60,7 +60,7 @@ const formatValidityLabel = (months) => {
 
 
 const resolveLessonPlayerStatus = (player) => {
-  const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
+  const rawStatus = player?.status ?? player?.payment_status ?? player?.paymentStatus;
   if (rawStatus === 1 || rawStatus === '1') {
     return 'confirmed';
   }

@@ -264,11 +264,11 @@ const LessonDetailModal = ({
 
   const resolveParticipantStatus = (status) => {
     if (status === 1 || status === '1') {
-      return 'Confirmed';
+      return 'Accepted';
     }
 
     if (status === 2 || status === '2') {
-      return 'Cancelled';
+      return 'Cancelled / Rejected';
     }
 
     if (status === 0 || status === '0') {
@@ -276,7 +276,7 @@ const LessonDetailModal = ({
     }
 
     if (!status) {
-      return 'Confirmed';
+      return 'Accepted';
     }
 
     return status;
