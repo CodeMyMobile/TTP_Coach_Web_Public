@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { createLessonShareLink, sendLessonInvites } from '../../services/coach';
+import { sendLessonInvites } from '../../services/coach';
 import { parseInviteRecipients } from '../../utils/lessonInviteRecipients';
+
+const PLAYER_LESSON_BASE_URL =
+  (import.meta.env.VITE_PLAYER_LESSON_BASE_URL || import.meta.env.VITE_PLAYER_APP_URL || 'https://ttp-player-web-staging.netlify.app')
+    .trim()
+    .replace(/\/$/, '');
 
 const toArray = (value) => {
   if (Array.isArray(value)) {
@@ -48,14 +53,6 @@ const normalizeInviteRows = (payload) => {
   });
 };
 
-const resolveShareLink = (payload) => {
-  if (!payload || typeof payload !== 'object') {
-    return '';
-  }
-
-  return payload.claimLink || payload.claim_link || payload.shareLink || payload.link || payload.url || '';
-};
-
 const copyToClipboard = async (value) => {
   if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
     return false;
@@ -74,12 +71,18 @@ const LessonInvitePanel = ({ lessonId }) => {
   const [phonesInput, setPhonesInput] = useState('');
   const [expiresInDays, setExpiresInDays] = useState(7);
   const [inviteRows, setInviteRows] = useState([]);
-  const [shareLink, setShareLink] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedValue, setCopiedValue] = useState('');
   const [sendingInvites, setSendingInvites] = useState(false);
-  const [creatingShareLink, setCreatingShareLink] = useState(false);
+
+  const shareLink = useMemo(() => {
+    if (!lessonId) {
+      return '';
+    }
+
+    return `${PLAYER_LESSON_BASE_URL}/#/player/lesson/${lessonId}`;
+  }, [lessonId]);
 
   const hasRecipients = useMemo(() => {
     const parsed = parseInviteRecipients({ emails: emailsInput, phones: phonesInput });
@@ -124,31 +127,6 @@ const LessonInvitePanel = ({ lessonId }) => {
       setErrorMessage(message);
     } finally {
       setSendingInvites(false);
-    }
-  };
-
-  const handleCreateShareLink = async () => {
-    if (!lessonId) {
-      return;
-    }
-
-    setCreatingShareLink(true);
-    setErrorMessage('');
-    setStatusMessage('');
-
-    try {
-      const payload = {
-        expires_in_days: Number.isFinite(Number(expiresInDays)) ? Math.max(1, Number(expiresInDays)) : 7
-      };
-      const response = await createLessonShareLink(lessonId, payload);
-      const link = resolveShareLink(response);
-      setShareLink(link);
-      setStatusMessage(link ? 'Share link created.' : 'Share link created.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create share link.';
-      setErrorMessage(message);
-    } finally {
-      setCreatingShareLink(false);
     }
   };
 
@@ -204,18 +182,6 @@ const LessonInvitePanel = ({ lessonId }) => {
             {sendingInvites ? 'Sending…' : 'Send Invites'}
           </button>
 
-          <button
-            type="button"
-            onClick={handleCreateShareLink}
-            disabled={creatingShareLink}
-            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-              creatingShareLink
-                ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            {creatingShareLink ? 'Creating…' : 'Create Generic Share Link'}
-          </button>
         </div>
 
         {statusMessage ? <p className="text-sm font-medium text-emerald-600">{statusMessage}</p> : null}
@@ -223,7 +189,7 @@ const LessonInvitePanel = ({ lessonId }) => {
 
         {shareLink ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">Generic share link</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">Shareable class link</p>
             <div className="flex items-center gap-2">
               <p className="min-w-0 flex-1 truncate text-sm text-emerald-900">{shareLink}</p>
               <button
