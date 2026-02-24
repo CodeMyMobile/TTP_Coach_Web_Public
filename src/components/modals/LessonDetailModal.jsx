@@ -663,7 +663,14 @@ const LessonDetailModal = ({
             type="button"
             className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
           >
-            📤 Share Class
+            📤 Share Lesson
+          </button>
+          <button
+            type="button"
+            onClick={onStartEdit}
+            className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+          >
+            ✏️ Edit Lesson Details
           </button>
           <button
             type="button"
