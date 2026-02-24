@@ -742,11 +742,13 @@ const LessonDetailModal = ({
       <div className="flex-1 overflow-y-auto px-5 pb-6 pt-5 sm:px-6">
         {!isEditing ? (
           <div className="space-y-5">
-            {isGroupLesson && resolvedLesson.status === 'confirmed' && (
+            {isGroupLesson && (
               <>
                 <div className="flex items-center gap-3 rounded-xl bg-blue-100 px-4 py-3">
                   <span className="text-base">📅</span>
-                  <p className="text-sm font-semibold text-blue-900">Upcoming</p>
+                  <p className="text-sm font-semibold text-blue-900">
+                    {resolvedLesson.status === 'pending' ? 'Awaiting Confirmation' : resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
+                  </p>
                   <p className="ml-auto text-xs font-semibold text-blue-700">{relativeStartLabel}</p>
                 </div>
 
@@ -757,7 +759,9 @@ const LessonDetailModal = ({
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">Group Lesson</p>
                       <p className="text-lg font-bold text-slate-800">{resolvedLesson.title || resolvedLesson.lesson_title || 'Group Lesson'}</p>
                     </div>
-                    <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">Open</span>
+                    <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
+                      {resolvedLesson.status === 'pending' ? 'Pending' : resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Open'}
+                    </span>
                   </div>
 
                   <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
