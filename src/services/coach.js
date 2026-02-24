@@ -324,8 +324,8 @@ export const updateCoachLesson = (lessonId, payload) => {
     throw new Error('A lesson id is required to update a lesson.');
   }
 
-  return request(`/coach/lessons/${lessonId}`, {
-    method: 'PUT',
+  return request(`/coach/lesson/${lessonId}`, {
+    method: 'PATCH',
     body: payload
   });
 };
