@@ -734,9 +734,35 @@ function App() {
       return;
     }
 
+    const isGroupLesson = Number(lessonEditData?.lessontype_id ?? lessonEditData?.lesson_type_id) === 3
+      || String(lessonEditData?.lesson_type_name || lessonEditData?.lessonType || lessonEditData?.type || '').toLowerCase().includes('group')
+      || String(lessonEditData?.lesson_type_name || lessonEditData?.lessonType || lessonEditData?.type || '').toLowerCase().includes('open');
+
+    const buildLessonUpdatePayload = (payload) => {
+      if (!isGroupLesson) {
+        return payload;
+      }
+
+      const nextMetadata = {
+        ...(payload?.metadata || {}),
+        title: payload?.title || payload?.lesson_title || payload?.metadata?.title || '',
+        description: payload?.metadata?.description || payload?.description || '',
+        level: payload?.metadata?.level || payload?.level || ''
+      };
+
+      const rawLimit = payload?.player_limit ?? payload?.max_participants ?? payload?.maxParticipants;
+      const numericLimit = Number(rawLimit);
+
+      return {
+        metadata: nextMetadata,
+        ...(Number.isFinite(numericLimit) ? { player_limit: numericLimit } : {})
+      };
+    };
+
     try {
-      const updatedLesson = await persistLesson(lessonEditData.id, lessonEditData);
-      setSelectedLessonDetail(updatedLesson || lessonEditData);
+      const savePayload = buildLessonUpdatePayload(lessonEditData);
+      const updatedLesson = await persistLesson(lessonEditData.id, savePayload);
+      setSelectedLessonDetail(updatedLesson || { ...lessonEditData, ...savePayload });
       setIsEditingLesson(false);
     } catch (error) {
       console.error('Failed to save lesson', error);
