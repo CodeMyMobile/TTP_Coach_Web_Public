@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Modal from './Modal';
 import LessonInvitePanel from './LessonInvitePanel';
+import { LESSON_LEVELS } from '../../constants/lessonLevels';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -1136,13 +1137,15 @@ const LessonDetailModal = ({
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Skill Level</label>
-                  <input
-                    type="text"
-                    value={editData?.metadata?.level || editData?.level || ''}
+                  <select
+                    value={editData?.metadata?.level || editData?.level || 'All'}
                     onChange={(event) => handleMetadataFieldChange('level', event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Intermediate (NTRP 3.5)"
-                  />
+                  >
+                    {LESSON_LEVELS.map((level) => (
+                      <option key={level.id} value={level.name}>{level.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Description</label>
