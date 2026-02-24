@@ -717,8 +717,17 @@ const LessonDetailModal = ({
     >
       {isMobile && <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-slate-200" />}
 
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h3 className="text-lg font-semibold text-slate-900">{isEditing ? 'Edit Lesson' : title}</h3>
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={isEditing ? onCancelEdit : closeModal}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h3 className="text-lg font-semibold text-slate-900">{isEditing ? 'Edit Lesson' : title}</h3>
+        </div>
         <div className="flex items-center gap-2">
           {isGroupLesson && !isEditing && resolvedLesson.status === 'confirmed' && (
             <button
@@ -729,17 +738,20 @@ const LessonDetailModal = ({
               <Pencil className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={isEditing ? onCancelEdit : closeModal}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {isEditing && (
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              disabled={mutationLoading}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${mutationLoading ? 'cursor-wait bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'}`}
+            >
+              {mutationLoading ? 'Saving…' : 'Save'}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-6 pt-5 sm:px-6">
+      <div className="flex-1 overflow-y-auto bg-slate-50 px-4 pb-6 pt-4 sm:px-6">
         {!isEditing ? (
           <div className="space-y-5">
             {isGroupLesson && (
@@ -807,16 +819,7 @@ const LessonDetailModal = ({
                       <p className="font-semibold text-slate-900">Participants</p>
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots} of {groupCapacity}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setParticipantsOpen((prev) => !prev)}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                      >
-                        {participantsOpen ? 'Hide' : 'Show'}
-                      </button>
-                      <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
-                    </div>
+                    <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
                   </div>
 
                   {participantsOpen && (
@@ -1170,31 +1173,11 @@ const LessonDetailModal = ({
         )}
       </div>
 
-      <div className="border-t border-slate-100 bg-white px-5 py-5 sm:px-6">
-        {!isEditing ? (
+      {!isEditing && (
+        <div className="border-t border-slate-100 bg-white px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row">{actionButtons()}</div>
-        ) : (
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={onCancelEdit}
-              className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onSaveEdit}
-              disabled={mutationLoading}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
-                mutationLoading ? 'cursor-wait bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
-              }`}
-            >
-              {mutationLoading ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </Modal>
   );
 };
