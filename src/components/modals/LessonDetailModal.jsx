@@ -342,13 +342,13 @@ const LessonDetailModal = ({
     return null;
   }
 
-  const title = resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details';
+  const isGroupLesson = resolvedLesson.lessonType === 'group';
+  const title = isGroupLesson ? 'Lesson Details' : (resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details');
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
     group: 'Group Lesson'
   };
-  const isGroupLesson = resolvedLesson.lessonType === 'group';
   const isGroupOrSemiPrivate =
     resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
 
@@ -592,6 +592,33 @@ const LessonDetailModal = ({
   };
 
   const actionButtons = () => {
+    if (isGroupLesson) {
+      return (
+        <>
+          <button
+            type="button"
+            className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
+          >
+            📤 Share Class
+          </button>
+          <button
+            type="button"
+            onClick={onStartEdit}
+            className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+          >
+            ✏️ Edit Lesson Details
+          </button>
+          <button
+            type="button"
+            onClick={onCancelLesson}
+            className="flex-1 rounded-xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-200"
+          >
+            Cancel Class
+          </button>
+        </>
+      );
+    }
+
     if (resolvedLesson.status === 'pending') {
       const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
 
@@ -655,34 +682,6 @@ const LessonDetailModal = ({
         </button>
       );
     }
-
-    if (isGroupLesson) {
-      return (
-        <>
-          <button
-            type="button"
-            className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
-          >
-            📤 Share Class
-          </button>
-          <button
-            type="button"
-            onClick={onStartEdit}
-            className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-          >
-            ✏️ Edit Lesson Details
-          </button>
-          <button
-            type="button"
-            onClick={onCancelLesson}
-            className="flex-1 rounded-xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-200"
-          >
-            Cancel Class
-          </button>
-        </>
-      );
-    }
-
     return (
       <>
         <button
@@ -746,7 +745,7 @@ const LessonDetailModal = ({
           <h3 className="text-lg font-semibold text-slate-900">{isEditing ? 'Edit Lesson' : title}</h3>
         </div>
         <div className="flex items-center gap-2">
-          {isGroupLesson && !isEditing && resolvedLesson.status === 'confirmed' && (
+          {isGroupLesson && !isEditing && resolvedLesson.status !== 'cancelled' && (
             <button
               type="button"
               onClick={onStartEdit}
@@ -776,7 +775,7 @@ const LessonDetailModal = ({
                 <div className="flex items-center gap-3 rounded-xl bg-blue-100 px-4 py-3">
                   <span className="text-base">📅</span>
                   <p className="text-sm font-semibold text-blue-900">
-                    {resolvedLesson.status === 'pending' ? 'Awaiting Confirmation' : resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
+                    {resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
                   </p>
                   <p className="ml-auto text-xs font-semibold text-blue-700">{relativeStartLabel}</p>
                 </div>
@@ -789,7 +788,7 @@ const LessonDetailModal = ({
                       <p className="text-lg font-bold text-slate-800">{resolvedLesson.title || resolvedLesson.lesson_title || 'Group Lesson'}</p>
                     </div>
                     <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
-                      {resolvedLesson.status === 'pending' ? 'Pending' : resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Open'}
+                      {resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Open'}
                     </span>
                   </div>
 
