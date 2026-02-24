@@ -328,6 +328,18 @@
   border-left-color: #6b7280;
 }
 
+.coach-calendar .lesson-cancelled {
+  background: #e5e7eb;
+  border-left: 3px dashed #94a3b8;
+  color: #64748b;
+  box-shadow: none;
+}
+
+.coach-calendar .lesson-cancelled .rbc-event-content {
+  color: #64748b;
+  text-decoration: line-through;
+}
+
 .coach-calendar .availability-bg-event {
   background: repeating-linear-gradient(-45deg, rgba(219, 234, 254, 0.35), rgba(219, 234, 254, 0.35) 3px, rgba(191, 219, 254, 0.25) 3px, rgba(191, 219, 254, 0.25) 6px);
   border: 1px solid rgba(147, 197, 253, 0.4);
@@ -505,6 +517,11 @@
   border-left-color: #6b7280;
 }
 
+.lesson-card.cancelled {
+  background: #e5e7eb;
+  border-left: 3px dashed #94a3b8;
+}
+
 .lesson-card-header {
   display: flex;
   justify-content: space-between;
@@ -534,9 +551,40 @@
   color: #1e293b;
 }
 
+.lesson-card.cancelled .lesson-card-title,
+.lesson-card.cancelled .lesson-card-subtitle,
+.lesson-card.cancelled .lesson-card-time,
+.lesson-card.cancelled .lesson-card-type {
+  color: #94a3b8;
+}
+
+.lesson-card.cancelled .lesson-card-title {
+  text-decoration: line-through;
+}
+
 .lesson-card-subtitle {
   font-size: 11px;
   color: #64748b;
+}
+
+.lesson-card-cancel-pill {
+  margin-top: 8px;
+  align-self: flex-start;
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lesson-card-cancel-pill.player,
+.lesson-card-cancel-pill.generic {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.lesson-card-cancel-pill.coach {
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .lessons-empty {
