@@ -342,13 +342,13 @@ const LessonDetailModal = ({
     return null;
   }
 
-  const title = resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details';
+  const isGroupLesson = resolvedLesson.lessonType === 'group';
+  const title = isGroupLesson ? 'Lesson Details' : (resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details');
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
     group: 'Group Lesson'
   };
-  const isGroupLesson = resolvedLesson.lessonType === 'group';
   const isGroupOrSemiPrivate =
     resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
 
@@ -576,12 +576,49 @@ const LessonDetailModal = ({
     onEditChange({ ...editData, [field]: value });
   };
 
+  const handleMetadataFieldChange = (field, value) => {
+    onEditChange({
+      ...editData,
+      metadata: {
+        ...(editData?.metadata || {}),
+        [field]: value
+      }
+    });
+  };
+
   const closeModal = () => {
     onClose?.();
     onCancelEdit?.();
   };
 
   const actionButtons = () => {
+    if (isGroupLesson) {
+      return (
+        <>
+          <button
+            type="button"
+            className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
+          >
+            📤 Share Class
+          </button>
+          <button
+            type="button"
+            onClick={onStartEdit}
+            className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+          >
+            ✏️ Edit Lesson Details
+          </button>
+          <button
+            type="button"
+            onClick={onCancelLesson}
+            className="flex-1 rounded-xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-200"
+          >
+            Cancel Class
+          </button>
+        </>
+      );
+    }
+
     if (resolvedLesson.status === 'pending') {
       const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
 
@@ -645,27 +682,6 @@ const LessonDetailModal = ({
         </button>
       );
     }
-
-    if (isGroupLesson) {
-      return (
-        <>
-          <button
-            type="button"
-            className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
-          >
-            📤 Share Class
-          </button>
-          <button
-            type="button"
-            onClick={onCancelLesson}
-            className="flex-1 rounded-xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-200"
-          >
-            Cancel Class
-          </button>
-        </>
-      );
-    }
-
     return (
       <>
         <button
@@ -717,10 +733,19 @@ const LessonDetailModal = ({
     >
       {isMobile && <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-slate-200" />}
 
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h3 className="text-lg font-semibold text-slate-900">{isEditing ? 'Edit Lesson' : title}</h3>
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={isEditing ? onCancelEdit : closeModal}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h3 className="text-lg font-semibold text-slate-900">{isEditing ? 'Edit Lesson' : title}</h3>
+        </div>
         <div className="flex items-center gap-2">
-          {isGroupLesson && !isEditing && resolvedLesson.status === 'confirmed' && (
+          {isGroupLesson && !isEditing && resolvedLesson.status !== 'cancelled' && (
             <button
               type="button"
               onClick={onStartEdit}
@@ -729,17 +754,20 @@ const LessonDetailModal = ({
               <Pencil className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={isEditing ? onCancelEdit : closeModal}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {isEditing && (
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              disabled={mutationLoading}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${mutationLoading ? 'cursor-wait bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'}`}
+            >
+              {mutationLoading ? 'Saving…' : 'Save'}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-6 pt-5 sm:px-6">
+      <div className="flex-1 overflow-y-auto bg-slate-50 px-4 pb-6 pt-4 sm:px-6">
         {!isEditing ? (
           <div className="space-y-5">
             {isGroupLesson && (
@@ -747,7 +775,7 @@ const LessonDetailModal = ({
                 <div className="flex items-center gap-3 rounded-xl bg-blue-100 px-4 py-3">
                   <span className="text-base">📅</span>
                   <p className="text-sm font-semibold text-blue-900">
-                    {resolvedLesson.status === 'pending' ? 'Awaiting Confirmation' : resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
+                    {resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
                   </p>
                   <p className="ml-auto text-xs font-semibold text-blue-700">{relativeStartLabel}</p>
                 </div>
@@ -760,7 +788,7 @@ const LessonDetailModal = ({
                       <p className="text-lg font-bold text-slate-800">{resolvedLesson.title || resolvedLesson.lesson_title || 'Group Lesson'}</p>
                     </div>
                     <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
-                      {resolvedLesson.status === 'pending' ? 'Pending' : resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Open'}
+                      {resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Open'}
                     </span>
                   </div>
 
@@ -807,16 +835,7 @@ const LessonDetailModal = ({
                       <p className="font-semibold text-slate-900">Participants</p>
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots} of {groupCapacity}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setParticipantsOpen((prev) => !prev)}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                      >
-                        {participantsOpen ? 'Hide' : 'Show'}
-                      </button>
-                      <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
-                    </div>
+                    <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
                   </div>
 
                   {participantsOpen && (
@@ -1080,8 +1099,8 @@ const LessonDetailModal = ({
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Lesson Title</label>
                   <input
                     type="text"
-                    value={editData?.title || editData?.lesson_title || ''}
-                    onChange={(event) => handleFieldChange('title', event.target.value)}
+                    value={editData?.metadata?.title || editData?.title || editData?.lesson_title || ''}
+                    onChange={(event) => handleMetadataFieldChange('title', event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -1093,26 +1112,15 @@ const LessonDetailModal = ({
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Location</label>
-                  <select
-                    value={editData?.location || editData?.location_name || resolvedLesson.locationName || ''}
-                    onChange={(event) => handleFieldChange('location', event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {[resolvedLesson.locationName, ...coachCourts].filter(Boolean).map((court) => (
-                      <option key={court} value={court}>{court}</option>
-                    ))}
-                  </select>
+                  <div className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+                    {resolvedLesson.locationName || 'TBD'}
+                  </div>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Price per Person</label>
-                  <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2">
                     <span className="mr-1 text-lg text-slate-500">$</span>
-                    <input
-                      type="number"
-                      value={editData?.group_price_per_person || editData?.price_per_person || resolvedLessonFee || ''}
-                      onChange={(event) => handleFieldChange('group_price_per_person', event.target.value)}
-                      className="w-24 bg-transparent text-lg font-semibold text-slate-800 focus:outline-none"
-                    />
+                    <span className="w-24 text-lg font-semibold text-slate-800">{resolvedLessonFee ?? '—'}</span>
                   </div>
                 </div>
                 <div>
@@ -1120,11 +1128,31 @@ const LessonDetailModal = ({
                   <input
                     type="number"
                     min={filledSpots}
-                    value={editData?.max_participants || editData?.maxParticipants || groupCapacity}
-                    onChange={(event) => handleFieldChange('max_participants', event.target.value)}
+                    value={editData?.player_limit || editData?.max_participants || editData?.maxParticipants || groupCapacity}
+                    onChange={(event) => handleFieldChange('player_limit', event.target.value)}
                     className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-center text-base font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   <p className="mt-2 text-xs text-slate-500">{filledSpots} already booked</p>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">Skill Level</label>
+                  <input
+                    type="text"
+                    value={editData?.metadata?.level || editData?.level || ''}
+                    onChange={(event) => handleMetadataFieldChange('level', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Intermediate (NTRP 3.5)"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">Description</label>
+                  <textarea
+                    value={editData?.metadata?.description || editData?.description || ''}
+                    onChange={(event) => handleMetadataFieldChange('description', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    rows={4}
+                    placeholder="All levels welcome"
+                  />
                 </div>
                 <div className="rounded-xl bg-amber-100 px-4 py-3 text-sm text-amber-900">
                   📲 Notify participants? {filledSpots} booked participants will be notified of changes.
@@ -1170,31 +1198,11 @@ const LessonDetailModal = ({
         )}
       </div>
 
-      <div className="border-t border-slate-100 bg-white px-5 py-5 sm:px-6">
-        {!isEditing ? (
+      {!isEditing && (
+        <div className="border-t border-slate-100 bg-white px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row">{actionButtons()}</div>
-        ) : (
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={onCancelEdit}
-              className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onSaveEdit}
-              disabled={mutationLoading}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
-                mutationLoading ? 'cursor-wait bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
-              }`}
-            >
-              {mutationLoading ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </Modal>
   );
 };
