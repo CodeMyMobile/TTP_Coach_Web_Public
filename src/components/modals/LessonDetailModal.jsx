@@ -345,6 +345,8 @@ const LessonDetailModal = ({
     };
   }, [isOpen, lesson]);
 
+  const shareClassLink = resolvedLesson?.id ? `${PLAYER_LESSON_BASE_URL}/#/player/lesson/${resolvedLesson.id}` : '';
+
   if (!resolvedLesson) {
     return null;
   }
@@ -597,14 +599,6 @@ const LessonDetailModal = ({
     onClose?.();
     onCancelEdit?.();
   };
-
-  const shareClassLink = useMemo(() => {
-    if (!resolvedLesson?.id) {
-      return '';
-    }
-
-    return `${PLAYER_LESSON_BASE_URL}/#/player/lesson/${resolvedLesson.id}`;
-  }, [resolvedLesson?.id]);
 
   const handleShareClass = async () => {
     if (!shareClassLink || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
