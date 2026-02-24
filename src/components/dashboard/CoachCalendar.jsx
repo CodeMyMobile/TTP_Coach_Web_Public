@@ -66,6 +66,80 @@ const parseLessonDateTime = (value) => {
 const getLessonTypeId = (lesson) =>
   Number(lesson?.lessontype_id ?? lesson?.lesson_type_id ?? lesson?.lessonTypeId);
 
+const normalizeLessonStatus = (value) => {
+  if (value === 2 || value === '2') {
+    return 'cancelled';
+  }
+
+  if (!value) {
+    return 'confirmed';
+  }
+
+  return String(value).toLowerCase().includes('cancel') ? 'cancelled' : 'confirmed';
+};
+
+const resolveNumericId = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const resolveCancelledBy = (lesson) => {
+  const rawValue =
+    lesson?.cancelledBy ||
+    lesson?.cancelled_by ||
+    lesson?.canceledBy ||
+    lesson?.canceled_by ||
+    lesson?.metadata?.cancelledBy ||
+    lesson?.metadata?.cancelled_by ||
+    lesson?.metadata?.canceledBy ||
+    lesson?.metadata?.canceled_by ||
+    '';
+
+  const normalized = String(rawValue).toLowerCase();
+  if (normalized.includes('coach')) {
+    return 'coach';
+  }
+  if (normalized.includes('player') || normalized.includes('student')) {
+    return 'player';
+  }
+
+  const updatedById = resolveNumericId(
+    lesson?.updated_by,
+    lesson?.updatedBy,
+    lesson?.metadata?.updated_by,
+    lesson?.metadata?.updatedBy
+  );
+  const coachId = resolveNumericId(
+    lesson?.coach_id,
+    lesson?.coachId,
+    lesson?.coach?.id,
+    lesson?.coach?.coach_id,
+    lesson?.metadata?.coach_id,
+    lesson?.metadata?.coachId
+  );
+  const playerId = resolveNumericId(
+    lesson?.player_id,
+    lesson?.playerId,
+    lesson?.player?.id,
+    lesson?.metadata?.player_id,
+    lesson?.metadata?.playerId
+  );
+
+  if (updatedById !== null && coachId !== null && updatedById === coachId) {
+    return 'coach';
+  }
+  if (updatedById !== null && playerId !== null && updatedById === playerId) {
+    return 'player';
+  }
+
+  return '';
+};
+
 const isSemiPrivateLesson = (lesson) => {
   const lessonTypeId = getLessonTypeId(lesson);
   if (lessonTypeId === 2) {
@@ -162,6 +236,8 @@ const buildLessonEvents = (lessons) => {
       title: lesson.metadata?.title || lesson.lesson_type_name || lesson.type || 'Lesson',
       resource,
       lessonType: getLessonTypeId(lesson),
+      status: normalizeLessonStatus(lesson.status ?? lesson.lessonStatus ?? lesson.lesson_status),
+      cancelledBy: resolveCancelledBy(lesson),
       type: 'lesson'
     };
 
@@ -200,6 +276,11 @@ const buildLessonEvents = (lessons) => {
       ...existing,
       start: existing.start <= start ? existing.start : start,
       end: existing.end >= end ? existing.end : end,
+      status:
+        existing.status === 'cancelled' || event.status === 'cancelled'
+          ? 'cancelled'
+          : existing.status,
+      cancelledBy: existing.cancelledBy || event.cancelledBy,
       resource: {
         ...existing.resource,
         ...resource,
@@ -704,12 +785,16 @@ const CoachCalendar = ({
                       '';
 
                     const isBusy = lesson.type === 'busy';
+                    const isCancelled = lesson.status === 'cancelled';
+                    const cancelledBy = lesson.cancelledBy || resolveCancelledBy(lesson.resource || {});
 
                     return (
                       <button
                         key={`${key}-lesson-${index}`}
                         type="button"
-                        className={`lesson-card ${lessonKind}`}
+                        className={`lesson-card ${lessonKind} ${isCancelled ? 'cancelled' : ''} ${
+                          isCancelled && cancelledBy ? `cancelled-${cancelledBy}` : ''
+                        }`}
                         onClick={() => {
                           if (isBusy) {
                             return;
@@ -728,6 +813,11 @@ const CoachCalendar = ({
                         </div>
                         <div className="lesson-card-title">{title}</div>
                         {subtitle && <div className="lesson-card-subtitle">{subtitle}</div>}
+                        {isCancelled && (
+                          <div className={`lesson-card-cancel-pill ${cancelledBy || 'generic'}`}>
+                            Cancelled{cancelledBy ? ` by ${cancelledBy === 'coach' ? 'Coach' : 'Player'}` : ''}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -833,8 +923,9 @@ const CoachCalendar = ({
               );
               const lessonKind =
                 lessonType === 2 ? 'semi-private' : lessonType === 3 ? 'open-group' : 'private';
+              const cancelledClass = event.status === 'cancelled' ? ' lesson-cancelled' : '';
               return {
-                className: `lesson-card-event lesson-${lessonKind}`
+                className: `lesson-card-event lesson-${lessonKind}${cancelledClass}`
               };
             }
             if (event.type === 'busy') {
