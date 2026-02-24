@@ -33,6 +33,11 @@ const statusLabels = {
   cancelled: 'Cancelled'
 };
 
+const PLAYER_LESSON_BASE_URL =
+  (import.meta.env.VITE_PLAYER_LESSON_BASE_URL || import.meta.env.VITE_PLAYER_APP_URL || 'https://ttp-player-web-staging.netlify.app')
+    .trim()
+    .replace(/\/$/, '');
+
 const useMediaQuery = (query) => {
   const [matches, setMatches] = useState(false);
 
@@ -82,6 +87,7 @@ const LessonDetailModal = ({
   const [creditUsageLoading, setCreditUsageLoading] = useState(false);
   const [creditUsageError, setCreditUsageError] = useState('');
   const [creditUsage, setCreditUsage] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const resolvePlayerPhone = async ({ playerId, phone } = {}) => {
     const directPhone = typeof phone === 'string' ? phone.trim() : '';
@@ -592,15 +598,39 @@ const LessonDetailModal = ({
     onCancelEdit?.();
   };
 
+  const shareClassLink = useMemo(() => {
+    if (!resolvedLesson?.id) {
+      return '';
+    }
+
+    return `${PLAYER_LESSON_BASE_URL}/#/player/lesson/${resolvedLesson.id}`;
+  }, [resolvedLesson?.id]);
+
+  const handleShareClass = async () => {
+    if (!shareClassLink || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareClassLink);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 1400);
+    } catch {
+      setShareCopied(false);
+    }
+  };
+
   const actionButtons = () => {
     if (isGroupLesson) {
       return (
         <>
           <button
             type="button"
-            className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
+            onClick={handleShareClass}
+            disabled={!shareClassLink}
+            className="flex-1 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-300"
           >
-            📤 Share Class
+            {shareCopied ? '✅ Link Copied' : '📤 Share Class'}
           </button>
           <button
             type="button"
