@@ -23,6 +23,7 @@ import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
 import LocationsSection from './sections/LocationsSection';
+import CoachGroupsSection from './sections/CoachGroupsSection';
 import './DashboardPage.css';
 
 const parseNumber = (value) => {
@@ -356,7 +357,16 @@ const DashboardPage = ({
   onRefreshLocations = () => {},
   onAddLocationById = () => {},
   onAddCustomLocation = () => {},
-  onDeleteLocation = () => {}
+  onDeleteLocation = () => {},
+  groupsData = [],
+  groupsLoading = false,
+  groupsError = null,
+  groupsActionError = null,
+  groupsSaving = false,
+  onRefreshGroups = () => {},
+  onCreateGroup = () => {},
+  onUpdateGroup = () => {},
+  onDeleteGroup = () => {}
 }) => {
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
@@ -1058,7 +1068,8 @@ const DashboardPage = ({
               { key: 'students', label: 'Students', icon: Users },
               { key: 'earnings', label: 'Earnings', icon: DollarSign },
               { key: 'packages', label: 'Packages', icon: Package },
-              { key: 'locations', label: 'Locations', icon: MapPin }
+              { key: 'locations', label: 'Locations', icon: MapPin },
+              { key: 'groups', label: 'Groups', icon: Users }
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -1100,7 +1111,8 @@ const DashboardPage = ({
               { key: 'students', label: 'Students', icon: Users },
               { key: 'earnings', label: 'Earnings', icon: DollarSign },
               { key: 'packages', label: 'Packages', icon: Package },
-              { key: 'locations', label: 'Locations', icon: MapPin }
+              { key: 'locations', label: 'Locations', icon: MapPin },
+              { key: 'groups', label: 'Groups', icon: Users }
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -1348,6 +1360,22 @@ const DashboardPage = ({
           />
         )}
 
+
+        {dashboardTab === 'groups' && (
+          <CoachGroupsSection
+            groups={Array.isArray(groupsData) ? groupsData : []}
+            groupsLoading={groupsLoading}
+            groupsError={groupsError}
+            groupsActionError={groupsActionError}
+            groupsSaving={groupsSaving}
+            onRefreshGroups={onRefreshGroups}
+            onCreateGroup={onCreateGroup}
+            onUpdateGroup={onUpdateGroup}
+            onDeleteGroup={onDeleteGroup}
+            players={filteredStudents}
+          />
+        )}
+
       </main>
 
       <nav className="dashboard-bottom-nav">
@@ -1356,7 +1384,8 @@ const DashboardPage = ({
           { key: 'students', label: 'Students', icon: '👥' },
           { key: 'earnings', label: 'Earnings', icon: '💵' },
           { key: 'packages', label: 'Packages', icon: '📦' },
-          { key: 'locations', label: 'Locations', icon: '📍' }
+          { key: 'locations', label: 'Locations', icon: '📍' },
+          { key: 'groups', label: 'Groups', icon: '🧩' }
         ].map((tab) => (
           <button
             key={tab.key}

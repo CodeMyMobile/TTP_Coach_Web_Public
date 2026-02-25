@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import Modal, { ModalBody, ModalFooter, ModalHeader } from './Modal';
 import { LESSON_LEVELS } from '../../constants/lessonLevels';
+import GroupPicker from '../groups/GroupPicker';
+import { getUniqueSelectedPlayerIds } from '../../utils/lessonGroupSelection';
 
 const CreateLessonModal = ({
   isOpen,
@@ -11,7 +13,8 @@ const CreateLessonModal = ({
   isSubmitting = false,
   submitError = null,
   players = [],
-  locations = []
+  locations = [],
+  groups = []
 }) => {
   const [form, setForm] = useState(draft);
   const [playerTab, setPlayerTab] = useState('students');
@@ -130,6 +133,21 @@ const CreateLessonModal = ({
     () => (Array.isArray(resolvedForm?.playerIds) ? resolvedForm.playerIds.map((id) => String(id)) : []),
     [resolvedForm?.playerIds]
   );
+
+  const selectedGroupIds = useMemo(
+    () => (Array.isArray(resolvedForm?.groupIds) ? resolvedForm.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)) : []),
+    [resolvedForm?.groupIds]
+  );
+
+  const privateResolvedPlayerCount = useMemo(() => {
+    if (Number(resolvedForm?.lessontype_id) !== 1) return null;
+    const uniquePlayers = getUniqueSelectedPlayerIds({
+      playerIds: selectedPlayerIds,
+      groupIds: selectedGroupIds,
+      groups
+    });
+    return uniquePlayers.length + invitees.length;
+  }, [groups, invitees.length, resolvedForm?.lessontype_id, selectedGroupIds, selectedPlayerIds]);
 
   const filteredPlayers = useMemo(() => {
     const normalizedQuery = playerSearch.trim().toLowerCase();
@@ -525,6 +543,17 @@ const CreateLessonModal = ({
         {Number(resolvedForm.lessontype_id) === 1 && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
             <label className="block text-sm font-semibold text-slate-800">Player</label>
+            <GroupPicker
+              groups={Array.isArray(groups) ? groups : []}
+              selectedGroupIds={selectedGroupIds}
+              onChange={(ids) => handleChange('groupIds', ids)}
+              label="Groups"
+            />
+            {privateResolvedPlayerCount !== null && privateResolvedPlayerCount > 1 ? (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Private lessons support exactly one resolved player. Remove selected groups/players to continue.
+              </p>
+            ) : null}
             <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1">
               <button
                 type="button"
@@ -621,6 +650,11 @@ const CreateLessonModal = ({
         {(Number(resolvedForm.lessontype_id) === 2 ||
           Number(resolvedForm.lessontype_id) === 3) && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+            <GroupPicker
+              groups={Array.isArray(groups) ? groups : []}
+              selectedGroupIds={selectedGroupIds}
+              onChange={(ids) => handleChange('groupIds', ids)}
+            />
             <label className="block text-sm font-semibold text-slate-800">
               Existing players (optional)
             </label>
