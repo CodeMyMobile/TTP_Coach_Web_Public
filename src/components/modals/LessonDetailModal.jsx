@@ -860,7 +860,15 @@ const LessonDetailModal = ({
                       <p className="font-semibold text-slate-900">Participants</p>
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots} of {groupCapacity}</span>
                     </div>
-                    <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-violet-600 transition hover:text-violet-700"
+                      >
+                        Manage Groups
+                      </button>
+                      <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    </div>
                   </div>
 
                   {participantsOpen && (
