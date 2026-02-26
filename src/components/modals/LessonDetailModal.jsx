@@ -353,7 +353,7 @@ const LessonDetailModal = ({
   }
 
   const isGroupLesson = resolvedLesson.lessonType === 'group';
-  const title = isGroupLesson ? 'Lesson Details' : (resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details');
+  const title = 'Lesson Details';
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
