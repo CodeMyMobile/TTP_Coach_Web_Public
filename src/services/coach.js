@@ -330,6 +330,43 @@ export const updateCoachLesson = (lessonId, payload) => {
   });
 };
 
+export const getCoachPlayerGroups = () => request('/coach/player-groups');
+
+export const getCoachPlayerGroupById = (groupId) => {
+  if (!groupId) {
+    throw new Error('A group id is required to fetch group details.');
+  }
+
+  return request(`/coach/player-groups/${groupId}`);
+};
+
+export const createCoachPlayerGroup = (payload = {}) =>
+  request('/coach/player-groups', {
+    method: 'POST',
+    body: payload
+  });
+
+export const updateCoachPlayerGroup = (groupId, payload = {}) => {
+  if (!groupId) {
+    throw new Error('A group id is required to update a player group.');
+  }
+
+  return request(`/coach/player-groups/${groupId}`, {
+    method: 'PATCH',
+    body: payload
+  });
+};
+
+export const deleteCoachPlayerGroup = (groupId) => {
+  if (!groupId) {
+    throw new Error('A group id is required to delete a player group.');
+  }
+
+  return request(`/coach/player-groups/${groupId}`, {
+    method: 'DELETE'
+  });
+};
+
 export const getCoachAvailability = () => request('/coach/schedule');
 
 export const createCoachAvailability = (payload) =>
@@ -433,6 +470,11 @@ export default {
   replaceCoachAvailability,
   updateCoachPlayer,
   updateCoachLesson,
+  getCoachPlayerGroups,
+  getCoachPlayerGroupById,
+  createCoachPlayerGroup,
+  updateCoachPlayerGroup,
+  deleteCoachPlayerGroup,
   getCoachAvailability,
   deleteCoachAvailability,
   getCoachStats,
