@@ -13,7 +13,8 @@ const CreateLessonModal = ({
   submitError = null,
   players = [],
   locations = [],
-  groups = []
+  groups = [],
+  onManageGroups
 }) => {
   const [form, setForm] = useState(draft);
   const [playerTab, setPlayerTab] = useState('students');
@@ -637,6 +638,7 @@ const CreateLessonModal = ({
               groups={Array.isArray(groups) ? groups : []}
               selectedGroupIds={selectedGroupIds}
               onChange={(ids) => handleChange('groupIds', ids)}
+              onManageGroups={onManageGroups}
             />
             <label className="block text-sm font-semibold text-slate-800">
               Existing players (optional)

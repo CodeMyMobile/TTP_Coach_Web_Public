@@ -1644,6 +1644,12 @@ function App() {
         players={resolvedStudents}
         locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
         groups={coachGroups}
+        onManageGroups={() => {
+          setShowCreateLessonModal(false);
+          setLessonDraft(null);
+          setLessonSubmitError(null);
+          setDashboardTab('groups');
+        }}
       />
 
       <LessonCreatedSuccessModal

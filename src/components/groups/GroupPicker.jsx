@@ -27,7 +27,7 @@ const resolveGroupMembers = (group) => {
   return [];
 };
 
-const GroupPicker = ({ groups = [], selectedGroupIds = [], onChange, label = 'Groups (optional)' }) => {
+const GroupPicker = ({ groups = [], selectedGroupIds = [], onChange, onManageGroups, label = 'My Groups' }) => {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -80,6 +80,13 @@ const GroupPicker = ({ groups = [], selectedGroupIds = [], onChange, label = 'Gr
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</label>
+          <button
+            type="button"
+            onClick={onManageGroups}
+            className="text-xs font-semibold text-violet-600 transition hover:text-violet-700"
+          >
+            Manage
+          </button>
         </div>
 
         <input
