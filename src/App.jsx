@@ -26,7 +26,14 @@ import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
 import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet';
-import { getCoachPlayerPreviousLessons } from './services/coach';
+import {
+  createCoachPlayerGroup,
+  deleteCoachPlayerGroup,
+  getCoachPlayerPreviousLessons,
+  getCoachPlayerGroups,
+  updateCoachPlayerGroup
+} from './services/coach';
+import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -173,6 +180,11 @@ function App() {
   const [coachLocations, setCoachLocations] = useState([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [locationsError, setLocationsError] = useState(null);
+  const [coachGroups, setCoachGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupsError, setGroupsError] = useState(null);
+  const [groupsActionError, setGroupsActionError] = useState(null);
+  const [groupsSaving, setGroupsSaving] = useState(false);
   const isLoginRoute = currentPath === '/';
   const isDashboardRoute = currentPath === '/dashboard';
   const isSettingsRoute = currentPath === '/settings';
@@ -203,6 +215,7 @@ function App() {
     }
   }, [profileError]);
 
+
   useEffect(() => {
     if (!isAuthenticated) {
       setProfileData(defaultProfile);
@@ -215,6 +228,11 @@ function App() {
       setCoachLocations([]);
       setLocationsLoading(false);
       setLocationsError(null);
+      setCoachGroups([]);
+      setGroupsLoading(false);
+      setGroupsError(null);
+      setGroupsActionError(null);
+      setGroupsSaving(false);
     }
   }, [isAuthenticated]);
 
@@ -825,6 +843,7 @@ function App() {
       court: availability?.court ?? null,
       lessontype_id: 1,
       playerIds: [],
+      groupIds: [],
       invitees: [],
       metadata: {
         title: '',
@@ -852,6 +871,7 @@ function App() {
       court: null,
       lessontype_id: 1,
       playerIds: [],
+      groupIds: [],
       invitees: [],
       metadata: {
         title: '',
@@ -950,6 +970,86 @@ function App() {
     }
   };
 
+  const mapGroupApiError = (error, fallback) => {
+    const status = Number(error?.status);
+    if (status === 400) return 'Please check your group details and try again.';
+    if (status === 404) return 'Group not found. Refresh and try again.';
+    if (status === 409) return 'A group with this name already exists.';
+    if (status >= 500) return 'Server error while saving group. Please try again.';
+    return error instanceof Error ? error.message : fallback;
+  };
+
+  const refreshGroups = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setGroupsLoading(true);
+    setGroupsError(null);
+    try {
+      const payload = await getCoachPlayerGroups();
+      const resolved = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.groups)
+          ? payload.groups
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+      setCoachGroups(resolved);
+    } catch (error) {
+      setGroupsError(error instanceof Error ? error.message : 'Failed to load groups.');
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  const handleCreateGroup = async (groupPayload, onDone) => {
+    setGroupsSaving(true);
+    setGroupsActionError(null);
+    try {
+      await createCoachPlayerGroup(groupPayload);
+      await refreshGroups();
+      onDone?.();
+    } catch (error) {
+      setGroupsActionError(mapGroupApiError(error, 'Failed to create group.'));
+    } finally {
+      setGroupsSaving(false);
+    }
+  };
+
+  const handleUpdateGroup = async (groupId, groupPayload, onDone) => {
+    setGroupsSaving(true);
+    setGroupsActionError(null);
+    try {
+      await updateCoachPlayerGroup(groupId, groupPayload);
+      await refreshGroups();
+      onDone?.();
+    } catch (error) {
+      setGroupsActionError(mapGroupApiError(error, 'Failed to update group.'));
+    } finally {
+      setGroupsSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async (group, onDone) => {
+    const confirmed = window.confirm(`Delete group "${group?.name || 'this group'}"?`);
+    if (!confirmed) return;
+    setGroupsSaving(true);
+    setGroupsActionError(null);
+    try {
+      await deleteCoachPlayerGroup(group?.id);
+      await refreshGroups();
+      onDone?.();
+    } catch (error) {
+      setGroupsActionError(mapGroupApiError(error, 'Failed to delete group.'));
+    } finally {
+      setGroupsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshGroups();
+    }
+  }, [isAuthenticated, refreshGroups]);
+
   const handleCreateLessonSubmit = async (form) => {
     if (!form?.start || !form?.end) {
       setLessonSubmitError('Start and end time are required.');
@@ -986,6 +1086,10 @@ function App() {
           .map((id) => Number(id))
           .filter((id) => Number.isFinite(id) && id > 0)
       : [];
+    const selectedGroupIds = Array.isArray(form.groupIds)
+      ? form.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      : [];
+
     const invitees = Array.isArray(form.invitees)
       ? form.invitees
           .map((invitee) => {
@@ -1036,6 +1140,7 @@ function App() {
       court: courtValue,
       status: 'PENDING',
       lessontype_id: Number(form.lessontype_id),
+      group_ids: selectedGroupIds,
       recurrence: {
         frequency: recurrence.frequency || 'NONE',
         count: recurrence.count ?? ''
@@ -1050,21 +1155,38 @@ function App() {
     };
 
     if (payload.lessontype_id === 1) {
-      const totalPrivatePlayers = selectedPlayerIds.length + invitees.length;
-      if (totalPrivatePlayers !== 1) {
-        setLessonSubmitError('Add exactly one player for a private lesson (existing player or phone/email invitee).');
+      const validation = validatePrivateLessonSelection({
+        playerIds: selectedPlayerIds,
+        groupIds: selectedGroupIds,
+        groups: coachGroups,
+        invitees
+      });
+
+      if (!validation.isValid) {
+        setLessonSubmitError('Private lesson must resolve to exactly one player across selected groups, manual players, and invitees.');
         return;
       }
 
-      if (selectedPlayerIds.length === 1) {
-        payload.player_id = Number(selectedPlayerIds[0]);
+      const resolvedPlayerIds = getUniqueSelectedPlayerIds({
+        playerIds: selectedPlayerIds,
+        groupIds: selectedGroupIds,
+        groups: coachGroups
+      });
+
+      if (resolvedPlayerIds.length === 1) {
+        payload.player_id = Number(resolvedPlayerIds[0]);
       } else {
         payload.player = invitees[0];
       }
       delete payload.recurrence;
     } else if (payload.lessontype_id === 2) {
+      const dedupedSelectedPlayers = getUniqueSelectedPlayerIds({
+        playerIds: selectedPlayerIds,
+        groupIds: selectedGroupIds,
+        groups: coachGroups
+      });
       const semiPrivatePlayers = [
-        ...selectedPlayerIds.map((id) => ({ player_id: Number(id) })),
+        ...dedupedSelectedPlayers.map((id) => ({ player_id: Number(id) })),
         ...invitees
       ];
 
@@ -1093,9 +1215,14 @@ function App() {
       }
       payload.price_per_person = Number(form.price_per_person);
       payload.player_limit = Number(form.player_limit);
-      if (selectedPlayerIds.length > 0 || invitees.length > 0) {
+      const dedupedSelectedPlayers = getUniqueSelectedPlayerIds({
+        playerIds: selectedPlayerIds,
+        groupIds: selectedGroupIds,
+        groups: coachGroups
+      });
+      if (dedupedSelectedPlayers.length > 0 || invitees.length > 0) {
         payload.player_ids_arr = [
-          ...selectedPlayerIds.map((id) => ({ player_id: Number(id) })),
+          ...dedupedSelectedPlayers.map((id) => ({ player_id: Number(id) })),
           ...invitees
         ];
       }
@@ -1417,6 +1544,15 @@ function App() {
           onAddLocationById={handleAddLocationById}
           onAddCustomLocation={handleAddCustomLocation}
           onDeleteLocation={handleDeleteLocation}
+          groupsData={coachGroups}
+          groupsLoading={groupsLoading}
+          groupsError={groupsError}
+          groupsActionError={groupsActionError}
+          groupsSaving={groupsSaving}
+          onRefreshGroups={refreshGroups}
+          onCreateGroup={handleCreateGroup}
+          onUpdateGroup={handleUpdateGroup}
+          onDeleteGroup={handleDeleteGroup}
         />
       )}
 
@@ -1451,6 +1587,10 @@ function App() {
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
+        onManageGroups={() => {
+          setShowLessonDetailModal(false);
+          setDashboardTab('groups');
+        }}
       />
 
 
@@ -1503,6 +1643,13 @@ function App() {
         submitError={lessonSubmitError}
         players={resolvedStudents}
         locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
+        groups={coachGroups}
+        onManageGroups={() => {
+          setShowCreateLessonModal(false);
+          setLessonDraft(null);
+          setLessonSubmitError(null);
+          setDashboardTab('groups');
+        }}
       />
 
       <LessonCreatedSuccessModal

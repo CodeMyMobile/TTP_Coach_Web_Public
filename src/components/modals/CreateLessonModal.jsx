@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import Modal, { ModalBody, ModalFooter, ModalHeader } from './Modal';
 import { LESSON_LEVELS } from '../../constants/lessonLevels';
+import GroupPicker from '../groups/GroupPicker';
 
 const CreateLessonModal = ({
   isOpen,
@@ -11,7 +12,9 @@ const CreateLessonModal = ({
   isSubmitting = false,
   submitError = null,
   players = [],
-  locations = []
+  locations = [],
+  groups = [],
+  onManageGroups
 }) => {
   const [form, setForm] = useState(draft);
   const [playerTab, setPlayerTab] = useState('students');
@@ -129,6 +132,11 @@ const CreateLessonModal = ({
   const selectedPlayerIds = useMemo(
     () => (Array.isArray(resolvedForm?.playerIds) ? resolvedForm.playerIds.map((id) => String(id)) : []),
     [resolvedForm?.playerIds]
+  );
+
+  const selectedGroupIds = useMemo(
+    () => (Array.isArray(resolvedForm?.groupIds) ? resolvedForm.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)) : []),
+    [resolvedForm?.groupIds]
   );
 
   const filteredPlayers = useMemo(() => {
@@ -483,7 +491,12 @@ const CreateLessonModal = ({
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => handleChange('lessontype_id', option.id)}
+                  onClick={() => {
+                    handleChange('lessontype_id', option.id);
+                    if (option.id === 1) {
+                      handleChange('groupIds', []);
+                    }
+                  }}
                   className={`rounded-xl border-2 px-3 py-3 text-center transition ${
                     isSelected ? option.selectedClass : 'border-slate-200 bg-white hover:border-slate-300'
                   }`}
@@ -621,6 +634,12 @@ const CreateLessonModal = ({
         {(Number(resolvedForm.lessontype_id) === 2 ||
           Number(resolvedForm.lessontype_id) === 3) && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+            <GroupPicker
+              groups={Array.isArray(groups) ? groups : []}
+              selectedGroupIds={selectedGroupIds}
+              onChange={(ids) => handleChange('groupIds', ids)}
+              onManageGroups={onManageGroups}
+            />
             <label className="block text-sm font-semibold text-slate-800">
               Existing players (optional)
             </label>
