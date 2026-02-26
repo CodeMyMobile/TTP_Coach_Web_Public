@@ -76,6 +76,8 @@ const LessonInvitePanel = ({ lessonId }) => {
   const [copiedValue, setCopiedValue] = useState('');
   const [sendingInvites, setSendingInvites] = useState(false);
 
+  const selectedCount = useMemo(() => inviteRows.filter((row) => row.sent).length, [inviteRows]);
+
   const shareLink = useMemo(() => {
     if (!lessonId) {
       return '';
@@ -131,58 +133,89 @@ const LessonInvitePanel = ({ lessonId }) => {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-slate-900">Lesson Invites</h4>
+    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+        <h4 className="text-base font-bold text-slate-900">Invite Players</h4>
+        <button
+          type="button"
+          onClick={handleSendInvites}
+          disabled={sendingInvites || !hasRecipients}
+          className={`rounded-lg px-3 py-2 text-xs font-semibold text-white transition sm:text-sm ${
+            sendingInvites || !hasRecipients ? 'cursor-not-allowed bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
+          }`}
+        >
+          {sendingInvites ? 'Sending…' : 'Done'}
+        </button>
       </div>
 
-      <div className="space-y-3">
-        <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Emails</label>
-          <input
-            type="text"
-            value={emailsInput}
-            onChange={(event) => setEmailsInput(event.target.value)}
-            placeholder="athlete1@example.com, athlete2@example.com"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+      <div className="space-y-3 p-4 sm:p-5">
+        <div className="rounded-xl bg-slate-100 p-1">
+          <div className="grid grid-cols-2 gap-1">
+            <div className="rounded-lg px-3 py-2 text-center text-xs font-semibold text-slate-500">Groups</div>
+            <div className="rounded-lg bg-white px-3 py-2 text-center text-xs font-semibold text-slate-900 shadow-sm">Players</div>
+          </div>
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Phone numbers</label>
-          <input
-            type="text"
-            value={phonesInput}
-            onChange={(event) => setPhonesInput(event.target.value)}
-            placeholder="+1 555 111 2222, 555-333-4444"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+        <div className="rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 text-xs text-purple-900">
+          <span className="font-semibold">{selectedCount} invites</span> processed
+          {selectedCount > 0 ? <span className="text-purple-700"> · {selectedCount} sent</span> : null}
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Expires in days</label>
-          <input
-            type="number"
-            min={1}
-            value={expiresInDays}
-            onChange={(event) => setExpiresInDays(event.target.value)}
-            className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+        <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-sm">➕</div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Invite Someone New</p>
+              <p className="text-xs text-slate-500">Use email or phone to send lesson access</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Emails</label>
+              <input
+                type="text"
+                value={emailsInput}
+                onChange={(event) => setEmailsInput(event.target.value)}
+                placeholder="athlete1@example.com, athlete2@example.com"
+                className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-purple-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Phone numbers</label>
+              <input
+                type="text"
+                value={phonesInput}
+                onChange={(event) => setPhonesInput(event.target.value)}
+                placeholder="+1 555 111 2222, 555-333-4444"
+                className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-purple-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Expires in days</label>
+              <input
+                type="number"
+                min={1}
+                value={expiresInDays}
+                onChange={(event) => setExpiresInDays(event.target.value)}
+                className="w-32 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-purple-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            onClick={handleSendInvites}
-            disabled={sendingInvites || !hasRecipients}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
-              sendingInvites || !hasRecipients ? 'cursor-not-allowed bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
-            }`}
-          >
-            {sendingInvites ? 'Sending…' : 'Send Invites'}
-          </button>
-
-        </div>
+        <button
+          type="button"
+          onClick={handleSendInvites}
+          disabled={sendingInvites || !hasRecipients}
+          className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
+            sendingInvites || !hasRecipients ? 'cursor-not-allowed bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'
+          }`}
+        >
+          📨 {sendingInvites ? 'Sending…' : 'Send Invites'}
+        </button>
 
         {statusMessage ? <p className="text-sm font-medium text-emerald-600">{statusMessage}</p> : null}
         {errorMessage ? <p className="text-sm font-medium text-rose-600">{errorMessage}</p> : null}
@@ -204,8 +237,39 @@ const LessonInvitePanel = ({ lessonId }) => {
         ) : null}
 
         {inviteRows.length > 0 ? (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+          <div className="space-y-2">
+            {inviteRows.map((row, index) => (
+              <div
+                key={`${row.recipient}-${index}`}
+                className={`flex items-center gap-3 rounded-xl border-2 px-3 py-2 ${
+                  row.sent ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'
+                }`}
+              >
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-sm ${
+                    row.sent ? 'bg-emerald-100' : 'bg-rose-100'
+                  }`}
+                >
+                  {row.sent ? '✓' : '!'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900">{row.recipient}</p>
+                  <p className={`text-xs ${row.sent ? 'text-emerald-700' : 'text-rose-700'}`}>{row.reason || (row.sent ? 'Invite sent' : 'Failed')}</p>
+                </div>
+                {row.claimLink ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(row.claimLink)}
+                    className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {copiedValue === row.claimLink ? 'Copied' : 'Copy'}
+                  </button>
+                ) : null}
+              </div>
+            ))}
+
+            <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white sm:block">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recipient</th>
@@ -214,7 +278,7 @@ const LessonInvitePanel = ({ lessonId }) => {
                   <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Claim Link</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100">
                 {inviteRows.map((row, index) => (
                   <tr key={`${row.recipient}-${index}`}>
                     <td className="px-3 py-2 text-slate-800">{row.recipient}</td>
@@ -239,8 +303,9 @@ const LessonInvitePanel = ({ lessonId }) => {
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : null}
       </div>
