@@ -205,8 +205,7 @@ const CreateLessonModal = ({
     : 60;
   const durationPresets = ['30', '60', '90', '120'];
   const normalizedDurationValue = String(resolvedForm.metadata?.duration || durationMinutes || '60');
-  const durationSelectValue = durationPresets.includes(normalizedDurationValue) ? normalizedDurationValue : 'custom';
-  const customDurationValue = durationSelectValue === 'custom' ? normalizedDurationValue : '';
+  const durationSelectValue = durationPresets.includes(normalizedDurationValue) ? normalizedDurationValue : '60';
 
   const timeOptions = [];
   for (let hour = 6; hour <= 22; hour += 1) {
@@ -449,37 +448,17 @@ const CreateLessonModal = ({
               <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Duration</span>
               <select
                 value={durationSelectValue}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === 'custom') {
-                    handleMetadataChange('duration', customDurationValue || '');
-                    return;
-                  }
-                  handleDurationChange(value);
-                }}
+                onChange={(event) => handleDurationChange(event.target.value)}
                 className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
               >
                 <option value="30">30 min</option>
                 <option value="60">1 hour</option>
                 <option value="90">1.5 hours</option>
                 <option value="120">2 hours</option>
-                <option value="custom">Custom</option>
               </select>
             </label>
           </div>
-          {durationSelectValue === 'custom' && (
-            <div className="mt-2">
-              <label className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Custom duration (minutes)</label>
-              <input
-                type="number"
-                min="1"
-                value={customDurationValue}
-                onChange={(event) => handleDurationChange(event.target.value)}
-                placeholder="e.g. 75"
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-violet-500"
-              />
-            </div>
-          )}
+
           <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
             <span>✓</span>
             <span>{moment(resolvedForm.start || new Date()).format('h:mm A')} – {moment(resolvedForm.end || new Date()).format('h:mm A')}</span>
