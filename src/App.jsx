@@ -1587,6 +1587,10 @@ function App() {
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
+        onManageGroups={() => {
+          setShowLessonDetailModal(false);
+          setDashboardTab('groups');
+        }}
       />
 
 
@@ -1640,6 +1644,12 @@ function App() {
         players={resolvedStudents}
         locations={coachLocations.length > 0 ? coachLocations : profileData.home_courts}
         groups={coachGroups}
+        onManageGroups={() => {
+          setShowCreateLessonModal(false);
+          setLessonDraft(null);
+          setLessonSubmitError(null);
+          setDashboardTab('groups');
+        }}
       />
 
       <LessonCreatedSuccessModal

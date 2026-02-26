@@ -80,7 +80,8 @@ const LessonDetailModal = ({
   onAcceptRequest,
   onDeclineRequest,
   onCreateLesson,
-  coachHourlyRate = null
+  coachHourlyRate = null,
+  onManageGroups
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [participantsOpen, setParticipantsOpen] = useState(true);
@@ -352,7 +353,7 @@ const LessonDetailModal = ({
   }
 
   const isGroupLesson = resolvedLesson.lessonType === 'group';
-  const title = isGroupLesson ? 'Lesson Details' : (resolvedLesson.status === 'pending' ? 'Lesson Request' : 'Lesson Details');
+  const title = 'Lesson Details';
   const typeLabelMap = {
     private: 'Private Lesson',
     'semi-private': 'Semi-Private Lesson',
@@ -860,7 +861,16 @@ const LessonDetailModal = ({
                       <p className="font-semibold text-slate-900">Participants</p>
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots} of {groupCapacity}</span>
                     </div>
-                    <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={onManageGroups}
+                        className="text-xs font-semibold text-violet-600 transition hover:text-violet-700"
+                      >
+                        Manage Groups
+                      </button>
+                      <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    </div>
                   </div>
 
                   {participantsOpen && (
