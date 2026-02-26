@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import Modal, { ModalBody, ModalFooter, ModalHeader } from './Modal';
 import { LESSON_LEVELS } from '../../constants/lessonLevels';
+import GroupPicker from '../groups/GroupPicker';
 
 const CreateLessonModal = ({
   isOpen,
@@ -11,15 +12,13 @@ const CreateLessonModal = ({
   isSubmitting = false,
   submitError = null,
   players = [],
-  locations = []
+  locations = [],
+  groups = []
 }) => {
   const [form, setForm] = useState(draft);
   const [playerTab, setPlayerTab] = useState('students');
   const [playerSearch, setPlayerSearch] = useState('');
   const [groupPlayerSearch, setGroupPlayerSearch] = useState('');
-  const [currentWeekStart, setCurrentWeekStart] = useState(() =>
-    draft?.start ? moment(draft.start).startOf('day') : moment().startOf('day')
-  );
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState(() =>
     draft?.start ? moment(draft.start).startOf('month') : moment().startOf('month')
@@ -32,7 +31,6 @@ const CreateLessonModal = ({
   useEffect(() => {
     setForm(draft);
     const nextStart = draft?.start ? moment(draft.start).startOf('day') : moment().startOf('day');
-    setCurrentWeekStart(nextStart);
     setViewMonth(nextStart.clone().startOf('month'));
     setCalendarSelection(nextStart);
   }, [draft]);
@@ -74,16 +72,22 @@ const CreateLessonModal = ({
   };
 
   const handleDurationChange = (value) => {
-    const minutes = parseInt(value, 10);
+    const minutes = parseInt(String(value), 10);
     setForm((prev) => {
-      const start = prev?.start ? moment(prev.start) : null;
-      const end = start && Number.isFinite(minutes)
-        ? start.clone().add(minutes, 'minutes').toDate()
-        : prev?.end || null;
+      const start = prev?.start ? moment(prev.start) : moment();
+      const nextMetadata = { ...(prev?.metadata || {}), duration: String(value ?? '') };
+
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        return {
+          ...(prev || {}),
+          metadata: nextMetadata
+        };
+      }
+
       return {
         ...(prev || {}),
-        end,
-        metadata: { ...(prev?.metadata || {}), duration: value }
+        end: start.clone().add(minutes, 'minutes').toDate(),
+        metadata: { ...(prev?.metadata || {}), duration: String(minutes) }
       };
     });
   };
@@ -131,6 +135,11 @@ const CreateLessonModal = ({
     [resolvedForm?.playerIds]
   );
 
+  const selectedGroupIds = useMemo(
+    () => (Array.isArray(resolvedForm?.groupIds) ? resolvedForm.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)) : []),
+    [resolvedForm?.groupIds]
+  );
+
   const filteredPlayers = useMemo(() => {
     const normalizedQuery = playerSearch.trim().toLowerCase();
     if (!normalizedQuery) {
@@ -173,13 +182,14 @@ const CreateLessonModal = ({
   }
 
   const startTimeValue = resolvedForm.start ? moment(resolvedForm.start).format('HH:mm') : '';
-  const endTimeValue = resolvedForm.end ? moment(resolvedForm.end).format('HH:mm') : '';
   const recurrence = resolvedForm.metadata?.recurrence || { frequency: 'NONE', count: '' };
   const baseDate = resolvedForm.start ? moment(resolvedForm.start) : moment();
-  const dateOptions = Array.from({ length: 5 }, (_, index) => currentWeekStart.clone().add(index, 'days'));
-  const weekRangeLabel = `${currentWeekStart.format('MMM D')} – ${currentWeekStart.clone().add(4, 'days').format('MMM D')}`;
-  const isCurrentWeek = moment().isBetween(currentWeekStart, currentWeekStart.clone().add(4, 'days'), 'day', '[]');
-  const canGoToPreviousWeek = currentWeekStart.isAfter(moment().startOf('day'), 'day');
+  const today = moment().startOf('day');
+  const defaultQuickDates = [0, 1, 2, 3].map((offset) => today.clone().add(offset, 'days'));
+  const selectedQuickDate = baseDate.clone().startOf('day');
+  const quickDateOptions = defaultQuickDates.some((option) => option.isSame(selectedQuickDate, 'day'))
+    ? defaultQuickDates
+    : [...defaultQuickDates.slice(0, 3), selectedQuickDate];
   const monthStart = viewMonth.clone().startOf('month');
   const monthEnd = viewMonth.clone().endOf('month');
   const calendarStart = monthStart.clone().startOf('week');
@@ -192,7 +202,18 @@ const CreateLessonModal = ({
   }
   const durationMinutes = resolvedForm.start && resolvedForm.end
     ? Math.max(moment(resolvedForm.end).diff(moment(resolvedForm.start), 'minutes'), 0)
-    : null;
+    : 60;
+  const durationPresets = ['30', '60', '90', '120'];
+  const normalizedDurationValue = String(resolvedForm.metadata?.duration || durationMinutes || '60');
+  const durationSelectValue = durationPresets.includes(normalizedDurationValue) ? normalizedDurationValue : '60';
+
+  const timeOptions = [];
+  for (let hour = 6; hour <= 22; hour += 1) {
+    for (const minute of [0, 30]) {
+      const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      timeOptions.push({ value, label: moment(value, 'HH:mm').format('h:mm A') });
+    }
+  }
 
   const setDatePart = (dateMoment) => {
     setForm((prev) => {
@@ -208,25 +229,21 @@ const CreateLessonModal = ({
     });
   };
 
-  const setTimePart = (field, value) => {
+  const setStartTime = (value) => {
     const [hour = '0', minute = '0'] = String(value || '').split(':');
     setForm((prev) => {
-      const target = field === 'start' ? prev?.start : prev?.end;
-      const nextMoment = target ? moment(target) : moment();
-      nextMoment.hour(Number(hour)).minute(Number(minute)).second(0).millisecond(0);
-      return { ...(prev || {}), [field]: nextMoment.toDate() };
+      const nextStart = prev?.start ? moment(prev.start) : moment();
+      nextStart.hour(Number(hour)).minute(Number(minute)).second(0).millisecond(0);
+
+      const configuredDuration = parseInt(String(prev?.metadata?.duration || durationMinutes || 60), 10);
+      const safeDuration = Number.isFinite(configuredDuration) && configuredDuration > 0 ? configuredDuration : 60;
+
+      return {
+        ...(prev || {}),
+        start: nextStart.toDate(),
+        end: nextStart.clone().add(safeDuration, 'minutes').toDate()
+      };
     });
-  };
-
-  const goToPreviousWeek = () => {
-    if (!canGoToPreviousWeek) {
-      return;
-    }
-    setCurrentWeekStart((prev) => prev.clone().subtract(7, 'days'));
-  };
-
-  const goToNextWeek = () => {
-    setCurrentWeekStart((prev) => prev.clone().add(7, 'days'));
   };
 
   const openCalendarPicker = () => {
@@ -242,7 +259,6 @@ const CreateLessonModal = ({
   const confirmCalendarSelection = () => {
     if (calendarSelection) {
       setDatePart(calendarSelection.clone());
-      setCurrentWeekStart(calendarSelection.clone().startOf('day'));
     }
     setIsCalendarOpen(false);
   };
@@ -295,104 +311,86 @@ const CreateLessonModal = ({
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-800">Date</label>
-          <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
-            <strong className="font-semibold text-slate-800">{weekRangeLabel}</strong>
-            {isCurrentWeek && <span>This Week</span>}
-          </div>
-          <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
-            <button
-              type="button"
-              onClick={goToPreviousWeek}
-              disabled={!canGoToPreviousWeek}
-              aria-label="Previous week"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-lg text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              ‹
-            </button>
-            {dateOptions.map((dateMoment) => {
-              const isSelected = baseDate.isSame(dateMoment, 'day');
-              const isToday = moment().isSame(dateMoment, 'day');
-              return (
-                <button
-                  key={dateMoment.format('YYYY-MM-DD')}
-                  type="button"
-                  onClick={() => setDatePart(dateMoment)}
-                  className={`min-w-[66px] rounded-xl border-2 px-3 py-2 text-center transition ${
-                    isSelected
-                      ? 'border-violet-500 bg-violet-100'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <p className={`text-[10px] font-semibold uppercase ${isSelected ? 'text-violet-700' : 'text-slate-500'}`}>
-                    {dateMoment.format('ddd')}
-                  </p>
-                  <p className={`text-lg font-bold ${isSelected ? 'text-violet-700' : 'text-slate-800'}`}>{dateMoment.format('D')}</p>
-                  <p className="text-[10px] text-slate-400">{dateMoment.format('MMM')}</p>
-                  {isToday && <span className="mx-auto mt-1 block h-1 w-1 rounded-full bg-violet-500" />}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={goToNextWeek}
-              aria-label="Next week"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-lg text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800"
-            >
-              ›
-            </button>
+          <div className="flex items-start gap-2">
+            <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
+              {quickDateOptions.map((dateMoment) => {
+                const isSelected = baseDate.isSame(dateMoment, 'day');
+                const isToday = moment().isSame(dateMoment, 'day');
+                return (
+                  <button
+                    key={dateMoment.format('YYYY-MM-DD')}
+                    type="button"
+                    onClick={() => setDatePart(dateMoment)}
+                    className={`min-w-[64px] rounded-xl border-2 px-2 py-2 text-center transition ${
+                      isSelected
+                        ? 'border-violet-500 bg-violet-500 text-white'
+                        : isToday
+                          ? 'border-violet-400 bg-white text-slate-900'
+                          : 'border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`text-[10px] font-semibold uppercase ${isSelected ? 'text-white' : 'text-slate-500'}`}>
+                      {dateMoment.format('ddd')}
+                    </p>
+                    <p className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-slate-900'}`}>{dateMoment.format('D')}</p>
+                    <p className={`text-[10px] ${isSelected ? 'text-violet-100' : 'text-slate-500'}`}>{dateMoment.format('MMM')}</p>
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               onClick={openCalendarPicker}
               aria-label="Pick a specific date"
-              className={`flex min-w-[60px] shrink-0 flex-col items-center justify-center rounded-xl border-2 border-dashed px-3 py-2 transition ${
-                isCalendarOpen
-                  ? 'border-violet-500 bg-violet-100'
-                  : 'border-slate-200 bg-slate-50 hover:border-violet-500 hover:bg-violet-50'
-              }`}
+              className="flex min-w-[64px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-violet-400 bg-violet-50 px-2 py-2 text-violet-700 transition hover:bg-violet-100"
             >
               <span className="text-lg">📅</span>
-              <span className="text-[9px] font-semibold uppercase text-slate-500">Pick</span>
+              <span className="text-[10px] font-bold uppercase">Pick</span>
             </button>
           </div>
         </div>
 
         {isCalendarOpen && (
           <div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
             onClick={closeCalendarPicker}
           >
             <div
-              className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+              className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <button
-                type="button"
-                onClick={closeCalendarPicker}
-                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
-              >
-                ✕
-              </button>
-              <h3 className="mb-5 text-center text-lg font-bold text-slate-800">Select a Date</h3>
               <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-800">Pick a Date</h3>
                 <button
                   type="button"
-                  onClick={() => setViewMonth((prev) => prev.clone().subtract(1, 'month'))}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  onClick={closeCalendarPicker}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
                 >
-                  ‹
-                </button>
-                <span className="text-sm font-semibold text-slate-800">{viewMonth.format('MMMM YYYY')}</span>
-                <button
-                  type="button"
-                  onClick={() => setViewMonth((prev) => prev.clone().add(1, 'month'))}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                >
-                  ›
+                  ✕
                 </button>
               </div>
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-800">{viewMonth.format('MMMM YYYY')}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((prev) => prev.clone().subtract(1, 'month'))}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMonth((prev) => prev.clone().add(1, 'month'))}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
               <div className="mb-2 grid grid-cols-7 gap-1">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                  <span key={day} className="py-2 text-center text-[11px] font-semibold text-slate-400">{day}</span>
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                  <span key={day} className="py-1 text-center text-[11px] font-semibold text-slate-400">{day}</span>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1">
@@ -407,36 +405,26 @@ const CreateLessonModal = ({
                       type="button"
                       disabled={isPast}
                       onClick={() => setCalendarSelection(date.clone())}
-                      className={`relative aspect-square rounded-full border-2 text-sm transition ${
+                      className={`aspect-square rounded-lg text-sm font-semibold transition ${
                         isSelected
-                          ? 'border-amber-500 bg-amber-100 font-bold text-amber-700'
-                          : 'border-transparent text-slate-800 hover:bg-slate-100'
+                          ? 'bg-violet-500 text-white'
+                          : 'text-slate-800 hover:bg-slate-100'
                       } ${isPast ? 'cursor-not-allowed text-slate-300 hover:bg-transparent' : ''} ${
                         isOtherMonth ? 'text-slate-300' : ''
-                      }`}
+                      } ${isToday && !isSelected ? 'border border-violet-400' : ''}`}
                     >
                       {date.date()}
-                      {isToday && <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-violet-500" />}
                     </button>
                   );
                 })}
               </div>
-              <div className="mt-6 flex gap-3">
-                <button
-                  type="button"
-                  onClick={closeCalendarPicker}
-                  className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-200 hover:text-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmCalendarSelection}
-                  className="flex-1 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-700"
-                >
-                  Select
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={confirmCalendarSelection}
+                className="mt-5 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-700"
+              >
+                Select {calendarSelection?.format('MMM D')}
+              </button>
             </div>
           </div>
         )}
@@ -446,28 +434,35 @@ const CreateLessonModal = ({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="rounded-xl border-2 border-slate-200 bg-white px-3 py-2">
               <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Start</span>
-              <input
-                type="time"
-                value={startTimeValue}
-                onChange={(event) => setTimePart('start', event.target.value)}
+              <select
+                value={startTimeValue || '09:00'}
+                onChange={(event) => setStartTime(event.target.value)}
                 className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
-              />
+              >
+                {timeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </label>
             <label className="rounded-xl border-2 border-slate-200 bg-white px-3 py-2">
-              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">End</span>
-              <input
-                type="time"
-                value={endTimeValue}
-                onChange={(event) => setTimePart('end', event.target.value)}
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Duration</span>
+              <select
+                value={durationSelectValue}
+                onChange={(event) => handleDurationChange(event.target.value)}
                 className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
-              />
+              >
+                <option value="30">30 min</option>
+                <option value="60">1 hour</option>
+                <option value="90">1.5 hours</option>
+                <option value="120">2 hours</option>
+              </select>
             </label>
           </div>
-          {durationMinutes !== null && (
-            <span className="mt-2 inline-flex rounded-md bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-700">
-              ⏱ {durationMinutes} min
-            </span>
-          )}
+
+          <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+            <span>✓</span>
+            <span>{moment(resolvedForm.start || new Date()).format('h:mm A')} – {moment(resolvedForm.end || new Date()).format('h:mm A')}</span>
+          </div>
         </div>
 
         <div>
@@ -483,7 +478,12 @@ const CreateLessonModal = ({
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => handleChange('lessontype_id', option.id)}
+                  onClick={() => {
+                    handleChange('lessontype_id', option.id);
+                    if (option.id === 1) {
+                      handleChange('groupIds', []);
+                    }
+                  }}
                   className={`rounded-xl border-2 px-3 py-3 text-center transition ${
                     isSelected ? option.selectedClass : 'border-slate-200 bg-white hover:border-slate-300'
                   }`}
@@ -621,6 +621,11 @@ const CreateLessonModal = ({
         {(Number(resolvedForm.lessontype_id) === 2 ||
           Number(resolvedForm.lessontype_id) === 3) && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+            <GroupPicker
+              groups={Array.isArray(groups) ? groups : []}
+              selectedGroupIds={selectedGroupIds}
+              onChange={(ids) => handleChange('groupIds', ids)}
+            />
             <label className="block text-sm font-semibold text-slate-800">
               Existing players (optional)
             </label>
@@ -788,15 +793,6 @@ const CreateLessonModal = ({
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-              <input
-                type="number"
-                value={resolvedForm.metadata?.duration || ''}
-                onChange={(event) => handleDurationChange(event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
