@@ -80,7 +80,8 @@ const LessonDetailModal = ({
   onAcceptRequest,
   onDeclineRequest,
   onCreateLesson,
-  coachHourlyRate = null
+  coachHourlyRate = null,
+  onManageGroups
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [participantsOpen, setParticipantsOpen] = useState(true);
@@ -863,6 +864,7 @@ const LessonDetailModal = ({
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
+                        onClick={onManageGroups}
                         className="text-xs font-semibold text-violet-600 transition hover:text-violet-700"
                       >
                         Manage Groups

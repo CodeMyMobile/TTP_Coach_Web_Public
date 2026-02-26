@@ -1587,6 +1587,10 @@ function App() {
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
+        onManageGroups={() => {
+          setShowLessonDetailModal(false);
+          setDashboardTab('groups');
+        }}
       />
 
 
