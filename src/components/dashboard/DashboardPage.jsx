@@ -494,6 +494,7 @@ const DashboardPage = ({
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const [requestItems, setRequestItems] = useState([]);
+  const [awaitingPlayerItems, setAwaitingPlayerItems] = useState([]);
   const [requestsPage, setRequestsPage] = useState(1);
   const [requestsPerPage] = useState(20);
   const [requestsCount, setRequestsCount] = useState(0);
@@ -635,8 +636,21 @@ const DashboardPage = ({
       try {
         const response = await getCoachRequests({ perPage: requestsPerPage, page });
         const list = Array.isArray(response?.requests) ? response.requests : [];
+        const awaitingList = Array.isArray(response?.awaiting_player_confirmation)
+          ? response.awaiting_player_confirmation
+          : [];
+        const breakdownCount =
+          typeof response?.breakdown?.awaiting_player_confirmation === 'number'
+            ? (response?.count || 0) + response.breakdown.awaiting_player_confirmation
+            : null;
+
         setRequestItems(list);
-        setRequestsCount(typeof response?.count === 'number' ? response.count : list.length);
+        setAwaitingPlayerItems(awaitingList);
+        setRequestsCount(
+          typeof breakdownCount === 'number'
+            ? breakdownCount
+            : list.length + awaitingList.length
+        );
       } catch (error) {
         setRequestsError(getRequestErrorMessage(error, 'Failed to load requests.'));
       } finally {
@@ -836,7 +850,7 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showSettingsMenu]);
 
-  const actionItems = requestItems.map((requestItem, index) => {
+  const actionableItems = requestItems.map((requestItem, index) => {
     const isLessonRequest = requestItem.request_type === 'lesson_request';
     const lesson = requestItem.lesson;
     const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
@@ -859,6 +873,22 @@ const DashboardPage = ({
       onDecline: () => handleRequestAction(requestItem, 'decline')
     };
   });
+
+  const awaitingItems = awaitingPlayerItems.map((requestItem, index) => ({
+    id: `awaiting-${requestItem.request_id}-${index}`,
+    type: 'lesson',
+    name: requestItem?.player?.full_name || 'Player',
+    detail: 'awaiting player confirmation',
+    info: formatLessonInfo(requestItem.lesson),
+    timestamp: requestItem.created_at,
+    avatarUrl: '',
+    acceptLabel: 'View',
+    hideDecline: true,
+    onAccept: () => onLessonSelect?.(requestItem.lesson),
+    onDecline: null
+  }));
+
+  const actionItems = [...actionableItems, ...awaitingItems];
   const notificationItems = actionItems;
 
   useEffect(() => {
@@ -1024,14 +1054,16 @@ const DashboardPage = ({
                                     : item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                className="notification-btn decline"
-                                onClick={item.onDecline || undefined}
-                                disabled={!item.onDecline || Boolean(item.activeAction)}
-                              >
-                                {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
-                              </button>
+                              {!item.hideDecline && (
+                                <button
+                                  type="button"
+                                  className="notification-btn decline"
+                                  onClick={item.onDecline || undefined}
+                                  disabled={!item.onDecline || Boolean(item.activeAction)}
+                                >
+                                  {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
+                                </button>
+                              )}
                             </div>
                             <div className="notification-time">{formatRelativeNotificationTime(item.timestamp)}</div>
                           </div>
@@ -1225,14 +1257,16 @@ const DashboardPage = ({
                           : item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="action-alert-btn decline"
-                        onClick={item.onDecline || undefined}
-                        disabled={!item.onDecline || Boolean(item.activeAction)}
-                      >
-                        {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
-                      </button>
+                      {!item.hideDecline && (
+                        <button
+                          type="button"
+                          className="action-alert-btn decline"
+                          onClick={item.onDecline || undefined}
+                          disabled={!item.onDecline || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1299,16 +1333,18 @@ const DashboardPage = ({
                           (actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept')}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="notification-carousel-btn decline"
-                      onClick={actionItems[carouselIndex]?.onDecline || undefined}
-                      disabled={!actionItems[carouselIndex]?.onDecline || Boolean(actionItems[carouselIndex]?.activeAction)}
-                    >
-                      {actionItems[carouselIndex]?.activeAction === 'decline'
-                        ? 'Processing...'
-                        : actionItems[carouselIndex]?.declineLabel || 'Decline'}
-                    </button>
+                    {!actionItems[carouselIndex]?.hideDecline && (
+                      <button
+                        type="button"
+                        className="notification-carousel-btn decline"
+                        onClick={actionItems[carouselIndex]?.onDecline || undefined}
+                        disabled={!actionItems[carouselIndex]?.onDecline || Boolean(actionItems[carouselIndex]?.activeAction)}
+                      >
+                        {actionItems[carouselIndex]?.activeAction === 'decline'
+                          ? 'Processing...'
+                          : actionItems[carouselIndex]?.declineLabel || 'Decline'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

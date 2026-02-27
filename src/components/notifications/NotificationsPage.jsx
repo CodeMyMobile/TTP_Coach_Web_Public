@@ -12,6 +12,23 @@ const formatLessonTime = (value) => {
   return parsed.isValid() ? parsed : null;
 };
 
+const formatLessonSummary = (lesson) => {
+  if (!lesson) {
+    return '';
+  }
+
+  const startMoment = formatLessonTime(lesson?.start_date_time);
+  const endMoment = formatLessonTime(lesson?.end_date_time);
+  const timeRange =
+    startMoment && endMoment ? `${startMoment.format('hh:mm a')} - ${endMoment.format('hh:mm a')}` : '';
+  const dateLabel = startMoment ? startMoment.format('MMM DD') : '';
+  const locationLabel = lesson?.location || '';
+
+  return [dateLabel, timeRange, locationLabel, lesson?.requested_price ? `$${lesson.requested_price}` : '']
+    .filter(Boolean)
+    .join(' · ');
+};
+
 const getErrorMessage = (error, fallbackMessage) => {
   if (typeof error?.body?.detail === 'string' && error.body.detail.trim()) {
     return error.body.detail;
@@ -26,6 +43,7 @@ const getErrorMessage = (error, fallbackMessage) => {
 
 const NotificationsPage = ({ onBack }) => {
   const [requests, setRequests] = useState([]);
+  const [awaitingPlayerItems, setAwaitingPlayerItems] = useState([]);
   const [page, setPage] = useState(1);
   const [perPage] = useState(20);
   const [count, setCount] = useState(0);
@@ -43,8 +61,17 @@ const NotificationsPage = ({ onBack }) => {
       try {
         const response = await getCoachRequests({ perPage, page: pageToLoad });
         const nextItems = Array.isArray(response?.requests) ? response.requests : [];
+        const waitingItems = Array.isArray(response?.awaiting_player_confirmation)
+          ? response.awaiting_player_confirmation
+          : [];
         setRequests(nextItems);
-        setCount(typeof response?.count === 'number' ? response.count : nextItems.length);
+        setAwaitingPlayerItems(waitingItems);
+
+        const totalCount =
+          typeof response?.breakdown?.awaiting_player_confirmation === 'number'
+            ? (response?.count || 0) + response.breakdown.awaiting_player_confirmation
+            : nextItems.length + waitingItems.length;
+        setCount(totalCount);
       } catch (err) {
         setError(getErrorMessage(err, 'Failed to load requests.'));
       } finally {
@@ -101,21 +128,10 @@ const NotificationsPage = ({ onBack }) => {
     }
   };
 
-  const resolvedCount = count || requests.length;
-  const emptyState = !loading && requests.length === 0;
-
-  const cards = useMemo(
+  const actionableCards = useMemo(
     () =>
       requests.map((item) => {
         const isLesson = item.request_type === 'lesson_request';
-        const lesson = item.lesson;
-        const startMoment = formatLessonTime(lesson?.start_date_time);
-        const endMoment = formatLessonTime(lesson?.end_date_time);
-        const createdAt = item?.created_at ? moment(item.created_at).fromNow() : '';
-        const timeRange =
-          startMoment && endMoment ? `${startMoment.format('hh:mm a')} - ${endMoment.format('hh:mm a')}` : '';
-        const dateLabel = startMoment ? startMoment.format('MMM DD') : '';
-        const locationLabel = lesson?.location || '';
 
         return {
           key: `${item.request_type}-${item.request_id}`,
@@ -123,16 +139,31 @@ const NotificationsPage = ({ onBack }) => {
           title: item?.player?.full_name || 'Player',
           subtitle: isLesson ? 'Lesson request' : 'Roster request',
           detail: isLesson
-            ? [dateLabel, timeRange, locationLabel, lesson?.requested_price ? `$${lesson.requested_price}` : '']
-                .filter(Boolean)
-                .join(' · ')
+            ? formatLessonSummary(item.lesson)
             : item?.player?.email || item?.player?.phone || 'Pending roster request',
-          createdAt,
+          createdAt: item?.created_at ? moment(item.created_at).fromNow() : '',
           approveLabel: isLesson ? 'Confirm' : 'Approve'
         };
       }),
     [requests]
   );
+
+  const awaitingCards = useMemo(
+    () =>
+      awaitingPlayerItems.map((item) => ({
+        key: `awaiting-${item.request_id}`,
+        item,
+        title: item?.player?.full_name || 'Player',
+        subtitle: 'Awaiting player confirmation',
+        detail: formatLessonSummary(item.lesson),
+        createdAt: item?.created_at ? moment(item.created_at).fromNow() : '',
+        viewUrl: item?.actions?.view || item?.actions?.endpoint || ''
+      })),
+    [awaitingPlayerItems]
+  );
+
+  const resolvedCount = count || actionableCards.length + awaitingCards.length;
+  const emptyState = !loading && actionableCards.length === 0 && awaitingCards.length === 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -175,9 +206,9 @@ const NotificationsPage = ({ onBack }) => {
 
         {emptyState && <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No pending requests.</div>}
 
-        {!loading && cards.length > 0 && (
+        {!loading && (actionableCards.length > 0 || awaitingCards.length > 0) && (
           <div className="space-y-4">
-            {cards.map(({ key, item, title, subtitle, detail, createdAt, approveLabel }) => (
+            {actionableCards.map(({ key, item, title, subtitle, detail, createdAt, approveLabel }) => (
               <div key={key} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -203,6 +234,32 @@ const NotificationsPage = ({ onBack }) => {
                     className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
                   >
                     {actionLoading[key] === 'decline' ? 'Processing...' : 'Decline'}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {awaitingCards.map(({ key, title, subtitle, detail, createdAt, viewUrl }) => (
+              <div key={key} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-amber-500">{subtitle}</p>
+                    <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+                    <p className="mt-1 text-sm text-gray-500">{detail}</p>
+                  </div>
+                  <span className="text-xs text-gray-400">{createdAt}</span>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (viewUrl) {
+                        window.open(viewUrl, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
+                    className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
+                  >
+                    View
                   </button>
                 </div>
               </div>

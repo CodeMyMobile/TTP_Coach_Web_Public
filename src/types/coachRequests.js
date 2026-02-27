@@ -26,14 +26,14 @@
 
 /**
  * @typedef {Object} CoachRequestItem
- * @property {'lesson_request' | 'roster_request'} request_type
+ * @property {'lesson_request' | 'roster_request' | 'awaiting_player_confirmation'} request_type
  * @property {number} request_id
  * @property {string} created_at
  * @property {'PENDING'} status
  * @property {{ id: number, full_name: string, phone?: string, email?: string }} player
  * @property {LessonRequestPayload=} lesson
  * @property {RosterRequestPayload=} roster
- * @property {{ endpoint?: string, method?: 'PATCH', confirm?: string, approve?: string, decline?: string }} actions
+ * @property {{ endpoint?: string, method?: 'PATCH' | 'GET', confirm?: string, approve?: string, decline?: string, view?: string }} actions
  */
 
 export {};
