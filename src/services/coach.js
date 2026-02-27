@@ -314,7 +314,7 @@ export const updateCoachPlayer = ({ playerId, status = 'PENDING', discountPercen
   }
 
   return request(`/coach/players/${playerId}`, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };
@@ -325,7 +325,7 @@ export const updateCoachLesson = (lessonId, payload) => {
   }
 
   return request(`/coach/lesson/${lessonId}`, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };
@@ -352,7 +352,7 @@ export const updateCoachPlayerGroup = (groupId, payload = {}) => {
   }
 
   return request(`/coach/player-groups/${groupId}`, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };
@@ -392,7 +392,7 @@ export const updateCoachAvailability = (scheduleId, payload = {}) => {
   }
 
   return request(`/coach/schedule/${scheduleId}`, {
-    method: 'PATCH',
+    method,
     body: buildSchedulePayload(payload)
   });
 };
@@ -415,6 +415,71 @@ export const deleteCoachAvailability = (availabilityId) => {
 
   return request(`/coach/schedule/${availabilityId}`, {
     method: 'DELETE'
+  });
+};
+
+
+export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
+  const params = new URLSearchParams();
+
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query ? `/coach/requests?${query}` : '/coach/requests';
+  return request(path);
+};
+
+const resolveRequestType = (type) => {
+  if (type === 'lesson') {
+    return 'lesson_request';
+  }
+
+  if (type === 'roster') {
+    return 'roster_request';
+  }
+
+  return type;
+};
+
+export const patchCoachRequest = ({
+  requestType,
+  requestId,
+  action,
+  status,
+  endpoint,
+  method = 'PATCH'
+} = {}) => {
+  if (!requestType) {
+    throw new Error('A request type is required to update a coach request.');
+  }
+
+  if (!requestId) {
+    throw new Error('A request id is required to update a coach request.');
+  }
+
+  const payload = action ? { action } : status ? { status } : null;
+
+  if (!payload) {
+    throw new Error('Either an action or status is required to update a coach request.');
+  }
+  const resolvedType = resolveRequestType(requestType);
+  const fallbackPath = `/coach/requests/${resolvedType}/${requestId}`;
+
+  const normalizedEndpoint = endpoint
+    ? endpoint.startsWith('/api')
+      ? endpoint.replace('/api', '')
+      : endpoint
+    : fallbackPath;
+
+  return request(normalizedEndpoint, {
+    method,
+    body: payload
   });
 };
 
@@ -477,6 +542,8 @@ export default {
   deleteCoachPlayerGroup,
   getCoachAvailability,
   deleteCoachAvailability,
+  getCoachRequests,
+  patchCoachRequest,
   getCoachStats,
   getGoogleCalendarSyncedEvents,
   sendLessonInvites,
