@@ -346,6 +346,35 @@ const normalizeCoachRequestType = (type) => {
   return normalized;
 };
 
+const normalizeCoachRequestEndpoint = (endpoint) => {
+  if (!endpoint || typeof endpoint !== 'string') {
+    return '';
+  }
+
+  let value = endpoint.trim();
+  if (!value) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      value = new URL(value).pathname || '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  if (!value.startsWith('/')) {
+    value = `/${value}`;
+  }
+
+  if (value.startsWith('/api/')) {
+    return value.slice(4);
+  }
+
+  return value;
+};
+
 export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
   const params = new URLSearchParams();
 
@@ -368,7 +397,8 @@ export const updateCoachRequest = ({ requestType, requestId, endpoint, action, s
   }
 
   const normalizedType = normalizeCoachRequestType(requestType);
-  const resolvedEndpoint = endpoint || `/coach/requests/${normalizedType}/${requestId}`;
+  const normalizedEndpoint = normalizeCoachRequestEndpoint(endpoint);
+  const resolvedEndpoint = normalizedEndpoint || `/coach/requests/${normalizedType}/${requestId}`;
 
   if (!action && !status) {
     throw new Error('Either action or status is required to update a coach request.');
