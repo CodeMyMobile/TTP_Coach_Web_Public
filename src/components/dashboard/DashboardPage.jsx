@@ -16,7 +16,12 @@ import {
   Users,
   MapPin
 } from 'lucide-react';
-import { getActivePlayerPackages, updateCoachPlayer } from '../../services/coach';
+import {
+  getActivePlayerPackages,
+  getCoachRequests,
+  updateCoachPlayer,
+  updateCoachRequest
+} from '../../services/coach';
 import StatsSummary from './sections/StatsSummary';
 import CalendarSection from './sections/CalendarSection';
 import StudentsSection from './sections/StudentsSection';
@@ -277,6 +282,19 @@ const formatRelativeNotificationTime = (value) => {
   return time.fromNow();
 };
 
+const getRequestErrorMessage = (error, fallbackMessage) => {
+  const apiDetail = error?.body?.detail;
+  if (typeof apiDetail === 'string' && apiDetail.trim()) {
+    return apiDetail;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+};
+
 const isGroupLessonType = (lesson) => {
   const lessonTypeId = getLessonTypeId(lesson);
   if (lessonTypeId === 3) {
@@ -475,6 +493,14 @@ const DashboardPage = ({
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
+  const [requestItems, setRequestItems] = useState([]);
+  const [requestsPage, setRequestsPage] = useState(1);
+  const [requestsPerPage] = useState(20);
+  const [requestsCount, setRequestsCount] = useState(0);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsError, setRequestsError] = useState(null);
+  const [requestActionLoading, setRequestActionLoading] = useState({});
+  const [requestFeedback, setRequestFeedback] = useState(null);
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
   const settingsMenuRef = useRef(null);
@@ -598,6 +624,90 @@ const DashboardPage = ({
       setLocationAction({ type: 'error', message: result.error });
     }
   }, [onDeleteLocation]);
+
+  const fetchCoachRequestItems = useCallback(
+    async ({ page = requestsPage, silent = false } = {}) => {
+      if (!silent) {
+        setRequestsLoading(true);
+      }
+      setRequestsError(null);
+
+      try {
+        const response = await getCoachRequests({ perPage: requestsPerPage, page });
+        const list = Array.isArray(response?.requests) ? response.requests : [];
+        setRequestItems(list);
+        setRequestsCount(typeof response?.count === 'number' ? response.count : list.length);
+      } catch (error) {
+        setRequestsError(getRequestErrorMessage(error, 'Failed to load requests.'));
+      } finally {
+        if (!silent) {
+          setRequestsLoading(false);
+        }
+      }
+    },
+    [requestsPage, requestsPerPage]
+  );
+
+  useEffect(() => {
+    fetchCoachRequestItems({ page: requestsPage });
+  }, [fetchCoachRequestItems, requestsPage]);
+
+  const handleRequestAction = useCallback(async (requestItem, action) => {
+    if (!requestItem?.request_id || !action) {
+      return;
+    }
+
+    const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
+    const existingIndex = requestItems.findIndex(
+      (item) => item.request_id === requestItem.request_id && item.request_type === requestItem.request_type
+    );
+    const rollbackItem = existingIndex >= 0 ? requestItems[existingIndex] : null;
+
+    setRequestActionLoading((previous) => ({ ...previous, [actionKey]: action }));
+    setRequestItems((previous) =>
+      previous.filter(
+        (item) => !(item.request_id === requestItem.request_id && item.request_type === requestItem.request_type)
+      )
+    );
+    setRequestsCount((previous) => Math.max(previous - 1, 0));
+
+    try {
+      await updateCoachRequest({
+        requestType: requestItem.request_type,
+        requestId: requestItem.request_id,
+        endpoint: requestItem?.actions?.endpoint,
+        action
+      });
+    } catch (error) {
+      const status = Number(error?.status);
+
+      if (status === 404) {
+        setRequestFeedback({ type: 'warning', message: 'Request no longer available.' });
+        fetchCoachRequestItems({ page: requestsPage, silent: true });
+      } else if (status === 409) {
+        fetchCoachRequestItems({ page: requestsPage, silent: true });
+      } else {
+        if (rollbackItem) {
+          setRequestItems((previous) => {
+            const next = [...previous];
+            next.splice(Math.max(existingIndex, 0), 0, rollbackItem);
+            return next;
+          });
+          setRequestsCount((previous) => previous + 1);
+        }
+        setRequestFeedback({
+          type: 'error',
+          message: getRequestErrorMessage(error, 'Failed to update request.')
+        });
+      }
+    } finally {
+      setRequestActionLoading((previous) => {
+        const next = { ...previous };
+        delete next[actionKey];
+        return next;
+      });
+    }
+  }, [fetchCoachRequestItems, requestItems, requestsPage]);
 
 
   useEffect(() => {
@@ -726,109 +836,29 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showSettingsMenu]);
 
-  const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
-  const actionablePendingLessons = pendingLessons.filter((lesson) => !isGroupLessonType(lesson));
-  const collapsedPendingLessons = actionablePendingLessons.reduce((accumulator, lesson) => {
-    const lessonTypeId = getLessonTypeId(lesson);
-    if (lessonTypeId !== 2) {
-      accumulator.push(lesson);
-      return accumulator;
-    }
+  const actionItems = requestItems.map((requestItem, index) => {
+    const isLessonRequest = requestItem.request_type === 'lesson_request';
+    const lesson = requestItem.lesson;
+    const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
+    const activeAction = requestActionLoading[actionKey] || null;
 
-    const mergeKey = getLessonMergeKey(lesson);
-    const existing = accumulator.find(
-      (entry) => entry.__alertMergeType === 'semi-private' && entry.__alertMergeKey === mergeKey
-    );
-
-    if (!existing) {
-      accumulator.push({
-        ...lesson,
-        __alertMergeType: 'semi-private',
-        __alertMergeKey: mergeKey,
-        __alertInvitedNames: getPendingInvitationNames(lesson)
-      });
-      return accumulator;
-    }
-
-    const mergedInvitedNames = [
-      ...(Array.isArray(existing.__alertInvitedNames) ? existing.__alertInvitedNames : []),
-      ...getPendingInvitationNames(lesson)
-    ];
-    existing.__alertInvitedNames = [...new Set(mergedInvitedNames)];
-
-    return accumulator;
-  }, []);
-  const rosterRequests = normalizedStudents.filter(
-    (student) => student.isPlayerRequest && !student.isConfirmed
-  );
-  const actionItems = [
-    ...rosterRequests.map((student) => ({
-      id: `roster-${student.id}`,
-      type: 'roster',
-      name: student.name || 'Student',
-      detail: 'wants to join your roster',
-      info: student.email || student.phone || 'Pending roster request',
-      timestamp: student.created_at || student.createdAt || null,
-      avatarUrl: student.avatar || '',
-      onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
-      onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
-    })),
-    ...collapsedPendingLessons.map((lesson, index) => {
-      const createdById = Number(lesson.created_by ?? lesson.createdBy);
-      const lessonCoachId = Number(lesson.coach_id ?? lesson.coachId);
-      const profileCoachId = Number(profile?.id ?? profile?.coach_id ?? profile?.coachId ?? profile?.user_id ?? profile?.userId);
-      const resolvedCoachId = Number.isFinite(lessonCoachId)
-        ? lessonCoachId
-        : Number.isFinite(profileCoachId)
-          ? profileCoachId
-          : null;
-      const playerId = Number(lesson.player_id ?? lesson.playerId);
-      const isCoachCreatedLesson =
-        Number.isFinite(createdById) && Number.isFinite(resolvedCoachId) && createdById === resolvedCoachId;
-      const isPlayerRequestedLesson =
-        Number.isFinite(createdById) && Number.isFinite(playerId) && createdById === playerId;
-      const lessonTypeId = getLessonTypeId(lesson);
-      const lessonTypeLabel =
-        lesson.lesson_type_name ||
-        lesson.lessonTypeName ||
-        (lessonTypeId === 1
-          ? 'Private'
-          : lessonTypeId === 2
-            ? 'Semi Private'
-            : lessonTypeId === 3
-              ? 'Open Group'
-              : '');
-      const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
-      const semiPrivateInvitedNames = Array.isArray(lesson.__alertInvitedNames)
-        ? lesson.__alertInvitedNames
-        : getPendingInvitationNames(lesson);
-      const isMergedSemiPrivateAlert = lessonTypeId === 2 && semiPrivateInvitedNames.length > 0;
-      const hasSingleInvitedPlayer = semiPrivateInvitedNames.length === 1;
-      const semiPrivatePlayersLabel = hasSingleInvitedPlayer
-        ? `Player ${semiPrivateInvitedNames[0]}`
-        : `Players ${semiPrivateInvitedNames.join(', ')}`;
-
-      return {
-        id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
-        type: 'lesson',
-        name: isMergedSemiPrivateAlert ? semiPrivatePlayersLabel : getLessonActionName(lesson),
-        detail: isMergedSemiPrivateAlert
-          ? `${hasSingleInvitedPlayer ? 'has' : 'have'} been invited to a semi-private lesson`
-          : isCoachCreatedLesson
-            ? `${detailPrefix.toLowerCase()} created by coach`
-            : isPlayerRequestedLesson
-              ? `${detailPrefix.toLowerCase()} requested by player`
-              : `${detailPrefix.toLowerCase()} request`,
-        info: formatLessonInfo(lesson),
-        timestamp: lesson.created_at || lesson.createdAt || lesson.updated_at || lesson.updatedAt || null,
-        avatarUrl: lesson.profile_url || lesson.profile_picture || '',
-        onAccept: isPlayerRequestedLesson ? () => onLessonSelect(lesson) : null,
-        onDecline: () => onLessonSelect(lesson),
-        acceptLabel: isPlayerRequestedLesson ? 'Confirm' : '',
-        declineLabel: 'Cancel Lesson'
-      };
-    })
-  ];
+    return {
+      id: `${requestItem.request_type}-${requestItem.request_id}-${index}`,
+      type: isLessonRequest ? 'lesson' : 'roster',
+      name: requestItem?.player?.full_name || 'Player',
+      detail: isLessonRequest ? 'requested a lesson' : 'wants to join your roster',
+      info: isLessonRequest
+        ? formatLessonInfo(lesson)
+        : requestItem?.player?.email || requestItem?.player?.phone || 'Pending roster request',
+      timestamp: requestItem.created_at,
+      avatarUrl: '',
+      acceptLabel: isLessonRequest ? 'Confirm' : 'Approve',
+      declineLabel: 'Decline',
+      activeAction,
+      onAccept: () => handleRequestAction(requestItem, isLessonRequest ? 'confirm' : 'approve'),
+      onDecline: () => handleRequestAction(requestItem, 'decline')
+    };
+  });
   const notificationItems = actionItems;
 
   useEffect(() => {
@@ -843,11 +873,13 @@ const DashboardPage = ({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {mutationError && (
+      {(mutationError || requestFeedback || requestsError) && (
         <div className="border-b border-red-200 bg-red-50">
           <div className="mx-auto flex max-w-7xl items-center space-x-2 px-4 py-3 text-sm text-red-700">
             <AlertCircle className="h-4 w-4" />
-            <span>{mutationError.message || 'An unexpected error occurred. Please try again.'}</span>
+            <span>
+              {requestFeedback?.message || requestsError || mutationError?.message || 'An unexpected error occurred. Please try again.'}
+            </span>
           </div>
         </div>
       )}
@@ -948,14 +980,22 @@ const DashboardPage = ({
                 {showNotificationsDropdown && (
                   <div className="notification-dropdown">
                     <div className="notification-dropdown-header">
-                      <span className="notification-dropdown-title">Notifications</span>
-                      <button type="button" className="notification-mark-read">
-                        Mark all read
+                      <span className="notification-dropdown-title">Requests ({requestsCount})</span>
+                      <button
+                        type="button"
+                        className="notification-mark-read"
+                        onClick={() => fetchCoachRequestItems({ page: requestsPage })}
+                        disabled={requestsLoading}
+                      >
+                        {requestsLoading ? "Reloading..." : "Reload"}
                       </button>
                     </div>
                     <div className="notification-dropdown-body">
-                      {notificationItems.length === 0 && (
-                        <div className="notification-empty">You&apos;re all caught up.</div>
+                      {requestsLoading && (
+                        <div className="notification-empty">Loading requests...</div>
+                      )}
+                      {!requestsLoading && notificationItems.length === 0 && (
+                        <div className="notification-empty">No pending requests.</div>
                       )}
                       {notificationItems.map((item) => (
                         <div key={item.id} className="notification-item notification-item-unread">
@@ -977,18 +1017,20 @@ const DashboardPage = ({
                                   type="button"
                                   className="notification-btn approve"
                                   onClick={item.onAccept || undefined}
-                                  disabled={!item.onAccept}
+                                  disabled={!item.onAccept || Boolean(item.activeAction)}
                                 >
-                                  {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                                  {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                                    ? 'Processing...'
+                                    : item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
                                 </button>
                               )}
                               <button
                                 type="button"
                                 className="notification-btn decline"
                                 onClick={item.onDecline || undefined}
-                                disabled={!item.onDecline}
+                                disabled={!item.onDecline || Boolean(item.activeAction)}
                               >
-                                {item.declineLabel || 'Decline'}
+                                {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
                               </button>
                             </div>
                             <div className="notification-time">{formatRelativeNotificationTime(item.timestamp)}</div>
@@ -997,8 +1039,24 @@ const DashboardPage = ({
                       ))}
                     </div>
                     <div className="notification-dropdown-footer">
+                      <button
+                        type="button"
+                        className="notification-view-all"
+                        onClick={() => setRequestsPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={requestsPage <= 1 || requestsLoading}
+                      >
+                        Prev
+                      </button>
                       <button type="button" className="notification-view-all" onClick={onOpenNotifications}>
                         View all notifications
+                      </button>
+                      <button
+                        type="button"
+                        className="notification-view-all"
+                        onClick={() => setRequestsPage((prev) => prev + 1)}
+                        disabled={requestsLoading || requestsPage * requestsPerPage >= requestsCount}
+                      >
+                        Next
                       </button>
                     </div>
                   </div>
@@ -1142,7 +1200,7 @@ const DashboardPage = ({
               <div className="action-alert-left">
                 <span className="action-alert-icon">⚡</span>
                 <span className="action-alert-text">
-                  <strong>{actionItems.length} items</strong> need attention
+                  <strong>{requestsCount || actionItems.length} items</strong> need attention
                 </span>
               </div>
               <div className="action-alert-items">
@@ -1160,18 +1218,20 @@ const DashboardPage = ({
                           type="button"
                           className="action-alert-btn approve"
                           onClick={item.onAccept || undefined}
-                          disabled={!item.onAccept}
+                          disabled={!item.onAccept || Boolean(item.activeAction)}
                         >
-                          {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                          {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                          ? 'Processing...'
+                          : item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
                         </button>
                       )}
                       <button
                         type="button"
                         className="action-alert-btn decline"
                         onClick={item.onDecline || undefined}
-                        disabled={!item.onDecline}
+                        disabled={!item.onDecline || Boolean(item.activeAction)}
                       >
-                        {item.declineLabel || 'Decline'}
+                        {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
                       </button>
                     </div>
                   </div>
@@ -1189,7 +1249,7 @@ const DashboardPage = ({
               <div className="notification-carousel-header">
                 <div className="notification-carousel-title">
                   <span className="notification-carousel-icon">⚡</span>
-                  <span>{actionItems.length} items need attention</span>
+                  <span>{requestsCount || actionItems.length} items need attention</span>
                 </div>
                 <button
                   type="button"
@@ -1230,9 +1290,12 @@ const DashboardPage = ({
                         type="button"
                         className="notification-carousel-btn approve"
                         onClick={actionItems[carouselIndex]?.onAccept || undefined}
-                        disabled={!actionItems[carouselIndex]?.onAccept}
+                        disabled={!actionItems[carouselIndex]?.onAccept || Boolean(actionItems[carouselIndex]?.activeAction)}
                       >
-                        {actionItems[carouselIndex]?.acceptLabel ||
+                        {actionItems[carouselIndex]?.activeAction === 'confirm' ||
+                        actionItems[carouselIndex]?.activeAction === 'approve'
+                          ? 'Processing...'
+                          : actionItems[carouselIndex]?.acceptLabel ||
                           (actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept')}
                       </button>
                     )}
@@ -1240,9 +1303,11 @@ const DashboardPage = ({
                       type="button"
                       className="notification-carousel-btn decline"
                       onClick={actionItems[carouselIndex]?.onDecline || undefined}
-                      disabled={!actionItems[carouselIndex]?.onDecline}
+                      disabled={!actionItems[carouselIndex]?.onDecline || Boolean(actionItems[carouselIndex]?.activeAction)}
                     >
-                      {actionItems[carouselIndex]?.declineLabel || 'Decline'}
+                      {actionItems[carouselIndex]?.activeAction === 'decline'
+                        ? 'Processing...'
+                        : actionItems[carouselIndex]?.declineLabel || 'Decline'}
                     </button>
                   </div>
                 </div>
