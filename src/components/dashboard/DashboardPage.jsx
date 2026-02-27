@@ -890,6 +890,22 @@ const DashboardPage = ({
 
   const actionItems = [...actionableItems, ...awaitingItems];
   const notificationItems = actionItems;
+  const canGoToPrevRequestPage = requestsPage > 1;
+  const canGoToNextRequestPage = !requestsLoading && requestsPage * requestsPerPage < requestsCount;
+
+  const goToPrevRequestPage = useCallback(() => {
+    if (!canGoToPrevRequestPage || requestsLoading) {
+      return;
+    }
+    setRequestsPage((prev) => Math.max(prev - 1, 1));
+  }, [canGoToPrevRequestPage, requestsLoading]);
+
+  const goToNextRequestPage = useCallback(() => {
+    if (!canGoToNextRequestPage || requestsLoading) {
+      return;
+    }
+    setRequestsPage((prev) => prev + 1);
+  }, [canGoToNextRequestPage, requestsLoading]);
 
   useEffect(() => {
     if (actionItems.length > 0) {
@@ -900,6 +916,32 @@ const DashboardPage = ({
   useEffect(() => {
     setCarouselIndex(0);
   }, [actionItems.length]);
+
+  useEffect(() => {
+    if (dismissedActionBar || actionItems.length === 0) {
+      return;
+    }
+
+    const handleArrowPagination = (event) => {
+      const targetTag = event.target?.tagName?.toLowerCase?.();
+      if (targetTag === 'input' || targetTag === 'textarea') {
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goToNextRequestPage();
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goToPrevRequestPage();
+      }
+    };
+
+    window.addEventListener('keydown', handleArrowPagination);
+    return () => window.removeEventListener('keydown', handleArrowPagination);
+  }, [actionItems.length, dismissedActionBar, goToNextRequestPage, goToPrevRequestPage]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1074,8 +1116,8 @@ const DashboardPage = ({
                       <button
                         type="button"
                         className="notification-view-all"
-                        onClick={() => setRequestsPage((prev) => Math.max(prev - 1, 1))}
-                        disabled={requestsPage <= 1 || requestsLoading}
+                        onClick={goToPrevRequestPage}
+                        disabled={!canGoToPrevRequestPage || requestsLoading}
                       >
                         Prev
                       </button>
@@ -1085,8 +1127,8 @@ const DashboardPage = ({
                       <button
                         type="button"
                         className="notification-view-all"
-                        onClick={() => setRequestsPage((prev) => prev + 1)}
-                        disabled={requestsLoading || requestsPage * requestsPerPage >= requestsCount}
+                        onClick={goToNextRequestPage}
+                        disabled={!canGoToNextRequestPage}
                       >
                         Next
                       </button>
@@ -1296,6 +1338,25 @@ const DashboardPage = ({
                   </div>
                 ))}
               </div>
+              <div className="notif-pagination">
+                <button
+                  type="button"
+                  className="notif-page-btn"
+                  onClick={goToPrevRequestPage}
+                  disabled={!canGoToPrevRequestPage || requestsLoading}
+                >
+                  ← Prev
+                </button>
+                <span className="notif-page-indicator">Page {requestsPage}</span>
+                <button
+                  type="button"
+                  className="notif-page-btn"
+                  onClick={goToNextRequestPage}
+                  disabled={!canGoToNextRequestPage}
+                >
+                  Next →
+                </button>
+              </div>
             </div>
 
             <div className="notif-banner mobile-notif-banner">
@@ -1365,6 +1426,25 @@ const DashboardPage = ({
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="notif-pagination">
+                <button
+                  type="button"
+                  className="notif-page-btn"
+                  onClick={goToPrevRequestPage}
+                  disabled={!canGoToPrevRequestPage || requestsLoading}
+                >
+                  ← Prev
+                </button>
+                <span className="notif-page-indicator">Page {requestsPage}</span>
+                <button
+                  type="button"
+                  className="notif-page-btn"
+                  onClick={goToNextRequestPage}
+                  disabled={!canGoToNextRequestPage}
+                >
+                  Next →
+                </button>
               </div>
             </div>
           </div>
