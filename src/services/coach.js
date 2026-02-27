@@ -314,7 +314,7 @@ export const updateCoachPlayer = ({ playerId, status = 'PENDING', discountPercen
   }
 
   return request(`/coach/players/${playerId}`, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };
@@ -325,7 +325,7 @@ export const updateCoachLesson = (lessonId, payload) => {
   }
 
   return request(`/coach/lesson/${lessonId}`, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };
@@ -352,7 +352,7 @@ export const updateCoachPlayerGroup = (groupId, payload = {}) => {
   }
 
   return request(`/coach/player-groups/${groupId}`, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };
@@ -392,7 +392,7 @@ export const updateCoachAvailability = (scheduleId, payload = {}) => {
   }
 
   return request(`/coach/schedule/${scheduleId}`, {
-    method: 'PATCH',
+    method,
     body: buildSchedulePayload(payload)
   });
 };
@@ -452,7 +452,8 @@ export const patchCoachRequest = ({
   requestId,
   action,
   status,
-  endpoint
+  endpoint,
+  method = 'PATCH'
 } = {}) => {
   if (!requestType) {
     throw new Error('A request type is required to update a coach request.');
@@ -462,7 +463,11 @@ export const patchCoachRequest = ({
     throw new Error('A request id is required to update a coach request.');
   }
 
-  const payload = action ? { action } : { status };
+  const payload = action ? { action } : status ? { status } : null;
+
+  if (!payload) {
+    throw new Error('Either an action or status is required to update a coach request.');
+  }
   const resolvedType = resolveRequestType(requestType);
   const fallbackPath = `/coach/requests/${resolvedType}/${requestId}`;
 
@@ -473,7 +478,7 @@ export const patchCoachRequest = ({
     : fallbackPath;
 
   return request(normalizedEndpoint, {
-    method: 'PATCH',
+    method,
     body: payload
   });
 };

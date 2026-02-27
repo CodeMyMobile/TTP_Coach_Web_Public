@@ -39,6 +39,21 @@ const formatLessonTime = (value) => {
   return parsed.isValid() ? parsed : null;
 };
 
+
+const getRequestActionEndpoint = (item, action) => {
+  const actions = item?.actions || {};
+
+  if (typeof actions[action] === 'string' && actions[action].trim()) {
+    return actions[action];
+  }
+
+  if (typeof actions.endpoint === 'string' && actions.endpoint.trim()) {
+    return actions.endpoint;
+  }
+
+  return null;
+};
+
 const getErrorMessage = (error, fallback) => {
   if (error?.body?.detail) {
     return error.body.detail;
@@ -137,7 +152,8 @@ const NotificationsPage = ({ onBack }) => {
         requestType: item.request_type,
         requestId: item.request_id,
         action,
-        endpoint: item?.actions?.endpoint || getFallbackEndpoint(item)
+        endpoint: getRequestActionEndpoint(item, action) || getFallbackEndpoint(item),
+        method: item?.actions?.method || 'PATCH'
       });
     } catch (actionError) {
       const status = actionError?.status;

@@ -289,6 +289,21 @@ const dedupeRequests = (items = []) => {
 };
 
 
+
+const getRequestActionEndpoint = (item, action) => {
+  const actions = item?.actions || {};
+
+  if (typeof actions[action] === 'string' && actions[action].trim()) {
+    return actions[action];
+  }
+
+  if (typeof actions.endpoint === 'string' && actions.endpoint.trim()) {
+    return actions.endpoint;
+  }
+
+  return undefined;
+};
+
 const isActionableCoachRequest = (item) => {
   const requestType = String(item?.request_type || '').toLowerCase();
   const status = String(item?.status || 'PENDING').toUpperCase();
@@ -664,7 +679,8 @@ const DashboardPage = ({
         requestType: item.request_type,
         requestId: item.request_id,
         action,
-        endpoint: item?.actions?.endpoint
+        endpoint: getRequestActionEndpoint(item, action),
+        method: item?.actions?.method || 'PATCH'
       });
     } catch (error) {
       if (error?.status === 404) {
