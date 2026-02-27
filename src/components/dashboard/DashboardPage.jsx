@@ -288,6 +288,14 @@ const dedupeRequests = (items = []) => {
   return [...map.values()];
 };
 
+
+const isActionableCoachRequest = (item) => {
+  const requestType = String(item?.request_type || '').toLowerCase();
+  const status = String(item?.status || 'PENDING').toUpperCase();
+
+  return status === 'PENDING' && (requestType === 'lesson_request' || requestType === 'roster_request');
+};
+
 const formatRelativeNotificationTime = (value) => {
   if (!value) {
     return 'Recently';
@@ -633,8 +641,8 @@ const DashboardPage = ({
         : Array.isArray(response?.requests)
           ? response.requests
           : [];
-      const pendingOnly = requestItems.filter((item) => String(item?.status || 'PENDING').toUpperCase() === 'PENDING');
-      setCoachRequests(dedupeRequests(pendingOnly));
+      const actionableRequests = requestItems.filter(isActionableCoachRequest);
+      setCoachRequests(dedupeRequests(actionableRequests));
     } catch (error) {
       console.error('Failed to load coach requests', error);
     }
