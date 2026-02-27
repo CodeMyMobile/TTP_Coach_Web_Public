@@ -1227,165 +1227,147 @@ const DashboardPage = ({
         </div>
 
         {actionItems.length > 0 && !dismissedActionBar && (
-          <>
-            <div className="action-alert-bar">
-              <div className="action-alert-left">
-                <span className="action-alert-icon">⚡</span>
-                <span className="action-alert-text">
-                  <strong>{requestsCount || actionItems.length} items</strong> need attention
-                </span>
+          <div className="requests-alert-shell">
+            <div className="notif-banner desktop-notif-banner">
+              <div className="notif-header">
+                <div className="notif-title">
+                  <span>⚡</span>
+                  <span>Requests</span>
+                  <span className="notif-count">{requestsCount || actionItems.length}</span>
+                </div>
+                <button
+                  type="button"
+                  className="notif-dismiss"
+                  onClick={() => setDismissedActionBar(true)}
+                >
+                  ×
+                </button>
               </div>
-              <div className="action-alert-items">
+              <div className="notif-body desktop-requests-list">
                 {actionItems.map((item) => (
-                  <div key={item.id} className="action-alert-item">
-                    <div className="action-alert-text-group">
-                      <span className="action-alert-primary">
-                        {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
-                      </span>
-                      {item.info && <span className="action-alert-info">{item.info}</span>}
+                  <div key={item.id} className="request-card">
+                    <div className="request-top">
+                      <div className="request-row">
+                        <div className="request-avatar">{getInitials(item.name)}</div>
+                        <div className="request-info">
+                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : 'roster'}`}>
+                            {item.type === 'lesson' ? '🎾 Lesson Request' : '👤 Roster Request'}
+                          </div>
+                          <div className="request-name">{item.name}</div>
+                          {item.info && <div className="request-meta">{item.info}</div>}
+                        </div>
+                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : 'roster'}`}>
+                          {item.type === 'lesson' ? 'Lesson' : 'Roster'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="action-alert-buttons">
-                      {item.acceptLabel !== '' && (
-                        <button
-                          type="button"
-                          className="action-alert-btn approve"
-                          onClick={item.onAccept || undefined}
-                          disabled={!item.onAccept || Boolean(item.activeAction)}
-                        >
-                          {item.activeAction === 'confirm' || item.activeAction === 'approve'
-                          ? 'Processing...'
-                          : item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
-                        </button>
-                      )}
+                    <div className="request-actions">
+                      <button
+                        type="button"
+                        className="action-btn details"
+                        onClick={item.onAccept || undefined}
+                        disabled={!item.onAccept || Boolean(item.activeAction)}
+                      >
+                        Details
+                      </button>
                       {!item.hideDecline && (
                         <button
                           type="button"
-                          className="action-alert-btn decline"
+                          className="action-btn decline"
                           onClick={item.onDecline || undefined}
                           disabled={!item.onDecline || Boolean(item.activeAction)}
                         >
                           {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
                         </button>
                       )}
+                      {item.acceptLabel !== '' && (
+                        <button
+                          type="button"
+                          className={`action-btn ${item.acceptLabel === 'Approve' ? 'approve' : 'confirm'}`}
+                          onClick={item.onAccept || undefined}
+                          disabled={!item.onAccept || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                            ? 'Processing...'
+                            : `✓ ${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-              <button
-                type="button"
-                className="action-alert-dismiss"
-                onClick={() => setDismissedActionBar(true)}
-              >
-                ×
-              </button>
             </div>
-            <div className="notification-carousel">
-              <div className="notification-carousel-header">
-                <div className="notification-carousel-title">
-                  <span className="notification-carousel-icon">⚡</span>
-                  <span>{requestsCount || actionItems.length} items need attention</span>
+
+            <div className="notif-banner mobile-notif-banner">
+              <div className="notif-header">
+                <div className="notif-title">
+                  <span>⚡</span>
+                  <span>Requests</span>
+                  <span className="notif-count">{requestsCount || actionItems.length}</span>
                 </div>
                 <button
                   type="button"
-                  className="notification-carousel-dismiss"
+                  className="notif-dismiss"
                   onClick={() => setDismissedActionBar(true)}
                 >
                   ×
                 </button>
               </div>
-              {actionItems.length > 0 && (
-                <div className="notification-carousel-card">
-                  <div className="notification-carousel-meta">
-                    <div className="notification-carousel-avatar">
-                      {(actionItems[carouselIndex]?.name || 'N')
-                        .split(' ')
-                        .map((part) => part[0])
-                        .join('')
-                        .slice(0, 2)
-                        .toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="notification-carousel-name">
-                        {actionItems[carouselIndex]?.name}
-                      </div>
-                      <div className="notification-carousel-detail">
-                        {actionItems[carouselIndex]?.detail}
-                      </div>
-                      {actionItems[carouselIndex]?.info && (
-                        <div className="notification-carousel-info">
-                          {actionItems[carouselIndex]?.info}
+              <div className="notif-body">
+                {actionItems.map((item) => (
+                  <div key={`mobile-${item.id}`} className="request-card">
+                    <div className="request-top">
+                      <div className="request-row">
+                        <div className="request-avatar">{getInitials(item.name)}</div>
+                        <div className="request-info">
+                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : 'roster'}`}>
+                            {item.type === 'lesson' ? '🎾 Lesson' : '👤 Roster'}
+                          </div>
+                          <div className="request-name">{item.name}</div>
+                          {item.info && <div className="request-meta">{item.info}</div>}
                         </div>
+                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : 'roster'}`}>
+                          {item.type === 'lesson' ? 'New' : 'Roster'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="request-actions">
+                      <button
+                        type="button"
+                        className="action-btn details"
+                        onClick={item.onAccept || undefined}
+                        disabled={!item.onAccept || Boolean(item.activeAction)}
+                      >
+                        Details
+                      </button>
+                      {!item.hideDecline && (
+                        <button
+                          type="button"
+                          className="action-btn decline"
+                          onClick={item.onDecline || undefined}
+                          disabled={!item.onDecline || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
+                        </button>
+                      )}
+                      {item.acceptLabel !== '' && (
+                        <button
+                          type="button"
+                          className={`action-btn ${item.acceptLabel === 'Approve' ? 'approve' : 'confirm'}`}
+                          onClick={item.onAccept || undefined}
+                          disabled={!item.onAccept || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                            ? 'Processing...'
+                            : `✓ ${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
+                        </button>
                       )}
                     </div>
                   </div>
-                  <div className="notification-carousel-actions">
-                    {actionItems[carouselIndex]?.acceptLabel !== '' && (
-                      <button
-                        type="button"
-                        className="notification-carousel-btn approve"
-                        onClick={actionItems[carouselIndex]?.onAccept || undefined}
-                        disabled={!actionItems[carouselIndex]?.onAccept || Boolean(actionItems[carouselIndex]?.activeAction)}
-                      >
-                        {actionItems[carouselIndex]?.activeAction === 'confirm' ||
-                        actionItems[carouselIndex]?.activeAction === 'approve'
-                          ? 'Processing...'
-                          : actionItems[carouselIndex]?.acceptLabel ||
-                          (actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept')}
-                      </button>
-                    )}
-                    {!actionItems[carouselIndex]?.hideDecline && (
-                      <button
-                        type="button"
-                        className="notification-carousel-btn decline"
-                        onClick={actionItems[carouselIndex]?.onDecline || undefined}
-                        disabled={!actionItems[carouselIndex]?.onDecline || Boolean(actionItems[carouselIndex]?.activeAction)}
-                      >
-                        {actionItems[carouselIndex]?.activeAction === 'decline'
-                          ? 'Processing...'
-                          : actionItems[carouselIndex]?.declineLabel || 'Decline'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className="notification-carousel-controls">
-                <button
-                  type="button"
-                  className="notification-carousel-nav"
-                  onClick={() =>
-                    setCarouselIndex((prev) =>
-                      prev === 0 ? actionItems.length - 1 : prev - 1
-                    )
-                  }
-                >
-                  ‹
-                </button>
-                <div className="notification-carousel-dots">
-                  {actionItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`notification-carousel-dot ${
-                        index === carouselIndex ? 'active' : ''
-                      }`}
-                      onClick={() => setCarouselIndex(index)}
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="notification-carousel-nav"
-                  onClick={() =>
-                    setCarouselIndex((prev) =>
-                      prev === actionItems.length - 1 ? 0 : prev + 1
-                    )
-                  }
-                >
-                  ›
-                </button>
+                ))}
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {dashboardTab === 'calendar' && (
