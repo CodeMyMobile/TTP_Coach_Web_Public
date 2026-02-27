@@ -330,6 +330,88 @@ export const updateCoachLesson = (lessonId, payload) => {
   });
 };
 
+const normalizeCoachRequestType = (type) => {
+  if (!type) {
+    return 'lesson_request';
+  }
+
+  const normalized = String(type).toLowerCase();
+  if (normalized === 'lesson') {
+    return 'lesson_request';
+  }
+  if (normalized === 'roster') {
+    return 'roster_request';
+  }
+
+  return normalized;
+};
+
+const normalizeCoachRequestEndpoint = (endpoint) => {
+  if (!endpoint || typeof endpoint !== 'string') {
+    return '';
+  }
+
+  let value = endpoint.trim();
+  if (!value) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      value = new URL(value).pathname || '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  if (!value.startsWith('/')) {
+    value = `/${value}`;
+  }
+
+  if (value.startsWith('/api/')) {
+    return value.slice(4);
+  }
+
+  return value;
+};
+
+export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
+  const params = new URLSearchParams();
+
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+
+  const query = params.toString();
+  const path = query ? `/coach/requests?${query}` : '/coach/requests';
+  return request(path);
+};
+
+export const updateCoachRequest = ({ requestType, requestId, endpoint, action, status } = {}) => {
+  if (!requestId) {
+    throw new Error('A request id is required to update a coach request.');
+  }
+
+  const normalizedType = normalizeCoachRequestType(requestType);
+  const normalizedEndpoint = normalizeCoachRequestEndpoint(endpoint);
+  const resolvedEndpoint = normalizedEndpoint || `/coach/requests/${normalizedType}/${requestId}`;
+
+  if (!action && !status) {
+    throw new Error('Either action or status is required to update a coach request.');
+  }
+
+  const payload = action ? { action } : { status };
+
+  return request(resolvedEndpoint, {
+    method: 'PATCH',
+    body: payload
+  });
+};
+
 export const getCoachPlayerGroups = () => request('/coach/player-groups');
 
 export const getCoachPlayerGroupById = (groupId) => {
@@ -470,6 +552,8 @@ export default {
   replaceCoachAvailability,
   updateCoachPlayer,
   updateCoachLesson,
+  getCoachRequests,
+  updateCoachRequest,
   getCoachPlayerGroups,
   getCoachPlayerGroupById,
   createCoachPlayerGroup,

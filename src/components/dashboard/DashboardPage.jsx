@@ -16,7 +16,12 @@ import {
   Users,
   MapPin
 } from 'lucide-react';
-import { getActivePlayerPackages, updateCoachPlayer } from '../../services/coach';
+import {
+  getActivePlayerPackages,
+  getCoachRequests,
+  updateCoachPlayer,
+  updateCoachRequest
+} from '../../services/coach';
 import StatsSummary from './sections/StatsSummary';
 import CalendarSection from './sections/CalendarSection';
 import StudentsSection from './sections/StudentsSection';
@@ -277,6 +282,19 @@ const formatRelativeNotificationTime = (value) => {
   return time.fromNow();
 };
 
+const getRequestErrorMessage = (error, fallbackMessage) => {
+  const apiDetail = error?.body?.detail;
+  if (typeof apiDetail === 'string' && apiDetail.trim()) {
+    return apiDetail;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+};
+
 const isGroupLessonType = (lesson) => {
   const lessonTypeId = getLessonTypeId(lesson);
   if (lessonTypeId === 3) {
@@ -475,6 +493,15 @@ const DashboardPage = ({
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
+  const [requestItems, setRequestItems] = useState([]);
+  const [awaitingPlayerItems, setAwaitingPlayerItems] = useState([]);
+  const [requestsPage, setRequestsPage] = useState(1);
+  const [requestsPerPage] = useState(20);
+  const [requestsCount, setRequestsCount] = useState(0);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsError, setRequestsError] = useState(null);
+  const [requestActionLoading, setRequestActionLoading] = useState({});
+  const [requestFeedback, setRequestFeedback] = useState(null);
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
   const settingsMenuRef = useRef(null);
@@ -598,6 +625,103 @@ const DashboardPage = ({
       setLocationAction({ type: 'error', message: result.error });
     }
   }, [onDeleteLocation]);
+
+  const fetchCoachRequestItems = useCallback(
+    async ({ page = requestsPage, silent = false } = {}) => {
+      if (!silent) {
+        setRequestsLoading(true);
+      }
+      setRequestsError(null);
+
+      try {
+        const response = await getCoachRequests({ perPage: requestsPerPage, page });
+        const list = Array.isArray(response?.requests) ? response.requests : [];
+        const awaitingList = Array.isArray(response?.awaiting_player_confirmation)
+          ? response.awaiting_player_confirmation
+          : [];
+        const breakdownCount =
+          typeof response?.breakdown?.awaiting_player_confirmation === 'number'
+            ? (response?.count || 0) + response.breakdown.awaiting_player_confirmation
+            : null;
+
+        setRequestItems(list);
+        setAwaitingPlayerItems(awaitingList);
+        setRequestsCount(
+          typeof breakdownCount === 'number'
+            ? breakdownCount
+            : list.length + awaitingList.length
+        );
+      } catch (error) {
+        setRequestsError(getRequestErrorMessage(error, 'Failed to load requests.'));
+      } finally {
+        if (!silent) {
+          setRequestsLoading(false);
+        }
+      }
+    },
+    [requestsPage, requestsPerPage]
+  );
+
+  useEffect(() => {
+    fetchCoachRequestItems({ page: requestsPage });
+  }, [fetchCoachRequestItems, requestsPage]);
+
+  const handleRequestAction = useCallback(async (requestItem, action) => {
+    if (!requestItem?.request_id || !action) {
+      return;
+    }
+
+    const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
+    const existingIndex = requestItems.findIndex(
+      (item) => item.request_id === requestItem.request_id && item.request_type === requestItem.request_type
+    );
+    const rollbackItem = existingIndex >= 0 ? requestItems[existingIndex] : null;
+
+    setRequestActionLoading((previous) => ({ ...previous, [actionKey]: action }));
+    setRequestItems((previous) =>
+      previous.filter(
+        (item) => !(item.request_id === requestItem.request_id && item.request_type === requestItem.request_type)
+      )
+    );
+    setRequestsCount((previous) => Math.max(previous - 1, 0));
+
+    try {
+      await updateCoachRequest({
+        requestType: requestItem.request_type,
+        requestId: requestItem.request_id,
+        endpoint: requestItem?.actions?.endpoint,
+        action
+      });
+    } catch (error) {
+      const status = Number(error?.status);
+
+      if (status === 404) {
+        setRequestFeedback({ type: 'warning', message: 'Request no longer available.' });
+        fetchCoachRequestItems({ page: requestsPage, silent: true });
+      } else if (status === 409) {
+        fetchCoachRequestItems({ page: requestsPage, silent: true });
+      } else {
+        if (rollbackItem) {
+          setRequestItems((previous) => {
+            const next = [...previous];
+            next.splice(Math.max(existingIndex, 0), 0, rollbackItem);
+            return next;
+          });
+          setRequestsCount((previous) => previous + 1);
+        }
+        setRequestFeedback({
+          type: 'error',
+          message: getRequestErrorMessage(error, 'Failed to update request.')
+        });
+      }
+    } finally {
+      setRequestActionLoading((previous) => {
+        const next = { ...previous };
+        delete next[actionKey];
+        return next;
+      });
+    }
+  }, [fetchCoachRequestItems, requestItems, requestsPage]);
 
 
   useEffect(() => {
@@ -726,110 +850,62 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showSettingsMenu]);
 
-  const pendingLessons = upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending');
-  const actionablePendingLessons = pendingLessons.filter((lesson) => !isGroupLessonType(lesson));
-  const collapsedPendingLessons = actionablePendingLessons.reduce((accumulator, lesson) => {
-    const lessonTypeId = getLessonTypeId(lesson);
-    if (lessonTypeId !== 2) {
-      accumulator.push(lesson);
-      return accumulator;
-    }
+  const actionableItems = requestItems.map((requestItem, index) => {
+    const isLessonRequest = requestItem.request_type === 'lesson_request';
+    const lesson = requestItem.lesson;
+    const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
+    const activeAction = requestActionLoading[actionKey] || null;
 
-    const mergeKey = getLessonMergeKey(lesson);
-    const existing = accumulator.find(
-      (entry) => entry.__alertMergeType === 'semi-private' && entry.__alertMergeKey === mergeKey
-    );
+    return {
+      id: `${requestItem.request_type}-${requestItem.request_id}-${index}`,
+      type: isLessonRequest ? 'lesson' : 'roster',
+      name: requestItem?.player?.full_name || 'Player',
+      detail: isLessonRequest ? 'requested a lesson' : 'wants to join your roster',
+      info: isLessonRequest
+        ? formatLessonInfo(lesson)
+        : requestItem?.player?.email || requestItem?.player?.phone || 'Pending roster request',
+      timestamp: requestItem.created_at,
+      avatarUrl: '',
+      acceptLabel: isLessonRequest ? 'Confirm' : 'Approve',
+      declineLabel: 'Decline',
+      activeAction,
+      onAccept: () => handleRequestAction(requestItem, isLessonRequest ? 'confirm' : 'approve'),
+      onDecline: () => handleRequestAction(requestItem, 'decline')
+    };
+  });
 
-    if (!existing) {
-      accumulator.push({
-        ...lesson,
-        __alertMergeType: 'semi-private',
-        __alertMergeKey: mergeKey,
-        __alertInvitedNames: getPendingInvitationNames(lesson)
-      });
-      return accumulator;
-    }
+  const awaitingItems = awaitingPlayerItems.map((requestItem, index) => ({
+    id: `awaiting-${requestItem.request_id}-${index}`,
+    type: 'lesson',
+    name: requestItem?.player?.full_name || 'Player',
+    detail: 'awaiting player confirmation',
+    info: formatLessonInfo(requestItem.lesson),
+    timestamp: requestItem.created_at,
+    avatarUrl: '',
+    acceptLabel: 'View',
+    hideDecline: true,
+    onAccept: () => onLessonSelect?.(requestItem.lesson),
+    onDecline: null
+  }));
 
-    const mergedInvitedNames = [
-      ...(Array.isArray(existing.__alertInvitedNames) ? existing.__alertInvitedNames : []),
-      ...getPendingInvitationNames(lesson)
-    ];
-    existing.__alertInvitedNames = [...new Set(mergedInvitedNames)];
-
-    return accumulator;
-  }, []);
-  const rosterRequests = normalizedStudents.filter(
-    (student) => student.isPlayerRequest && !student.isConfirmed
-  );
-  const actionItems = [
-    ...rosterRequests.map((student) => ({
-      id: `roster-${student.id}`,
-      type: 'roster',
-      name: student.name || 'Student',
-      detail: 'wants to join your roster',
-      info: student.email || student.phone || 'Pending roster request',
-      timestamp: student.created_at || student.createdAt || null,
-      avatarUrl: student.avatar || '',
-      onAccept: () => handleRosterUpdate(student.playerId, 'CONFIRMED'),
-      onDecline: () => handleRosterUpdate(student.playerId, 'CANCELLED')
-    })),
-    ...collapsedPendingLessons.map((lesson, index) => {
-      const createdById = Number(lesson.created_by ?? lesson.createdBy);
-      const lessonCoachId = Number(lesson.coach_id ?? lesson.coachId);
-      const profileCoachId = Number(profile?.id ?? profile?.coach_id ?? profile?.coachId ?? profile?.user_id ?? profile?.userId);
-      const resolvedCoachId = Number.isFinite(lessonCoachId)
-        ? lessonCoachId
-        : Number.isFinite(profileCoachId)
-          ? profileCoachId
-          : null;
-      const playerId = Number(lesson.player_id ?? lesson.playerId);
-      const isCoachCreatedLesson =
-        Number.isFinite(createdById) && Number.isFinite(resolvedCoachId) && createdById === resolvedCoachId;
-      const isPlayerRequestedLesson =
-        Number.isFinite(createdById) && Number.isFinite(playerId) && createdById === playerId;
-      const lessonTypeId = getLessonTypeId(lesson);
-      const lessonTypeLabel =
-        lesson.lesson_type_name ||
-        lesson.lessonTypeName ||
-        (lessonTypeId === 1
-          ? 'Private'
-          : lessonTypeId === 2
-            ? 'Semi Private'
-            : lessonTypeId === 3
-              ? 'Open Group'
-              : '');
-      const detailPrefix = lessonTypeLabel ? `${lessonTypeLabel} lesson` : 'Lesson';
-      const semiPrivateInvitedNames = Array.isArray(lesson.__alertInvitedNames)
-        ? lesson.__alertInvitedNames
-        : getPendingInvitationNames(lesson);
-      const isMergedSemiPrivateAlert = lessonTypeId === 2 && semiPrivateInvitedNames.length > 0;
-      const hasSingleInvitedPlayer = semiPrivateInvitedNames.length === 1;
-      const semiPrivatePlayersLabel = hasSingleInvitedPlayer
-        ? `Player ${semiPrivateInvitedNames[0]}`
-        : `Players ${semiPrivateInvitedNames.join(', ')}`;
-
-      return {
-        id: lesson.id ?? lesson.lesson_id ?? `lesson-${index}`,
-        type: 'lesson',
-        name: isMergedSemiPrivateAlert ? semiPrivatePlayersLabel : getLessonActionName(lesson),
-        detail: isMergedSemiPrivateAlert
-          ? `${hasSingleInvitedPlayer ? 'has' : 'have'} been invited to a semi-private lesson`
-          : isCoachCreatedLesson
-            ? `${detailPrefix.toLowerCase()} created by coach`
-            : isPlayerRequestedLesson
-              ? `${detailPrefix.toLowerCase()} requested by player`
-              : `${detailPrefix.toLowerCase()} request`,
-        info: formatLessonInfo(lesson),
-        timestamp: lesson.created_at || lesson.createdAt || lesson.updated_at || lesson.updatedAt || null,
-        avatarUrl: lesson.profile_url || lesson.profile_picture || '',
-        onAccept: isPlayerRequestedLesson ? () => onLessonSelect(lesson) : null,
-        onDecline: () => onLessonSelect(lesson),
-        acceptLabel: isPlayerRequestedLesson ? 'Confirm' : '',
-        declineLabel: 'Cancel Lesson'
-      };
-    })
-  ];
+  const actionItems = [...actionableItems, ...awaitingItems];
   const notificationItems = actionItems;
+  const canGoToPrevRequestPage = requestsPage > 1;
+  const canGoToNextRequestPage = !requestsLoading && requestsPage * requestsPerPage < requestsCount;
+
+  const goToPrevRequestPage = useCallback(() => {
+    if (!canGoToPrevRequestPage || requestsLoading) {
+      return;
+    }
+    setRequestsPage((prev) => Math.max(prev - 1, 1));
+  }, [canGoToPrevRequestPage, requestsLoading]);
+
+  const goToNextRequestPage = useCallback(() => {
+    if (!canGoToNextRequestPage || requestsLoading) {
+      return;
+    }
+    setRequestsPage((prev) => prev + 1);
+  }, [canGoToNextRequestPage, requestsLoading]);
 
   useEffect(() => {
     if (actionItems.length > 0) {
@@ -841,13 +917,41 @@ const DashboardPage = ({
     setCarouselIndex(0);
   }, [actionItems.length]);
 
+  useEffect(() => {
+    if (dismissedActionBar || actionItems.length === 0) {
+      return;
+    }
+
+    const handleArrowPagination = (event) => {
+      const targetTag = event.target?.tagName?.toLowerCase?.();
+      if (targetTag === 'input' || targetTag === 'textarea') {
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goToNextRequestPage();
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goToPrevRequestPage();
+      }
+    };
+
+    window.addEventListener('keydown', handleArrowPagination);
+    return () => window.removeEventListener('keydown', handleArrowPagination);
+  }, [actionItems.length, dismissedActionBar, goToNextRequestPage, goToPrevRequestPage]);
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {mutationError && (
+      {(mutationError || requestFeedback || requestsError) && (
         <div className="border-b border-red-200 bg-red-50">
           <div className="mx-auto flex max-w-7xl items-center space-x-2 px-4 py-3 text-sm text-red-700">
             <AlertCircle className="h-4 w-4" />
-            <span>{mutationError.message || 'An unexpected error occurred. Please try again.'}</span>
+            <span>
+              {requestFeedback?.message || requestsError || mutationError?.message || 'An unexpected error occurred. Please try again.'}
+            </span>
           </div>
         </div>
       )}
@@ -948,14 +1052,22 @@ const DashboardPage = ({
                 {showNotificationsDropdown && (
                   <div className="notification-dropdown">
                     <div className="notification-dropdown-header">
-                      <span className="notification-dropdown-title">Notifications</span>
-                      <button type="button" className="notification-mark-read">
-                        Mark all read
+                      <span className="notification-dropdown-title">Requests ({requestsCount})</span>
+                      <button
+                        type="button"
+                        className="notification-mark-read"
+                        onClick={() => fetchCoachRequestItems({ page: requestsPage })}
+                        disabled={requestsLoading}
+                      >
+                        {requestsLoading ? "Reloading..." : "Reload"}
                       </button>
                     </div>
                     <div className="notification-dropdown-body">
-                      {notificationItems.length === 0 && (
-                        <div className="notification-empty">You&apos;re all caught up.</div>
+                      {requestsLoading && (
+                        <div className="notification-empty">Loading requests...</div>
+                      )}
+                      {!requestsLoading && notificationItems.length === 0 && (
+                        <div className="notification-empty">No pending requests.</div>
                       )}
                       {notificationItems.map((item) => (
                         <div key={item.id} className="notification-item notification-item-unread">
@@ -977,19 +1089,23 @@ const DashboardPage = ({
                                   type="button"
                                   className="notification-btn approve"
                                   onClick={item.onAccept || undefined}
-                                  disabled={!item.onAccept}
+                                  disabled={!item.onAccept || Boolean(item.activeAction)}
                                 >
-                                  {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
+                                  {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                                    ? 'Processing...'
+                                    : item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                className="notification-btn decline"
-                                onClick={item.onDecline || undefined}
-                                disabled={!item.onDecline}
-                              >
-                                {item.declineLabel || 'Decline'}
-                              </button>
+                              {!item.hideDecline && (
+                                <button
+                                  type="button"
+                                  className="notification-btn decline"
+                                  onClick={item.onDecline || undefined}
+                                  disabled={!item.onDecline || Boolean(item.activeAction)}
+                                >
+                                  {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
+                                </button>
+                              )}
                             </div>
                             <div className="notification-time">{formatRelativeNotificationTime(item.timestamp)}</div>
                           </div>
@@ -997,8 +1113,24 @@ const DashboardPage = ({
                       ))}
                     </div>
                     <div className="notification-dropdown-footer">
+                      <button
+                        type="button"
+                        className="notification-view-all"
+                        onClick={goToPrevRequestPage}
+                        disabled={!canGoToPrevRequestPage || requestsLoading}
+                      >
+                        Prev
+                      </button>
                       <button type="button" className="notification-view-all" onClick={onOpenNotifications}>
                         View all notifications
+                      </button>
+                      <button
+                        type="button"
+                        className="notification-view-all"
+                        onClick={goToNextRequestPage}
+                        disabled={!canGoToNextRequestPage}
+                      >
+                        Next
                       </button>
                     </div>
                   </div>
@@ -1137,154 +1269,185 @@ const DashboardPage = ({
         </div>
 
         {actionItems.length > 0 && !dismissedActionBar && (
-          <>
-            <div className="action-alert-bar">
-              <div className="action-alert-left">
-                <span className="action-alert-icon">⚡</span>
-                <span className="action-alert-text">
-                  <strong>{actionItems.length} items</strong> need attention
-                </span>
-              </div>
-              <div className="action-alert-items">
-                {actionItems.map((item) => (
-                  <div key={item.id} className="action-alert-item">
-                    <div className="action-alert-text-group">
-                      <span className="action-alert-primary">
-                        {item.type === 'roster' ? '👤' : '📅'} <strong>{item.name}</strong> {item.detail}
-                      </span>
-                      {item.info && <span className="action-alert-info">{item.info}</span>}
-                    </div>
-                    <div className="action-alert-buttons">
-                      {item.acceptLabel !== '' && (
-                        <button
-                          type="button"
-                          className="action-alert-btn approve"
-                          onClick={item.onAccept || undefined}
-                          disabled={!item.onAccept}
-                        >
-                          {item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Accept')}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="action-alert-btn decline"
-                        onClick={item.onDecline || undefined}
-                        disabled={!item.onDecline}
-                      >
-                        {item.declineLabel || 'Decline'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="action-alert-dismiss"
-                onClick={() => setDismissedActionBar(true)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="notification-carousel">
-              <div className="notification-carousel-header">
-                <div className="notification-carousel-title">
-                  <span className="notification-carousel-icon">⚡</span>
-                  <span>{actionItems.length} items need attention</span>
+          <div className="requests-alert-shell">
+            <div className="notif-banner desktop-notif-banner">
+              <div className="notif-header">
+                <div className="notif-title">
+                  <span>⚡</span>
+                  <span>Requests</span>
+                  <span className="notif-count">{requestsCount || actionItems.length}</span>
                 </div>
                 <button
                   type="button"
-                  className="notification-carousel-dismiss"
+                  className="notif-dismiss"
                   onClick={() => setDismissedActionBar(true)}
                 >
                   ×
                 </button>
               </div>
-              {actionItems.length > 0 && (
-                <div className="notification-carousel-card">
-                  <div className="notification-carousel-meta">
-                    <div className="notification-carousel-avatar">
-                      {(actionItems[carouselIndex]?.name || 'N')
-                        .split(' ')
-                        .map((part) => part[0])
-                        .join('')
-                        .slice(0, 2)
-                        .toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="notification-carousel-name">
-                        {actionItems[carouselIndex]?.name}
-                      </div>
-                      <div className="notification-carousel-detail">
-                        {actionItems[carouselIndex]?.detail}
-                      </div>
-                      {actionItems[carouselIndex]?.info && (
-                        <div className="notification-carousel-info">
-                          {actionItems[carouselIndex]?.info}
+              <div className="notif-body desktop-requests-list">
+                {actionItems.map((item) => (
+                  <div key={item.id} className="request-card">
+                    <div className="request-top">
+                      <div className="request-row">
+                        <div className="request-avatar">{getInitials(item.name)}</div>
+                        <div className="request-info">
+                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : 'roster'}`}>
+                            {item.type === 'lesson' ? '🎾 Lesson Request' : '👤 Roster Request'}
+                          </div>
+                          <div className="request-name">{item.name}</div>
+                          {item.info && <div className="request-meta">{item.info}</div>}
                         </div>
+                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : 'roster'}`}>
+                          {item.type === 'lesson' ? 'Lesson' : 'Roster'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="request-actions">
+                      <button
+                        type="button"
+                        className="action-btn details"
+                        onClick={item.onAccept || undefined}
+                        disabled={!item.onAccept || Boolean(item.activeAction)}
+                      >
+                        Details
+                      </button>
+                      {!item.hideDecline && (
+                        <button
+                          type="button"
+                          className="action-btn decline"
+                          onClick={item.onDecline || undefined}
+                          disabled={!item.onDecline || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
+                        </button>
+                      )}
+                      {item.acceptLabel !== '' && (
+                        <button
+                          type="button"
+                          className={`action-btn ${item.acceptLabel === 'Approve' ? 'approve' : 'confirm'}`}
+                          onClick={item.onAccept || undefined}
+                          disabled={!item.onAccept || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                            ? 'Processing...'
+                            : `✓ ${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
+                        </button>
                       )}
                     </div>
                   </div>
-                  <div className="notification-carousel-actions">
-                    {actionItems[carouselIndex]?.acceptLabel !== '' && (
-                      <button
-                        type="button"
-                        className="notification-carousel-btn approve"
-                        onClick={actionItems[carouselIndex]?.onAccept || undefined}
-                        disabled={!actionItems[carouselIndex]?.onAccept}
-                      >
-                        {actionItems[carouselIndex]?.acceptLabel ||
-                          (actionItems[carouselIndex]?.type === 'lesson' ? 'Confirm' : 'Accept')}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="notification-carousel-btn decline"
-                      onClick={actionItems[carouselIndex]?.onDecline || undefined}
-                      disabled={!actionItems[carouselIndex]?.onDecline}
-                    >
-                      {actionItems[carouselIndex]?.declineLabel || 'Decline'}
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div className="notification-carousel-controls">
+                ))}
+              </div>
+              <div className="notif-pagination">
                 <button
                   type="button"
-                  className="notification-carousel-nav"
-                  onClick={() =>
-                    setCarouselIndex((prev) =>
-                      prev === 0 ? actionItems.length - 1 : prev - 1
-                    )
-                  }
+                  className="notif-page-btn"
+                  onClick={goToPrevRequestPage}
+                  disabled={!canGoToPrevRequestPage || requestsLoading}
                 >
-                  ‹
+                  ← Prev
                 </button>
-                <div className="notification-carousel-dots">
-                  {actionItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`notification-carousel-dot ${
-                        index === carouselIndex ? 'active' : ''
-                      }`}
-                      onClick={() => setCarouselIndex(index)}
-                    />
-                  ))}
-                </div>
+                <span className="notif-page-indicator">Page {requestsPage}</span>
                 <button
                   type="button"
-                  className="notification-carousel-nav"
-                  onClick={() =>
-                    setCarouselIndex((prev) =>
-                      prev === actionItems.length - 1 ? 0 : prev + 1
-                    )
-                  }
+                  className="notif-page-btn"
+                  onClick={goToNextRequestPage}
+                  disabled={!canGoToNextRequestPage}
                 >
-                  ›
+                  Next →
                 </button>
               </div>
             </div>
-          </>
+
+            <div className="notif-banner mobile-notif-banner">
+              <div className="notif-header">
+                <div className="notif-title">
+                  <span>⚡</span>
+                  <span>Requests</span>
+                  <span className="notif-count">{requestsCount || actionItems.length}</span>
+                </div>
+                <button
+                  type="button"
+                  className="notif-dismiss"
+                  onClick={() => setDismissedActionBar(true)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="notif-body">
+                {actionItems.map((item) => (
+                  <div key={`mobile-${item.id}`} className="request-card">
+                    <div className="request-top">
+                      <div className="request-row">
+                        <div className="request-avatar">{getInitials(item.name)}</div>
+                        <div className="request-info">
+                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : 'roster'}`}>
+                            {item.type === 'lesson' ? '🎾 Lesson' : '👤 Roster'}
+                          </div>
+                          <div className="request-name">{item.name}</div>
+                          {item.info && <div className="request-meta">{item.info}</div>}
+                        </div>
+                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : 'roster'}`}>
+                          {item.type === 'lesson' ? 'New' : 'Roster'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="request-actions">
+                      <button
+                        type="button"
+                        className="action-btn details"
+                        onClick={item.onAccept || undefined}
+                        disabled={!item.onAccept || Boolean(item.activeAction)}
+                      >
+                        Details
+                      </button>
+                      {!item.hideDecline && (
+                        <button
+                          type="button"
+                          className="action-btn decline"
+                          onClick={item.onDecline || undefined}
+                          disabled={!item.onDecline || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'decline' ? 'Processing...' : item.declineLabel || 'Decline'}
+                        </button>
+                      )}
+                      {item.acceptLabel !== '' && (
+                        <button
+                          type="button"
+                          className={`action-btn ${item.acceptLabel === 'Approve' ? 'approve' : 'confirm'}`}
+                          onClick={item.onAccept || undefined}
+                          disabled={!item.onAccept || Boolean(item.activeAction)}
+                        >
+                          {item.activeAction === 'confirm' || item.activeAction === 'approve'
+                            ? 'Processing...'
+                            : `✓ ${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="notif-pagination">
+                <button
+                  type="button"
+                  className="notif-page-btn"
+                  onClick={goToPrevRequestPage}
+                  disabled={!canGoToPrevRequestPage || requestsLoading}
+                >
+                  ← Prev
+                </button>
+                <span className="notif-page-indicator">Page {requestsPage}</span>
+                <button
+                  type="button"
+                  className="notif-page-btn"
+                  onClick={goToNextRequestPage}
+                  disabled={!canGoToNextRequestPage}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {dashboardTab === 'calendar' && (
