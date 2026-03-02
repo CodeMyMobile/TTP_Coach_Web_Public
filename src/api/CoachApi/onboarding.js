@@ -281,16 +281,39 @@ export const getCoachOnboarding = async () =>
     method: 'GET'
   });
 
-export const saveCoachOnboarding = async (formData = {}) =>
+export const putCoachOnboarding = async (formData = {}) =>
   apiRequest('/coach/onboarding', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json;charset=UTF-8' },
     body: JSON.stringify(buildOnboardingPayload(formData))
   });
 
+export const getCoachOnboardingDraft = async () =>
+  apiRequest('/coach/onboarding/draft', {
+    method: 'GET'
+  });
+
+export const patchCoachOnboardingDraft = async (partialPayload = {}) =>
+  apiRequest('/coach/onboarding/draft', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+    body: JSON.stringify(partialPayload)
+  });
+
+export const deleteCoachOnboardingDraft = async () =>
+  apiRequest('/coach/onboarding/draft', {
+    method: 'DELETE'
+  });
+
+export const saveCoachOnboarding = putCoachOnboarding;
+
 export default {
   requestCoachAvatarUploadUrl,
   uploadCoachAvatar,
   getCoachOnboarding,
+  putCoachOnboarding,
+  getCoachOnboardingDraft,
+  patchCoachOnboardingDraft,
+  deleteCoachOnboardingDraft,
   saveCoachOnboarding
 };

@@ -11,3 +11,11 @@ This update adds coach-facing player-group management and lesson creation group 
 - Private lessons now validate that selected groups + selected players + invitees resolve to exactly one player.
 - Semi-private and group lessons support mixed manual players + groups with deduped existing player IDs.
 - Added utility tests for group-based payload/validation behavior.
+
+## Onboarding draft autosave behavior
+
+- On onboarding load, the app fetches canonical onboarding data and a draft in parallel; draft fields override canonical values when present.
+- Form edits autosave in the background with a debounced draft `PATCH` request and status feedback (`Saving…`, `Saved`, `Save failed. Retry`).
+- Final submit still uses full onboarding `PUT` and then refreshes canonical onboarding data.
+- A **Discard draft** action deletes the server draft and restores the form to last saved onboarding data.
+- Current onboarding step is persisted locally so refresh restores the same step.
