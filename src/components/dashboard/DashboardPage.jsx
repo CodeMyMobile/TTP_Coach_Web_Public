@@ -305,6 +305,13 @@ const isGroupLessonType = (lesson) => {
   return lessonTypeName.includes('group');
 };
 
+const DECLINE_REASON_OPTIONS = [
+  { value: 'schedule_conflict', label: 'Schedule conflict' },
+  { value: 'location_doesnt_work', label: "Location doesn\'t work" },
+  { value: 'not_taking_new_students', label: 'Not taking new students' },
+  { value: 'other', label: 'Other' }
+];
+
 const getInitials = (name) => {
   if (!name) {
     return '🔔';
@@ -502,6 +509,16 @@ const DashboardPage = ({
   const [requestsError, setRequestsError] = useState(null);
   const [requestActionLoading, setRequestActionLoading] = useState({});
   const [requestFeedback, setRequestFeedback] = useState(null);
+  const [declineModal, setDeclineModal] = useState({
+    isOpen: false,
+    requestItem: null,
+    reason: '',
+    message: '',
+    suggestAlternativeTime: false,
+    alternativeTime: '',
+    error: '',
+    submitting: false
+  });
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
   const settingsMenuRef = useRef(null);
@@ -666,9 +683,9 @@ const DashboardPage = ({
     fetchCoachRequestItems({ page: requestsPage });
   }, [fetchCoachRequestItems, requestsPage]);
 
-  const handleRequestAction = useCallback(async (requestItem, action) => {
+  const handleRequestAction = useCallback(async (requestItem, action, extraPayload = {}) => {
     if (!requestItem?.request_id || !action) {
-      return;
+      return false;
     }
 
     const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
@@ -690,8 +707,10 @@ const DashboardPage = ({
         requestType: requestItem.request_type,
         requestId: requestItem.request_id,
         endpoint: requestItem?.actions?.endpoint,
-        action
+        action,
+        ...extraPayload
       });
+      return true;
     } catch (error) {
       const status = Number(error?.status);
 
@@ -714,6 +733,7 @@ const DashboardPage = ({
           message: getRequestErrorMessage(error, 'Failed to update request.')
         });
       }
+      return false;
     } finally {
       setRequestActionLoading((previous) => {
         const next = { ...previous };
@@ -722,6 +742,66 @@ const DashboardPage = ({
       });
     }
   }, [fetchCoachRequestItems, requestItems, requestsPage]);
+
+  const openDeclineModal = useCallback((requestItem) => {
+    setDeclineModal({
+      isOpen: true,
+      requestItem,
+      reason: '',
+      message: '',
+      suggestAlternativeTime: false,
+      alternativeTime: '',
+      error: '',
+      submitting: false
+    });
+  }, []);
+
+  const closeDeclineModal = useCallback(() => {
+    setDeclineModal((previous) => ({ ...previous, isOpen: false }));
+  }, []);
+
+  const submitDeclineModal = useCallback(async () => {
+    if (!declineModal.requestItem) {
+      return;
+    }
+
+    if (!declineModal.reason) {
+      setDeclineModal((previous) => ({ ...previous, error: 'Please select a reason.' }));
+      return;
+    }
+
+    setDeclineModal((previous) => ({ ...previous, submitting: true, error: '' }));
+
+    try {
+      const wasSuccessful = await handleRequestAction(declineModal.requestItem, 'decline', {
+        reason: declineModal.reason,
+        message: declineModal.message.trim() || undefined,
+        suggestAlternativeTime:
+          declineModal.requestItem?.request_type === 'lesson_request' ? declineModal.suggestAlternativeTime : undefined,
+        alternativeTime:
+          declineModal.requestItem?.request_type === 'lesson_request'
+            ? declineModal.alternativeTime.trim() || undefined
+            : undefined
+      });
+      if (wasSuccessful) {
+        setDeclineModal({
+          isOpen: false,
+          requestItem: null,
+          reason: '',
+          message: '',
+          suggestAlternativeTime: false,
+          alternativeTime: '',
+          error: '',
+          submitting: false
+        });
+      } else {
+        setDeclineModal((previous) => ({ ...previous, submitting: false }));
+      }
+      return true;
+    } catch (error) {
+      setDeclineModal((previous) => ({ ...previous, submitting: false }));
+    }
+  }, [declineModal, handleRequestAction]);
 
 
   useEffect(() => {
@@ -870,7 +950,7 @@ const DashboardPage = ({
       declineLabel: 'Decline',
       activeAction,
       onAccept: () => handleRequestAction(requestItem, isLessonRequest ? 'confirm' : 'approve'),
-      onDecline: () => handleRequestAction(requestItem, 'decline')
+      onDecline: () => openDeclineModal(requestItem)
     };
   });
 
@@ -1538,6 +1618,83 @@ const DashboardPage = ({
             players={filteredStudents}
           />
         )}
+
+
+      {declineModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Decline request</h3>
+            <p className="mt-1 text-sm text-gray-500">Select a reason (required) and optionally include a message.</p>
+
+            <label className="mt-4 block text-sm font-medium text-gray-700" htmlFor="decline-reason">Reason</label>
+            <select
+              id="decline-reason"
+              value={declineModal.reason}
+              onChange={(event) => setDeclineModal((previous) => ({ ...previous, reason: event.target.value, error: '' }))}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="">Select reason</option>
+              {DECLINE_REASON_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+
+            {declineModal.requestItem?.request_type === 'lesson_request' && (
+              <div className="mt-4">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={declineModal.suggestAlternativeTime}
+                    onChange={(event) =>
+                      setDeclineModal((previous) => ({ ...previous, suggestAlternativeTime: event.target.checked }))
+                    }
+                  />
+                  Suggest alternative time
+                </label>
+                <input
+                  type="text"
+                  value={declineModal.alternativeTime}
+                  onChange={(event) =>
+                    setDeclineModal((previous) => ({ ...previous, alternativeTime: event.target.value }))
+                  }
+                  placeholder="Tuesday 6:00 PM"
+                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+            )}
+
+            <label className="mt-4 block text-sm font-medium text-gray-700" htmlFor="decline-message">Message (optional)</label>
+            <textarea
+              id="decline-message"
+              value={declineModal.message}
+              onChange={(event) => setDeclineModal((previous) => ({ ...previous, message: event.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Add a note for the player"
+            />
+
+            {declineModal.error && <p className="mt-2 text-sm text-red-600">{declineModal.error}</p>}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeDeclineModal}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitDeclineModal}
+                disabled={declineModal.submitting}
+                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-purple-300"
+              >
+                {declineModal.submitting ? 'Declining...' : 'Submit decline'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       </main>
 
