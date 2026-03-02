@@ -391,7 +391,19 @@ export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
   return request(path);
 };
 
-export const updateCoachRequest = ({ requestType, requestId, endpoint, action, status } = {}) => {
+export const updateCoachRequest = ({
+  requestType,
+  requestId,
+  endpoint,
+  action,
+  status,
+  reason,
+  declineReason,
+  message,
+  declineMessage,
+  suggestAlternativeTime,
+  alternativeTime
+} = {}) => {
   if (!requestId) {
     throw new Error('A request id is required to update a coach request.');
   }
@@ -405,6 +417,22 @@ export const updateCoachRequest = ({ requestType, requestId, endpoint, action, s
   }
 
   const payload = action ? { action } : { status };
+
+  if (reason || declineReason) {
+    payload.reason = reason || declineReason;
+  }
+
+  if (typeof message === 'string' || typeof declineMessage === 'string') {
+    payload.message = typeof message === 'string' ? message : declineMessage;
+  }
+
+  if (typeof suggestAlternativeTime === 'boolean') {
+    payload.suggest_alternative_time = suggestAlternativeTime;
+  }
+
+  if (typeof alternativeTime === 'string' && alternativeTime.trim()) {
+    payload.alternative_time = alternativeTime.trim();
+  }
 
   return request(resolvedEndpoint, {
     method: 'PATCH',
