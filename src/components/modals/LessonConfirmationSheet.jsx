@@ -55,6 +55,21 @@ const downloadIcs = (content, fileName) => {
   URL.revokeObjectURL(url);
 };
 
+const parseDisplayDate = (dateInput, { treatUtcAsLocal = false } = {}) => {
+  if (!dateInput) {
+    return null;
+  }
+
+  if (treatUtcAsLocal && typeof dateInput === 'string' && /z$/i.test(dateInput)) {
+    const normalized = dateInput.replace(/z$/i, '');
+    const parsedLocal = new Date(normalized);
+    return Number.isNaN(parsedLocal.getTime()) ? null : parsedLocal;
+  }
+
+  const parsed = new Date(dateInput);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const parseMoney = (value) => {
   if (value === null || value === undefined || value === '') {
     return null;
@@ -84,8 +99,10 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
     const studentName = lesson.playerName || lesson.player_name || lesson.studentName || lesson.full_name || 'Your student';
     const studentLevel = lesson.playerSkillLevel || lesson.player_skill_level || lesson.level || 'All levels';
     const lessonType = lesson.lessonType || lesson.lesson_type || lesson.lesson_type_name || 'private';
-    const start = lesson.startDateTime || lesson.start_date_time_tz || lesson.start_date_time;
-    const end = lesson.endDateTime || lesson.end_date_time_tz || lesson.end_date_time;
+    const startWithTimezone = lesson.startDateTime || lesson.start_date_time_tz || lesson.startDateTimeTz;
+    const endWithTimezone = lesson.endDateTime || lesson.end_date_time_tz || lesson.endDateTimeTz;
+    const start = startWithTimezone || lesson.start_date_time;
+    const end = endWithTimezone || lesson.end_date_time;
     const locationName = lesson.locationName || lesson.location_name || lesson.location || 'TBD';
     const locationAddress = lesson.locationAddress || lesson.location_address || lesson.locationAddressLine || '';
     const lessonFee =
@@ -102,8 +119,9 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
       ?? parseMoney(lesson.price)
       ?? parseMoney(coachHourlyRate);
 
-    const startDate = start ? new Date(start) : null;
-    const endDate = end ? new Date(end) : null;
+    const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
+    const startDate = parseDisplayDate(start, { treatUtcAsLocal: shouldTreatUtcAsLocal });
+    const endDate = parseDisplayDate(end, { treatUtcAsLocal: shouldTreatUtcAsLocal });
     const isCreditLesson = Boolean(
       lesson.creditUsageStatus
       || lesson.credit_usage_status

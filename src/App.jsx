@@ -1436,6 +1436,15 @@ function App() {
   const shouldUseDeclineFlowForSelectedLesson =
     selectedLessonStatus === 'pending' && !isCoachCreatedSelectedLesson;
 
+  const openLessonConfirmedSheet = useCallback((lessonDetail) => {
+    if (!lessonDetail) {
+      return;
+    }
+
+    setConfirmedLessonDetail(lessonDetail);
+    setShowLessonConfirmedSheet(true);
+  }, []);
+
   const handleAcceptRequest = async () => {
     if (!selectedLessonDetail?.id) {
       setShowLessonDetailModal(false);
@@ -1456,8 +1465,7 @@ function App() {
       await refreshSchedule();
 
       if (response?.status === 200 || response?.status === 201) {
-        setConfirmedLessonDetail(selectedLessonDetail);
-        setShowLessonConfirmedSheet(true);
+        openLessonConfirmedSheet(selectedLessonDetail);
       } else {
         window.alert('Something went wrong!!');
       }
@@ -1588,6 +1596,7 @@ function App() {
           mutationError={scheduleMutationError}
           mutationLoading={scheduleMutationLoading}
           onLessonSelect={handleLessonSelect}
+          onLessonRequestConfirmed={openLessonConfirmedSheet}
           onAvailabilitySlotSelect={handleAvailabilitySlotSelect}
           onEmptySlotSelect={handleEmptySlotSelect}
           onOpenAddAvailability={handleAddAvailabilityOpen}

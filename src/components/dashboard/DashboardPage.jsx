@@ -359,6 +359,7 @@ const DashboardPage = ({
   mutationError,
   mutationLoading,
   onLessonSelect,
+  onLessonRequestConfirmed = () => {},
   onAvailabilitySlotSelect,
   onEmptySlotSelect,
   onOpenAddAvailability,
@@ -710,6 +711,28 @@ const DashboardPage = ({
         action,
         ...extraPayload
       });
+
+      if (action === 'confirm' && requestItem?.request_type === 'lesson_request') {
+        const lesson = requestItem?.lesson || {};
+        const player = requestItem?.player || {};
+        const lessonForConfirmation = {
+          ...lesson,
+          player_id: lesson?.player_id ?? lesson?.playerId ?? player?.id ?? player?.player_id ?? null,
+          playerId: lesson?.playerId ?? lesson?.player_id ?? player?.id ?? player?.player_id ?? null,
+          full_name: player?.full_name || lesson?.full_name || lesson?.player_name || lesson?.student_name || lesson?.studentName,
+          player_name: player?.full_name || lesson?.player_name || lesson?.full_name || lesson?.student_name || lesson?.studentName,
+          student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
+          studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
+          profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
+          player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || '',
+          status: 1,
+          lessonStatus: 1,
+          lesson_status: 1
+        };
+
+        onLessonRequestConfirmed?.(lessonForConfirmation);
+      }
+
       return true;
     } catch (error) {
       const status = Number(error?.status);
@@ -741,7 +764,7 @@ const DashboardPage = ({
         return next;
       });
     }
-  }, [fetchCoachRequestItems, requestItems, requestsPage]);
+  }, [fetchCoachRequestItems, onLessonRequestConfirmed, requestItems, requestsPage]);
 
   const openDeclineModal = useCallback((requestItem) => {
     setDeclineModal({
