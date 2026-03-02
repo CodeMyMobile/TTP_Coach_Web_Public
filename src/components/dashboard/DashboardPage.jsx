@@ -933,6 +933,20 @@ const DashboardPage = ({
   const actionableItems = requestItems.map((requestItem, index) => {
     const isLessonRequest = requestItem.request_type === 'lesson_request';
     const lesson = requestItem.lesson;
+    const player = requestItem?.player || {};
+    const lessonForDetails = isLessonRequest
+      ? {
+          ...(lesson || {}),
+          player_id: lesson?.player_id ?? lesson?.playerId ?? player?.id ?? player?.player_id ?? null,
+          playerId: lesson?.playerId ?? lesson?.player_id ?? player?.id ?? player?.player_id ?? null,
+          full_name: player?.full_name || lesson?.full_name || lesson?.player_name || lesson?.student_name || lesson?.studentName,
+          player_name: player?.full_name || lesson?.player_name || lesson?.full_name || lesson?.student_name || lesson?.studentName,
+          student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
+          studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
+          profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
+          player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || ''
+        }
+      : null;
     const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
     const activeAction = requestActionLoading[actionKey] || null;
 
@@ -951,7 +965,7 @@ const DashboardPage = ({
       activeAction,
       onDetails: () => {
         if (isLessonRequest) {
-          onLessonSelect?.(lesson);
+          onLessonSelect?.(lessonForDetails || lesson);
           return;
         }
 
@@ -962,20 +976,36 @@ const DashboardPage = ({
     };
   });
 
-  const awaitingItems = awaitingPlayerItems.map((requestItem, index) => ({
-    id: `awaiting-${requestItem.request_id}-${index}`,
-    type: 'lesson',
-    name: requestItem?.player?.full_name || 'Player',
-    detail: 'awaiting player confirmation',
-    info: formatLessonInfo(requestItem.lesson),
-    timestamp: requestItem.created_at,
-    avatarUrl: '',
-    acceptLabel: 'View',
-    hideDecline: true,
-    onDetails: () => onLessonSelect?.(requestItem.lesson),
-    onAccept: () => onLessonSelect?.(requestItem.lesson),
-    onDecline: null
-  }));
+  const awaitingItems = awaitingPlayerItems.map((requestItem, index) => {
+    const player = requestItem?.player || {};
+    const lesson = requestItem?.lesson || {};
+    const lessonForDetails = {
+      ...lesson,
+      player_id: lesson?.player_id ?? lesson?.playerId ?? player?.id ?? player?.player_id ?? null,
+      playerId: lesson?.playerId ?? lesson?.player_id ?? player?.id ?? player?.player_id ?? null,
+      full_name: player?.full_name || lesson?.full_name || lesson?.player_name || lesson?.student_name || lesson?.studentName,
+      player_name: player?.full_name || lesson?.player_name || lesson?.full_name || lesson?.student_name || lesson?.studentName,
+      student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
+      studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
+      profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
+      player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || ''
+    };
+
+    return {
+      id: `awaiting-${requestItem.request_id}-${index}`,
+      type: 'lesson',
+      name: requestItem?.player?.full_name || 'Player',
+      detail: 'awaiting player confirmation',
+      info: formatLessonInfo(requestItem.lesson),
+      timestamp: requestItem.created_at,
+      avatarUrl: '',
+      acceptLabel: 'View',
+      hideDecline: true,
+      onDetails: () => onLessonSelect?.(lessonForDetails),
+      onAccept: () => onLessonSelect?.(lessonForDetails),
+      onDecline: null
+    };
+  });
 
   const actionItems = [...actionableItems, ...awaitingItems];
   const notificationItems = actionItems;
