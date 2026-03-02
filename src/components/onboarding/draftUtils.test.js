@@ -49,3 +49,13 @@ test('final submit success helper state indicates no draft-dependent warning', (
   assert.equal(state.hasUnsavedChanges, false);
   assert.equal(state.autosaveError, null);
 });
+
+
+test('buildDraftPartialPayload excludes server-managed stripe status fields', () => {
+  const previous = { charges_enabled: false, charges_disabled_reason: '' };
+  const current = { charges_enabled: true, charges_disabled_reason: 'pending' };
+
+  const patch = buildDraftPartialPayload(previous, current);
+
+  assert.deepEqual(patch, {});
+});

@@ -193,7 +193,7 @@ const normaliseGroupClasses = (groupClasses = []) => {
     .filter(Boolean);
 };
 
-const buildOnboardingPayload = (formData = {}) => {
+export const buildOnboardingPayload = (formData = {}) => {
   const availability = normaliseAvailability(formData.availability);
   const availabilityLocations = normaliseAvailabilityLocations(formData.availabilityLocations, availability);
 
@@ -223,10 +223,7 @@ const buildOnboardingPayload = (formData = {}) => {
     availabilityLocations,
     groupClasses: normaliseGroupClasses(formData.groupClasses),
     packages: Array.isArray(formData.packages) ? formData.packages : [],
-    stripe_account_id: formData.stripe_account_id ?? null,
-    charges_enabled: Boolean(formData.charges_enabled),
-    charges_disabled_reason:
-      typeof formData.charges_disabled_reason === 'string' ? formData.charges_disabled_reason.trim() : ''
+    stripe_account_id: formData.stripe_account_id ?? null
   };
 
   if (

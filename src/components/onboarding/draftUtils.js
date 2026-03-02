@@ -1,3 +1,5 @@
+const SERVER_MANAGED_ONBOARDING_FIELDS = new Set(['charges_enabled', 'charges_disabled_reason']);
+
 export const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export const mergeOnboardingWithDraft = (onboarding = {}, draftPayload = {}) => {
@@ -37,6 +39,10 @@ const hasMeaningfulValue = (value) => {
 
 export const buildDraftPartialPayload = (previous = {}, current = {}) =>
   Object.keys(current).reduce((accumulator, key) => {
+    if (SERVER_MANAGED_ONBOARDING_FIELDS.has(key)) {
+      return accumulator;
+    }
+
     if (previous[key] === current[key]) {
       return accumulator;
     }
