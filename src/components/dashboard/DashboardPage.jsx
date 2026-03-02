@@ -6,7 +6,6 @@ import {
   Calendar,
   CalendarPlus,
   DollarSign,
-  Menu,
   LogOut,
   Package,
   Plus,
@@ -372,8 +371,6 @@ const DashboardPage = ({
   studentSearchQuery,
   onStudentSearchQueryChange,
   onStudentSelect = () => {},
-  showMobileMenu,
-  onToggleMobileMenu,
   packagesLoading = false,
   packagesError = null,
   onRefreshPackages = () => {},
@@ -1108,13 +1105,6 @@ const DashboardPage = ({
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
-              <button
-                type="button"
-                onClick={() => onToggleMobileMenu(!showMobileMenu)}
-                className="touch-target p-2 text-gray-500 transition hover:text-gray-700 md:hidden dashboard-mobile-toggle"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
               <div className="flex items-center dashboard-brand">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 text-lg">
                   🎾
@@ -1340,52 +1330,11 @@ const DashboardPage = ({
         />
       )}
 
-      {showMobileMenu && (
-        <div className="border-b bg-white shadow-lg md:hidden">
-          <div className="space-y-2 px-4 py-4">
-            {[
-              { key: 'calendar', label: 'Calendar', icon: Calendar },
-              { key: 'students', label: 'Students', icon: Users },
-              { key: 'earnings', label: 'Earnings', icon: DollarSign },
-              { key: 'packages', label: 'Packages', icon: Package },
-              { key: 'locations', label: 'Locations', icon: MapPin },
-              { key: 'groups', label: 'Groups', icon: Users }
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => {
-                  onDashboardTabChange(tab.key);
-                  onToggleMobileMenu(false);
-                }}
-                className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-left ${
-                  dashboardTab === tab.key ? 'bg-purple-50 text-purple-600' : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <tab.icon className="h-5 w-5" />
-                <span className="font-medium">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              onToggleMobileMenu(false);
-              onLogout?.();
-            }}
-            className="flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-left text-red-600 hover:bg-red-50"
-          >
-            <LogOut className="h-5 w-5" />
-            <span className="font-medium">Log out</span>
-          </button>
-        </div>
-      )}
-
       <StatsSummary stats={stats} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
-          <div className="hidden w-full flex-wrap gap-2 sm:flex sm:w-auto sm:flex-nowrap dashboard-tabs">
+          <div className="flex w-full flex-wrap gap-2 dashboard-tabs">
             {[
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
