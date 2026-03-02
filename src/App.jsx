@@ -164,7 +164,6 @@ function App() {
   const [studentLessonsLoading, setStudentLessonsLoading] = useState(false);
   const [studentLessonsLoadingMore, setStudentLessonsLoadingMore] = useState(false);
   const [studentLessonsError, setStudentLessonsError] = useState(null);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [adHocSlot, setAdHocSlot] = useState({
     date: '',
     start: '09:00',
@@ -1609,8 +1608,6 @@ function App() {
           studentSearchQuery={studentSearchQuery}
           onStudentSearchQueryChange={setStudentSearchQuery}
           onStudentSelect={handleStudentSelect}
-          showMobileMenu={showMobileMenu}
-          onToggleMobileMenu={setShowMobileMenu}
           packagesLoading={packagesLoading}
           packagesError={packagesError}
           onRefreshPackages={refreshPackages}
