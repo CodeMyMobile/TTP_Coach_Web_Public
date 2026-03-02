@@ -944,7 +944,10 @@ const DashboardPage = ({
           student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
           studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
           profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
-          player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || ''
+          player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || '',
+          status: requestItem?.status ?? lesson?.status ?? lesson?.lessonStatus ?? lesson?.lesson_status,
+          lessonStatus: requestItem?.status ?? lesson?.lessonStatus ?? lesson?.status ?? lesson?.lesson_status,
+          lesson_status: requestItem?.status ?? lesson?.lesson_status ?? lesson?.status ?? lesson?.lessonStatus
         }
       : null;
     const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
@@ -988,7 +991,10 @@ const DashboardPage = ({
       student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
       studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
       profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
-      player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || ''
+      player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || '',
+      status: requestItem?.status ?? lesson?.status ?? lesson?.lessonStatus ?? lesson?.lesson_status,
+      lessonStatus: requestItem?.status ?? lesson?.lessonStatus ?? lesson?.status ?? lesson?.lesson_status,
+      lesson_status: requestItem?.status ?? lesson?.lesson_status ?? lesson?.status ?? lesson?.lessonStatus
     };
 
     return {
