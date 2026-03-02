@@ -193,7 +193,7 @@ const normaliseGroupClasses = (groupClasses = []) => {
     .filter(Boolean);
 };
 
-const buildOnboardingPayload = (formData = {}) => {
+export const buildOnboardingPayload = (formData = {}) => {
   const availability = normaliseAvailability(formData.availability);
   const availabilityLocations = normaliseAvailabilityLocations(formData.availabilityLocations, availability);
 
@@ -223,10 +223,7 @@ const buildOnboardingPayload = (formData = {}) => {
     availabilityLocations,
     groupClasses: normaliseGroupClasses(formData.groupClasses),
     packages: Array.isArray(formData.packages) ? formData.packages : [],
-    stripe_account_id: formData.stripe_account_id ?? null,
-    charges_enabled: Boolean(formData.charges_enabled),
-    charges_disabled_reason:
-      typeof formData.charges_disabled_reason === 'string' ? formData.charges_disabled_reason.trim() : ''
+    stripe_account_id: formData.stripe_account_id ?? null
   };
 
   if (
@@ -281,16 +278,39 @@ export const getCoachOnboarding = async () =>
     method: 'GET'
   });
 
-export const saveCoachOnboarding = async (formData = {}) =>
+export const putCoachOnboarding = async (formData = {}) =>
   apiRequest('/coach/onboarding', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json;charset=UTF-8' },
     body: JSON.stringify(buildOnboardingPayload(formData))
   });
 
+export const getCoachOnboardingDraft = async () =>
+  apiRequest('/coach/onboarding/draft', {
+    method: 'GET'
+  });
+
+export const patchCoachOnboardingDraft = async (partialPayload = {}) =>
+  apiRequest('/coach/onboarding/draft', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+    body: JSON.stringify(partialPayload)
+  });
+
+export const deleteCoachOnboardingDraft = async () =>
+  apiRequest('/coach/onboarding/draft', {
+    method: 'DELETE'
+  });
+
+export const saveCoachOnboarding = putCoachOnboarding;
+
 export default {
   requestCoachAvatarUploadUrl,
   uploadCoachAvatar,
   getCoachOnboarding,
+  putCoachOnboarding,
+  getCoachOnboardingDraft,
+  patchCoachOnboardingDraft,
+  deleteCoachOnboardingDraft,
   saveCoachOnboarding
 };

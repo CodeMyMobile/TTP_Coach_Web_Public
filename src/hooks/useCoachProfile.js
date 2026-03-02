@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getCoachOnboarding, saveCoachOnboarding } from '../api/CoachApi/onboarding';
+import { getCoachOnboarding, getCoachOnboardingDraft, putCoachOnboarding } from '../api/CoachApi/onboarding';
 import { createDefaultProfile } from '../constants/profile';
+import { mergeOnboardingWithDraft } from '../components/onboarding/draftUtils';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -12,6 +13,7 @@ const pickDefined = (...candidates) => {
   }
   return undefined;
 };
+
 
 const toNumberOrDefault = (value, fallback) => {
   if (typeof value === 'number' && !Number.isNaN(value)) {
@@ -229,6 +231,9 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
   const [error, setError] = useState(null);
   const [isComplete, setIsComplete] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
+  const [draftWarning, setDraftWarning] = useState(null);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [canonicalProfile, setCanonicalProfile] = useState(() => createDefaultProfile());
 
   const fetchProfile = useCallback(async () => {
     if (!enabled) {
@@ -238,14 +243,18 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
 
     setLoading(true);
     setError(null);
+    setDraftWarning(null);
     try {
       const response = await getCoachOnboarding();
 
       if (!response) {
         setHasFetched(true);
         setIsComplete(false);
-        setProfile(createDefaultProfile());
+        const fallback = createDefaultProfile();
+        setProfile(fallback);
+        setCanonicalProfile(fallback);
         setProfileId(null);
+        setHasDraft(false);
         return null;
       }
 
@@ -262,19 +271,45 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
 
       const payload = response.status === 204 ? null : await response.json().catch(() => null);
       const normalised = normaliseProfileResponse(payload);
-      setProfile(normalised.profile);
+      const canonical = normalised.profile;
+      let mergedProfile = canonical;
+      let draftDetected = false;
+
+      try {
+        const draftResponse = await getCoachOnboardingDraft();
+        if (draftResponse && draftResponse.ok) {
+          const draftBody = draftResponse.status === 204 ? null : await draftResponse.json().catch(() => null);
+          const draftPayload = draftBody?.payload || draftBody?.data?.payload || draftBody?.draft?.payload || draftBody?.draft || draftBody?.payload_data || null;
+
+          if (isObject(draftPayload) && Object.keys(draftPayload).length > 0) {
+            mergedProfile = mergeOnboardingWithDraft(canonical, draftPayload);
+            draftDetected = true;
+          }
+        } else if (draftResponse) {
+          setDraftWarning('Draft data could not be loaded. Showing saved onboarding data.');
+        }
+      } catch (draftError) {
+        setDraftWarning('Draft data could not be loaded. Showing saved onboarding data.');
+      }
+
+      setProfile(mergedProfile);
+      setCanonicalProfile(canonical);
+      setHasDraft(draftDetected);
       setProfileId(normalised.id ?? null);
       setIsComplete(normalised.isComplete);
       setHasFetched(true);
-      return normalised;
+      return { ...normalised, profile: mergedProfile, canonicalProfile: canonical, hasDraft: draftDetected };
     } catch (err) {
       const normalisedError =
         err instanceof Error ? err : new Error('Failed to fetch coach onboarding');
       setError(normalisedError);
       setHasFetched(true);
       setIsComplete(false);
-      setProfile(createDefaultProfile());
+      const fallback = createDefaultProfile();
+      setProfile(fallback);
+      setCanonicalProfile(fallback);
       setProfileId(null);
+      setHasDraft(false);
       return null;
     } finally {
       setLoading(false);
@@ -285,11 +320,15 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
     if (enabled) {
       fetchProfile();
     } else {
-      setProfile(createDefaultProfile());
+      const fallback = createDefaultProfile();
+      setProfile(fallback);
+      setCanonicalProfile(fallback);
       setProfileId(null);
       setIsComplete(false);
       setHasFetched(false);
       setError(null);
+      setDraftWarning(null);
+      setHasDraft(false);
       setLoading(false);
     }
   }, [enabled, fetchProfile]);
@@ -300,7 +339,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       setError(null);
 
       try {
-        const response = await saveCoachOnboarding(formData);
+        const response = await putCoachOnboarding(formData);
 
         if (!response) {
           throw new Error('Failed to save coach onboarding');
@@ -321,6 +360,9 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
         const normalised = normaliseProfileResponse(responseBody, formData, profileId);
 
         setProfile(normalised.profile);
+        setCanonicalProfile(normalised.profile);
+        setHasDraft(false);
+        setDraftWarning(null);
         setProfileId(normalised.id ?? normalised.profile?.id ?? profileId);
         setIsComplete(normalised.isComplete ?? true);
         setHasFetched(true);
@@ -359,7 +401,10 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
     status,
     refreshProfile: fetchProfile,
     saveProfile,
-    setProfile
+    setProfile,
+    canonicalProfile,
+    draftWarning,
+    hasDraft
   };
 };
 

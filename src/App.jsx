@@ -130,7 +130,9 @@ function App() {
     error: profileError,
     hasFetched: profileFetched,
     saveProfile,
-    refreshProfile
+    refreshProfile,
+    canonicalProfile,
+    draftWarning
   } = useCoachProfile({ enabled: isAuthenticated });
   const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [profileData, setProfileData] = useState(defaultProfile);
@@ -1310,6 +1312,7 @@ function App() {
   const handleOnboardingComplete = async (data) => {
     try {
       const result = await saveProfile(data);
+      await refreshProfile();
       const resolvedProfile = result?.profile ? { ...result.profile } : { ...profileData, ...data };
       setProfileData(resolvedProfile);
       setIsProfileComplete(Boolean(result?.isComplete ?? true));
@@ -1516,6 +1519,8 @@ function App() {
         onComplete={handleOnboardingComplete}
         onRefreshProfile={refreshProfile}
         isMobile={isMobile}
+        canonicalData={canonicalProfile}
+        onboardingWarning={draftWarning}
       />
     );
   }
@@ -1532,6 +1537,8 @@ function App() {
           isSettingsMode
           onBack={() => navigate('/dashboard')}
           onOpenGoogleCalendar={() => navigate('/google-calendar')}
+          canonicalData={canonicalProfile}
+          onboardingWarning={draftWarning}
         />
       ) : isGoogleCalendarRoute || isGoogleRedirectRoute ? (
         <GoogleCalendarSyncPage onBack={() => navigate('/settings')} />

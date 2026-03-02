@@ -24,7 +24,14 @@ import {
 import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
 import { createStripeOnboardingLink, refreshStripeOnboardingLink } from '../../api/CoachApi/payments';
 import { getCoachProfile } from '../../api/CoachApi/profileScreen';
-import { requestCoachAvatarUploadUrl, uploadCoachAvatar } from '../../api/CoachApi/onboarding';
+import {
+  deleteCoachOnboardingDraft,
+  patchCoachOnboardingDraft,
+  requestCoachAvatarUploadUrl,
+  uploadCoachAvatar
+} from '../../api/CoachApi/onboarding';
+import ConfirmationDialog from '../modals/ConfirmationDialog';
+import { buildDraftPartialPayload, resetDraftUiState } from './draftUtils';
 
 const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
@@ -45,6 +52,18 @@ const stepsConfig = [
 
 const settingsStepsConfig = stepsConfig.slice(0, 8);
 
+
+const ONBOARDING_STEP_STORAGE_KEY = 'coachOnboardingCurrentStep';
+
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const isTransientAutosaveError = (error) => {
+  if (!error) return false;
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('network') || message.includes('timeout') || message.includes('failed to fetch');
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const getCourtLocationLabel = (court) => {
   if (typeof court === 'string') {
     return court.trim();
@@ -117,10 +136,19 @@ const OnboardingFlow = ({
   onRefreshProfile,
   isSettingsMode = false,
   onBack,
-  onOpenGoogleCalendar
+  onOpenGoogleCalendar,
+  canonicalData,
+  onboardingWarning
 }) => {
   const [formData, setFormData] = useState(() => ({ ...createInitialState(), ...(initialData || {}) }));
-  const [currentStep, setCurrentStep] = useState(initialStep || 0);
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (typeof window === 'undefined') {
+      return initialStep || 0;
+    }
+
+    const stored = Number(window.localStorage.getItem(ONBOARDING_STEP_STORAGE_KEY));
+    return Number.isInteger(stored) && stored >= 0 ? stored : initialStep || 0;
+  });
   const [errors, setErrors] = useState({});
   const [locationInput, setLocationInput] = useState('');
   const [selectedLocationDetails, setSelectedLocationDetails] = useState(null);
@@ -137,16 +165,23 @@ const OnboardingFlow = ({
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState(null);
+  const [autosaveStatus, setAutosaveStatus] = useState('idle');
+  const [autosaveError, setAutosaveError] = useState(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [profileImagePreview, setProfileImagePreview] = useState(
     () => (initialData?.profileImage && typeof initialData.profileImage === 'string' ? initialData.profileImage : '')
   );
   const [profileImageUploading, setProfileImageUploading] = useState(false);
   const uploadObjectUrlRef = useRef(null);
+  const previousFormDataRef = useRef(null);
+  const autosaveTimeoutRef = useRef(null);
+  const autosaveInitializedRef = useRef(false);
 
   useEffect(() => {
     if (initialData) {
       const baseState = createInitialState();
-      setFormData({
+      const mergedData = {
         ...baseState,
         ...initialData,
         profileImage: initialData.profileImage || baseState.profileImage,
@@ -159,7 +194,15 @@ const OnboardingFlow = ({
           ...baseState.availabilityLocations,
           ...(initialData.availabilityLocations || {})
         }
-      });
+      };
+
+      setFormData(mergedData);
+      previousFormDataRef.current = mergedData;
+      autosaveInitializedRef.current = false;
+      const resetState = resetDraftUiState();
+      setAutosaveStatus(resetState.autosaveStatus);
+      setAutosaveError(resetState.autosaveError);
+      setHasUnsavedChanges(resetState.hasUnsavedChanges);
       if (initialData.profileImage && typeof initialData.profileImage === 'string') {
         setProfileImagePreview(initialData.profileImage);
       } else {
@@ -205,6 +248,81 @@ const OnboardingFlow = ({
   useEffect(() => {
     setCurrentStep((step) => Math.min(step, activeSteps.length - 1));
   }, [activeSteps.length]);
+
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(ONBOARDING_STEP_STORAGE_KEY, String(currentStep));
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (!autosaveInitializedRef.current) {
+      previousFormDataRef.current = formData;
+      autosaveInitializedRef.current = true;
+      return undefined;
+    }
+
+    const previous = previousFormDataRef.current || {};
+    const draftPayload = buildDraftPartialPayload(previous, formData);
+    previousFormDataRef.current = formData;
+
+    if (Object.keys(draftPayload).length === 0) {
+      return undefined;
+    }
+
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+    }
+
+    setHasUnsavedChanges(true);
+    setAutosaveStatus('saving');
+
+    autosaveTimeoutRef.current = setTimeout(async () => {
+      const persistDraft = async () => {
+        const response = await patchCoachOnboardingDraft(draftPayload);
+        if (!response || !response.ok) {
+          const status = response?.status ? ` (${response.status})` : '';
+          throw new Error(`Draft save failed${status}`);
+        }
+      };
+
+      try {
+        await persistDraft();
+        setAutosaveStatus('saved');
+        setAutosaveError(null);
+        setHasUnsavedChanges(false);
+      } catch (error) {
+        if (isTransientAutosaveError(error)) {
+          try {
+            await delay(300);
+            await persistDraft();
+            setAutosaveStatus('saved');
+            setAutosaveError(null);
+            setHasUnsavedChanges(false);
+            return;
+          } catch (retryError) {
+            setAutosaveStatus('failed');
+            setAutosaveError('Save failed. Retry');
+            setHasUnsavedChanges(true);
+            return;
+          }
+        }
+
+        setAutosaveStatus('failed');
+        setAutosaveError('Save failed. Retry');
+        setHasUnsavedChanges(true);
+      }
+    }, 650);
+
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+      }
+    };
+  }, [formData]);
 
   const clearProfileImageError = useCallback(() => {
     setErrors((previousErrors) => {
@@ -386,6 +504,48 @@ const OnboardingFlow = ({
     setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
     clearProfileImageError();
   };
+
+
+  const handleRetryAutosave = useCallback(async () => {
+    setAutosaveStatus('saving');
+    try {
+      const response = await patchCoachOnboardingDraft(formData);
+      if (!response || !response.ok) {
+        throw new Error('retry failed');
+      }
+      setAutosaveStatus('saved');
+      setAutosaveError(null);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      setAutosaveStatus('failed');
+      setAutosaveError('Save failed. Retry');
+      setHasUnsavedChanges(true);
+    }
+  }, [formData]);
+
+  const handleDiscardDraft = useCallback(async () => {
+    try {
+      const response = await deleteCoachOnboardingDraft();
+      if (!response || !response.ok) {
+        throw new Error('Failed to delete draft');
+      }
+
+      const resetBase = createInitialState();
+      const resetData = { ...resetBase, ...(canonicalData || {}) };
+      setFormData(resetData);
+      previousFormDataRef.current = resetData;
+      setErrors({});
+      const resetState = resetDraftUiState();
+      setAutosaveStatus(resetState.autosaveStatus);
+      setAutosaveError(resetState.autosaveError);
+      setHasUnsavedChanges(resetState.hasUnsavedChanges);
+      setSubmissionError(null);
+      setShowDiscardDialog(false);
+    } catch (error) {
+      setAutosaveError('Unable to discard draft right now.');
+      setShowDiscardDialog(false);
+    }
+  }, [canonicalData]);
 
   const validateStep = (stepToValidate = currentStep) => {
     const newErrors = {};
@@ -843,6 +1003,32 @@ const OnboardingFlow = ({
               <Menu className="h-5 w-5" />
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="border-b border-slate-200 bg-white/90">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs sm:text-sm">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-slate-600">Autosave:</span>
+            {autosaveStatus === 'saving' && <span className="text-amber-600">Saving…</span>}
+            {autosaveStatus === 'saved' && <span className="text-emerald-600">Saved</span>}
+            {autosaveStatus === 'failed' && <span className="text-red-600">Save failed. Retry</span>}
+            {(autosaveStatus === 'idle' || !autosaveStatus) && <span className="text-slate-500">Idle</span>}
+            {autosaveStatus === 'failed' && (
+              <button type="button" onClick={handleRetryAutosave} className="text-violet-600 underline">Retry</button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {onboardingWarning && <span className="text-amber-600">{onboardingWarning}</span>}
+            {hasUnsavedChanges && <span className="text-amber-600">Not saved yet</span>}
+            <button
+              type="button"
+              onClick={() => setShowDiscardDialog(true)}
+              className="text-red-600 underline decoration-red-300 underline-offset-2"
+            >
+              Discard draft
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1967,6 +2153,16 @@ const OnboardingFlow = ({
         )}
         </div>
       </div>
+      <ConfirmationDialog
+        isOpen={showDiscardDialog}
+        title="Discard onboarding draft?"
+        description="This removes your unsaved onboarding draft and restores your last saved onboarding data."
+        confirmLabel="Discard draft"
+        cancelLabel="Keep editing"
+        onConfirm={handleDiscardDraft}
+        onCancel={() => setShowDiscardDialog(false)}
+        tone="danger"
+      />
     </div>
   );
 };
