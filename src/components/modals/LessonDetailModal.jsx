@@ -360,6 +360,7 @@ const LessonDetailModal = ({
   };
   const isGroupOrSemiPrivate =
     resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
+  const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
 
   const lessonGroupPlayers = Array.isArray(resolvedLesson.group_players)
     ? resolvedLesson.group_players
@@ -645,8 +646,6 @@ const LessonDetailModal = ({
     }
 
     if (resolvedLesson.status === 'pending') {
-      const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
-
       if (isAwaitingPlayerConfirmation) {
         return (
           <>
@@ -913,7 +912,9 @@ const LessonDetailModal = ({
                     <div className="flex items-start gap-3">
                       <div className="text-2xl">⏳</div>
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold text-yellow-900">Awaiting Player Confirmation</p>
+                        <p className="text-sm font-semibold text-yellow-900">
+                          {isAwaitingPlayerConfirmation ? 'Awaiting Player Confirmation' : 'Awaiting Coach Confirmation'}
+                        </p>
                         <p className="text-xs text-yellow-800">
                           {resolvedLesson.isCoachCreatedLesson ? `Created ${resolvedLesson.requestedAt || 'recently'}` : `Requested ${resolvedLesson.requestedAt || 'recently'}`}
                         </p>
@@ -1114,7 +1115,7 @@ const LessonDetailModal = ({
               </>
             )}
 
-            {resolvedLesson?.id ? <LessonInvitePanel lessonId={resolvedLesson.id} /> : null}
+            {isGroupOrSemiPrivate && resolvedLesson?.id ? <LessonInvitePanel lessonId={resolvedLesson.id} /> : null}
           </div>
         ) : (
           <div className="space-y-5">
