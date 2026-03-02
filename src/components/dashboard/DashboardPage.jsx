@@ -592,9 +592,9 @@ const DashboardPage = ({
     [onRefreshStudents]
   );
 
-  const handleAddPlaceLocation = useCallback(async ({ placeId, name, address }) => {
+  const handleAddPlaceLocation = useCallback(async ({ name, address, latitude, longitude }) => {
     setLocationAction(null);
-    const result = await onAddPlaceLocation({ placeId, name, address });
+    const result = await onAddPlaceLocation({ name, address, latitude, longitude });
     if (result?.ok) {
       setLocationAction({ type: 'success', message: 'Location added.' });
     } else if (result?.error) {

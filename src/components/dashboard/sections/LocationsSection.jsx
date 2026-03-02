@@ -126,7 +126,7 @@ const LocationsSection = ({
     placesServiceRef.current.getDetails(
       {
         placeId,
-        fields: ['place_id', 'name', 'formatted_address']
+        fields: ['place_id', 'name', 'formatted_address', 'geometry']
       },
       async (place, status) => {
         if (status !== window.google.maps.places.PlacesServiceStatus.OK || !place?.place_id) {
@@ -135,10 +135,14 @@ const LocationsSection = ({
           return;
         }
 
+        const latitude = place?.geometry?.location?.lat ? Number(place.geometry.location.lat()) : null;
+        const longitude = place?.geometry?.location?.lng ? Number(place.geometry.location.lng()) : null;
+
         const result = await onAddPlaceLocation({
-          placeId: place.place_id,
           name: place.name || '',
-          address: place.formatted_address || ''
+          address: place.formatted_address || '',
+          latitude,
+          longitude
         });
 
         if (result?.ok) {

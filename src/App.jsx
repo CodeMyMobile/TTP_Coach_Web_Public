@@ -554,19 +554,18 @@ function App() {
   }, [dashboardTab, packagesFetchedRef]);
 
   const handleAddPlaceLocation = useCallback(
-    async ({ placeId, name, address }) => {
-      if (!placeId || !name || !isAuthenticated) {
+    async ({ name, address, latitude, longitude }) => {
+      if (!name || latitude === null || longitude === null || !isAuthenticated) {
         return { error: 'A valid place selection is required.' };
       }
 
       try {
+        const locationLabel = [name, address].filter(Boolean).join(' ').trim();
         const response = await addCoachCustomLocation({
           coachAccessToken: user?.session?.access_token,
-          location_id: placeId,
-          location: name,
-          address_components: {
-            formatted_address: address || ''
-          }
+          location: locationLabel || name,
+          latitude,
+          longitude
         });
 
         if (!response?.ok) {
