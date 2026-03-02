@@ -1368,6 +1368,74 @@ function App() {
     setLessonEditData(null);
   };
 
+  const selectedLessonStatus = useMemo(() => {
+    const value = selectedLessonDetail?.status ?? selectedLessonDetail?.lessonStatus ?? selectedLessonDetail?.lesson_status;
+
+    if (value === 0 || value === '0') {
+      return 'pending';
+    }
+
+    if (value === 1 || value === '1') {
+      return 'confirmed';
+    }
+
+    if (value === 2 || value === '2') {
+      return 'cancelled';
+    }
+
+    if (value === null || value === undefined || value === '') {
+      return 'confirmed';
+    }
+
+    const normalized = String(value).toLowerCase();
+    if (normalized.includes('pending') || normalized.includes('request') || normalized.includes('await')) {
+      return 'pending';
+    }
+    if (normalized.includes('cancel')) {
+      return 'cancelled';
+    }
+
+    return 'confirmed';
+  }, [selectedLessonDetail]);
+
+  const isCoachCreatedSelectedLesson = useMemo(() => {
+    if (!selectedLessonDetail) {
+      return false;
+    }
+
+    const resolveNumericId = (...values) => {
+      for (const value of values) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+      return null;
+    };
+
+    const createdById = resolveNumericId(
+      selectedLessonDetail.created_by,
+      selectedLessonDetail.createdBy,
+      selectedLessonDetail.created_by_id,
+      selectedLessonDetail.createdById,
+      selectedLessonDetail.metadata?.created_by,
+      selectedLessonDetail.metadata?.createdBy
+    );
+
+    const coachId = resolveNumericId(
+      selectedLessonDetail.coach_id,
+      selectedLessonDetail.coachId,
+      selectedLessonDetail.coach?.id,
+      selectedLessonDetail.metadata?.coach_id,
+      selectedLessonDetail.metadata?.coachId
+    );
+
+    return Number.isFinite(createdById) && Number.isFinite(coachId) && createdById === coachId;
+  }, [selectedLessonDetail]);
+
+  const shouldUseDeclineFlowForSelectedLesson =
+    selectedLessonStatus === 'pending' && !isCoachCreatedSelectedLesson;
+
   const handleAcceptRequest = async () => {
     if (!selectedLessonDetail?.id) {
       setShowLessonDetailModal(false);
@@ -1579,7 +1647,7 @@ function App() {
         editData={lessonEditData || selectedLessonDetail}
         onEditChange={setLessonEditData}
         mutationLoading={scheduleMutationLoading}
-        onCancelLesson={handleCancelLesson}
+        onCancelLesson={shouldUseDeclineFlowForSelectedLesson ? handleDeclineRequest : handleCancelLesson}
         students={resolvedStudents}
         coachCourts={profileData.home_courts}
         coachHourlyRate={profileData.hourly_rate ?? profileData.price_private}
@@ -1602,11 +1670,15 @@ function App() {
 
       <ConfirmationDialog
         isOpen={showCancelConfirmation}
-        title="Cancel Lesson"
-        description="Are you sure you want to cancel this lesson? This action cannot be undone and the student will be notified."
-        confirmLabel="Cancel Lesson"
+        title={shouldUseDeclineFlowForSelectedLesson ? 'Decline Lesson Request' : 'Cancel Lesson'}
+        description={
+          shouldUseDeclineFlowForSelectedLesson
+            ? 'Are you sure you want to decline this lesson request? The player will be notified.'
+            : 'Are you sure you want to cancel this lesson? This action cannot be undone and the student will be notified.'
+        }
+        confirmLabel={shouldUseDeclineFlowForSelectedLesson ? 'Decline Request' : 'Cancel Lesson'}
         cancelLabel="Keep Lesson"
-        onConfirm={confirmCancelLesson}
+        onConfirm={shouldUseDeclineFlowForSelectedLesson ? handleDeclineRequest : confirmCancelLesson}
         onCancel={() => setShowCancelConfirmation(false)}
       />
 
