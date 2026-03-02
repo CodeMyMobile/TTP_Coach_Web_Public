@@ -949,6 +949,14 @@ const DashboardPage = ({
       acceptLabel: isLessonRequest ? 'Confirm' : 'Approve',
       declineLabel: 'Decline',
       activeAction,
+      onDetails: () => {
+        if (isLessonRequest) {
+          onLessonSelect?.(lesson);
+          return;
+        }
+
+        onStudentSelect?.(requestItem?.player || null);
+      },
       onAccept: () => handleRequestAction(requestItem, isLessonRequest ? 'confirm' : 'approve'),
       onDecline: () => openDeclineModal(requestItem)
     };
@@ -964,6 +972,7 @@ const DashboardPage = ({
     avatarUrl: '',
     acceptLabel: 'View',
     hideDecline: true,
+    onDetails: () => onLessonSelect?.(requestItem.lesson),
     onAccept: () => onLessonSelect?.(requestItem.lesson),
     onDecline: null
   }));
@@ -1387,8 +1396,8 @@ const DashboardPage = ({
                       <button
                         type="button"
                         className="action-btn details"
-                        onClick={item.onAccept || undefined}
-                        disabled={!item.onAccept || Boolean(item.activeAction)}
+                        onClick={item.onDetails || undefined}
+                        disabled={!item.onDetails || Boolean(item.activeAction)}
                       >
                         Details
                       </button>
@@ -1476,8 +1485,8 @@ const DashboardPage = ({
                       <button
                         type="button"
                         className="action-btn details"
-                        onClick={item.onAccept || undefined}
-                        disabled={!item.onAccept || Boolean(item.activeAction)}
+                        onClick={item.onDetails || undefined}
+                        disabled={!item.onDetails || Boolean(item.activeAction)}
                       >
                         Details
                       </button>
