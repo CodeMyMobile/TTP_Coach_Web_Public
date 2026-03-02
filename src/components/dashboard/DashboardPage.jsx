@@ -378,8 +378,7 @@ const DashboardPage = ({
   locationsLoading = false,
   locationsError = null,
   onRefreshLocations = () => {},
-  onAddLocationById = () => {},
-  onAddCustomLocation = () => {},
+  onAddPlaceLocation = () => {},
   onDeleteLocation = () => {},
   groupsData = [],
   groupsLoading = false,
@@ -486,12 +485,6 @@ const DashboardPage = ({
   const [activePackagesLoading, setActivePackagesLoading] = useState(false);
   const [activePackagesError, setActivePackagesError] = useState(null);
   const [activePackagesByPlayer, setActivePackagesByPlayer] = useState({});
-  const [locationIdInput, setLocationIdInput] = useState('');
-  const [customLocationForm, setCustomLocationForm] = useState({
-    location: '',
-    latitude: '',
-    longitude: ''
-  });
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -566,21 +559,15 @@ const DashboardPage = ({
 
     return source.map((location) => {
       const relationId = location?.id ?? location?.coach_location_id ?? location?.relation_id ?? null;
-      const locationId = location?.location_id ?? location?.locationId ?? relationId;
-      const label =
-        location?.location ||
-        location?.name ||
-        location?.address ||
-        location?.formatted_address ||
-        location?.label ||
-        '';
+      const placeId = location?.place_id ?? location?.placeId ?? location?.location_id ?? location?.locationId ?? null;
+      const name = location?.location || location?.name || location?.label || '';
+      const address = location?.address || location?.formatted_address || location?.formattedAddress || '';
 
       return {
         relationId,
-        locationId,
-        label,
-        latitude: location?.latitude,
-        longitude: location?.longitude
+        placeId,
+        name,
+        address
       };
     });
   }, [locationsData]);
@@ -605,33 +592,22 @@ const DashboardPage = ({
     [onRefreshStudents]
   );
 
-  const handleAddLocation = useCallback(async () => {
+  const handleAddPlaceLocation = useCallback(async ({ placeId, name, address }) => {
     setLocationAction(null);
-    const result = await onAddLocationById(locationIdInput.trim());
+    const result = await onAddPlaceLocation({ placeId, name, address });
     if (result?.ok) {
-      setLocationIdInput('');
       setLocationAction({ type: 'success', message: 'Location added.' });
     } else if (result?.error) {
       setLocationAction({ type: 'error', message: result.error });
     }
-  }, [locationIdInput, onAddLocationById]);
-
-  const handleAddCustomLocation = useCallback(async () => {
-    setLocationAction(null);
-    const result = await onAddCustomLocation({
-      location: customLocationForm.location.trim(),
-      latitude: customLocationForm.latitude,
-      longitude: customLocationForm.longitude
-    });
-    if (result?.ok) {
-      setCustomLocationForm({ location: '', latitude: '', longitude: '' });
-      setLocationAction({ type: 'success', message: 'Custom location added.' });
-    } else if (result?.error) {
-      setLocationAction({ type: 'error', message: result.error });
-    }
-  }, [customLocationForm, onAddCustomLocation]);
+    return result;
+  }, [onAddPlaceLocation]);
 
   const handleDeleteLocation = useCallback(async (relationId) => {
+    if (!relationId || !window.confirm('Remove this location from your list?')) {
+      return;
+    }
+
     setLocationAction(null);
     const result = await onDeleteLocation(relationId);
     if (result?.ok) {
@@ -1606,17 +1582,12 @@ const DashboardPage = ({
         {dashboardTab === 'locations' && (
           <LocationsSection
             locationAction={locationAction}
-            locationIdInput={locationIdInput}
-            onLocationIdChange={setLocationIdInput}
-            onAddLocation={handleAddLocation}
-            customLocationForm={customLocationForm}
-            onCustomLocationChange={setCustomLocationForm}
-            onAddCustomLocation={handleAddCustomLocation}
             locationsLoading={locationsLoading}
             locationsError={locationsError}
             normalizedLocations={normalizedLocations}
             onDeleteLocation={handleDeleteLocation}
             onRefreshLocations={onRefreshLocations}
+            onAddPlaceLocation={handleAddPlaceLocation}
           />
         )}
 

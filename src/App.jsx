@@ -14,7 +14,6 @@ import { createDefaultProfile } from './constants/profile';
 import { listCoachPackages } from './api/CoachApi/packages';
 import {
   addCoachCustomLocation,
-  addCoachLocation,
   deleteCoachLocation,
   getCoachLocations,
   scheduleCoachLesson
@@ -554,45 +553,20 @@ function App() {
     }
   }, [dashboardTab, packagesFetchedRef]);
 
-  const handleAddLocationById = useCallback(
-    async (locationId) => {
-      if (!locationId || !isAuthenticated) {
-        return { error: 'A location id is required.' };
-      }
-
-      try {
-        const response = await addCoachLocation({
-          coachAccessToken: user?.session?.access_token,
-          location_id: Number(locationId)
-        });
-
-        if (!response?.ok) {
-          const errorBody = await response?.json().catch(() => null);
-          throw new Error(errorBody?.message || errorBody?.error || 'Failed to add location.');
-        }
-
-        await fetchLocations();
-        return { ok: true };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to add location.';
-        return { error: message };
-      }
-    },
-    [fetchLocations, isAuthenticated, user?.session?.access_token]
-  );
-
-  const handleAddCustomLocation = useCallback(
-    async ({ location, latitude, longitude }) => {
-      if (!location || latitude === '' || longitude === '' || !isAuthenticated) {
-        return { error: 'Location name, latitude, and longitude are required.' };
+  const handleAddPlaceLocation = useCallback(
+    async ({ placeId, name, address }) => {
+      if (!placeId || !name || !isAuthenticated) {
+        return { error: 'A valid place selection is required.' };
       }
 
       try {
         const response = await addCoachCustomLocation({
           coachAccessToken: user?.session?.access_token,
-          location,
-          latitude: Number(latitude),
-          longitude: Number(longitude)
+          location_id: placeId,
+          location: name,
+          address_components: {
+            formatted_address: address || ''
+          }
         });
 
         if (!response?.ok) {
@@ -1615,8 +1589,7 @@ function App() {
           locationsLoading={locationsLoading}
           locationsError={locationsError}
           onRefreshLocations={refreshLocations}
-          onAddLocationById={handleAddLocationById}
-          onAddCustomLocation={handleAddCustomLocation}
+          onAddPlaceLocation={handleAddPlaceLocation}
           onDeleteLocation={handleDeleteLocation}
           groupsData={coachGroups}
           groupsLoading={groupsLoading}
