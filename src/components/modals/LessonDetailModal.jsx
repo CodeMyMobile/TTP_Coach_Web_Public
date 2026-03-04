@@ -14,6 +14,7 @@ import {
 import Modal from './Modal';
 import LessonInvitePanel from './LessonInvitePanel';
 import { LESSON_LEVELS } from '../../constants/lessonLevels';
+import GroupPicker from '../groups/GroupPicker';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -80,7 +81,8 @@ const LessonDetailModal = ({
   onAcceptRequest,
   onDeclineRequest,
   onCreateLesson,
-  coachHourlyRate = null
+  coachHourlyRate = null,
+  groups = []
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [participantsOpen, setParticipantsOpen] = useState(true);
@@ -88,6 +90,7 @@ const LessonDetailModal = ({
   const [creditUsageError, setCreditUsageError] = useState('');
   const [creditUsage, setCreditUsage] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [editPlayerSearch, setEditPlayerSearch] = useState('');
 
   const resolvePlayerPhone = async ({ playerId, phone } = {}) => {
     const directPhone = typeof phone === 'string' ? phone.trim() : '';
@@ -347,6 +350,12 @@ const LessonDetailModal = ({
 
   const shareClassLink = resolvedLesson?.id ? `${PLAYER_LESSON_BASE_URL}/#/player/lesson/${resolvedLesson.id}` : '';
 
+  useEffect(() => {
+    if (!isEditing) {
+      setEditPlayerSearch('');
+    }
+  }, [isEditing]);
+
   if (!resolvedLesson) {
     return null;
   }
@@ -486,6 +495,11 @@ const LessonDetailModal = ({
   }));
 
   const primaryStudent = participantList[0];
+  const groupLessonTitle =
+    resolvedLesson.metadata?.title ||
+    resolvedLesson.title ||
+    resolvedLesson.lesson_title ||
+    'Open Group Lesson';
   const durationLabel =
     resolvedLesson.durationMinutes || resolvedLesson.duration
       ? `${formatDuration?.(resolvedLesson.durationMinutes || resolvedLesson.duration) || resolvedLesson.durationMinutes || resolvedLesson.duration}`
@@ -614,6 +628,50 @@ const LessonDetailModal = ({
       setShareCopied(false);
     }
   };
+
+  const handleTextAll = async () => {
+    const resolvedPhones = await Promise.all(
+      participantList.map((participant) => resolvePlayerPhone({ playerId: participant.playerId, phone: participant.phone }))
+    );
+
+    const dedupedPhones = [...new Set(
+      resolvedPhones
+        .map((phone) => String(phone || '').replace(/\s+/g, ''))
+        .filter(Boolean)
+    )];
+
+    if (dedupedPhones.length === 0 || typeof window === 'undefined') {
+      return;
+    }
+
+    window.location.href = `sms:${dedupedPhones.join(',')}`;
+  };
+
+  const editablePlayers = (Array.isArray(students) ? students : [])
+    .map((student) => ({
+      id: student.playerId ?? student.player_id ?? student.id ?? student.user_id,
+      name: student.name || student.full_name || student.player_name || 'Student',
+      email: student.email || ''
+    }))
+    .filter((student) => student.id);
+
+  const selectedEditPlayerIds = Array.isArray(editData?.playerIds)
+    ? editData.playerIds.map((id) => String(id))
+    : [];
+
+  const selectedEditGroupIds = Array.isArray(editData?.groupIds)
+    ? editData.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+    : [];
+
+  const filteredEditPlayers = (() => {
+    const query = editPlayerSearch.trim().toLowerCase();
+    if (!query) {
+      return editablePlayers;
+    }
+    return editablePlayers.filter((player) => `${player.name} ${player.email}`.toLowerCase().includes(query));
+  })();
+
+  const selectedEditPlayers = editablePlayers.filter((player) => selectedEditPlayerIds.includes(String(player.id)));
 
   const actionButtons = () => {
     if (isGroupLesson) {
@@ -809,7 +867,7 @@ const LessonDetailModal = ({
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-lg">👥</div>
                     <div className="flex-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">Group Lesson</p>
-                      <p className="text-lg font-bold text-slate-800">{resolvedLesson.title || resolvedLesson.lesson_title || 'Group Lesson'}</p>
+                      <p className="text-lg font-bold text-slate-800">{groupLessonTitle}</p>
                     </div>
                     <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
                       {resolvedLesson.status === 'cancelled' ? 'Cancelled' : 'Open'}
@@ -859,7 +917,14 @@ const LessonDetailModal = ({
                       <p className="font-semibold text-slate-900">Participants</p>
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-600">{filledSpots} of {groupCapacity}</span>
                     </div>
-                    <button type="button" className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">💬 Text All</button>
+                    <button
+                      type="button"
+                      onClick={handleTextAll}
+                      disabled={participantList.length === 0}
+                      className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-violet-300"
+                    >
+                      💬 Text All
+                    </button>
                   </div>
 
                   {participantsOpen && (
@@ -1181,6 +1246,64 @@ const LessonDetailModal = ({
                     rows={4}
                     placeholder="All levels welcome"
                   />
+                </div>
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                  <GroupPicker
+                    groups={Array.isArray(groups) ? groups : []}
+                    selectedGroupIds={selectedEditGroupIds}
+                    onChange={(ids) => handleFieldChange('groupIds', ids)}
+                  />
+                  <label className="block text-sm font-semibold text-slate-800">
+                    Existing players (optional)
+                  </label>
+                  {selectedEditPlayers.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedEditPlayers.map((player) => (
+                        <span key={`selected-edit-player-${player.id}`} className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800">
+                          {player.name}
+                          <button
+                            type="button"
+                            onClick={() => handleFieldChange('playerIds', selectedEditPlayerIds
+                              .filter((id) => id !== String(player.id))
+                              .map((id) => Number(id)))}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={editPlayerSearch}
+                    onChange={(event) => setEditPlayerSearch(event.target.value)}
+                    placeholder="Search players..."
+                    className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-violet-500"
+                  />
+                  <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                    {filteredEditPlayers.map((player) => {
+                      const isSelected = selectedEditPlayerIds.includes(String(player.id));
+                      return (
+                        <button
+                          key={`edit-player-${player.id}`}
+                          type="button"
+                          onClick={() => handleFieldChange(
+                            'playerIds',
+                            isSelected
+                              ? selectedEditPlayerIds.filter((id) => id !== String(player.id)).map((id) => Number(id))
+                              : [...selectedEditPlayerIds, String(player.id)].map((id) => Number(id))
+                          )}
+                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ${isSelected ? 'bg-violet-100' : 'bg-slate-50 hover:bg-slate-100'}`}
+                        >
+                          <span className="flex-1">
+                            <span className="block text-sm font-semibold text-slate-800">{player.name}</span>
+                            <span className="block text-xs text-slate-500">{player.email || 'Student'}</span>
+                          </span>
+                          {isSelected && <span className="text-violet-700">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="rounded-xl bg-amber-100 px-4 py-3 text-sm text-amber-900">
                   📲 Notify participants? {filledSpots} booked participants will be notified of changes.

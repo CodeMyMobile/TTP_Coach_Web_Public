@@ -711,8 +711,29 @@ function App() {
     if (!selectedLessonDetail) {
       return;
     }
+
+    const existingGroupIds = Array.isArray(selectedLessonDetail.group_ids)
+      ? selectedLessonDetail.group_ids
+      : Array.isArray(selectedLessonDetail.groupIds)
+        ? selectedLessonDetail.groupIds
+        : [];
+
+    const existingPlayers = Array.isArray(selectedLessonDetail.group_players)
+      ? selectedLessonDetail.group_players
+      : Array.isArray(selectedLessonDetail.groupPlayers)
+        ? selectedLessonDetail.groupPlayers
+        : [];
+
+    const existingPlayerIds = existingPlayers
+      .map((player) => Number(player?.player_id ?? player?.playerId ?? player?.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
     setIsEditingLesson(true);
-    setLessonEditData({ ...selectedLessonDetail });
+    setLessonEditData({
+      ...selectedLessonDetail,
+      groupIds: existingGroupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0),
+      playerIds: existingPlayerIds
+    });
   };
 
   const handleCancelEdit = () => {
@@ -744,10 +765,20 @@ function App() {
 
       const rawLimit = payload?.player_limit ?? payload?.max_participants ?? payload?.maxParticipants;
       const numericLimit = Number(rawLimit);
+      const selectedGroupIds = Array.isArray(payload?.groupIds)
+        ? payload.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        : [];
+      const selectedPlayerIds = Array.isArray(payload?.playerIds)
+        ? payload.playerIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        : [];
 
       return {
         metadata: nextMetadata,
-        ...(Number.isFinite(numericLimit) ? { player_limit: numericLimit } : {})
+        ...(Number.isFinite(numericLimit) ? { player_limit: numericLimit } : {}),
+        ...(selectedGroupIds.length > 0 ? { group_ids: selectedGroupIds } : {}),
+        ...(selectedPlayerIds.length > 0
+          ? { player_ids_arr: selectedPlayerIds.map((playerId) => ({ player_id: playerId })) }
+          : {})
       };
     };
 
@@ -1640,6 +1671,7 @@ function App() {
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
+        groups={coachGroups}
       />
 
 
