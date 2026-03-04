@@ -647,38 +647,31 @@ const LessonDetailModal = ({
     window.location.href = `sms:${dedupedPhones.join(',')}`;
   };
 
-  const editablePlayers = useMemo(() => {
-    return (Array.isArray(students) ? students : [])
-      .map((student) => ({
-        id: student.playerId ?? student.player_id ?? student.id ?? student.user_id,
-        name: student.name || student.full_name || student.player_name || 'Student',
-        email: student.email || ''
-      }))
-      .filter((student) => student.id);
-  }, [students]);
+  const editablePlayers = (Array.isArray(students) ? students : [])
+    .map((student) => ({
+      id: student.playerId ?? student.player_id ?? student.id ?? student.user_id,
+      name: student.name || student.full_name || student.player_name || 'Student',
+      email: student.email || ''
+    }))
+    .filter((student) => student.id);
 
-  const selectedEditPlayerIds = useMemo(
-    () => (Array.isArray(editData?.playerIds) ? editData.playerIds.map((id) => String(id)) : []),
-    [editData?.playerIds]
-  );
+  const selectedEditPlayerIds = Array.isArray(editData?.playerIds)
+    ? editData.playerIds.map((id) => String(id))
+    : [];
 
-  const selectedEditGroupIds = useMemo(
-    () => (Array.isArray(editData?.groupIds) ? editData.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)) : []),
-    [editData?.groupIds]
-  );
+  const selectedEditGroupIds = Array.isArray(editData?.groupIds)
+    ? editData.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+    : [];
 
-  const filteredEditPlayers = useMemo(() => {
+  const filteredEditPlayers = (() => {
     const query = editPlayerSearch.trim().toLowerCase();
     if (!query) {
       return editablePlayers;
     }
     return editablePlayers.filter((player) => `${player.name} ${player.email}`.toLowerCase().includes(query));
-  }, [editPlayerSearch, editablePlayers]);
+  })();
 
-  const selectedEditPlayers = useMemo(
-    () => editablePlayers.filter((player) => selectedEditPlayerIds.includes(String(player.id))),
-    [editablePlayers, selectedEditPlayerIds]
-  );
+  const selectedEditPlayers = editablePlayers.filter((player) => selectedEditPlayerIds.includes(String(player.id)));
 
   const actionButtons = () => {
     if (isGroupLesson) {
