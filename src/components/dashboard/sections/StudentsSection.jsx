@@ -7,10 +7,7 @@ const StudentsSection = ({
   studentsLoading,
   studentsError,
   onRefreshStudents,
-  activePackagesLoading,
-  activePackagesError,
   filteredStudents,
-  activePackagesByPlayer,
   rosterAction,
   onRosterUpdate,
   onStudentSelect,
@@ -69,18 +66,6 @@ const StudentsSection = ({
           </div>
         )}
 
-        {activePackagesError && !studentsError && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-            We couldn't load active packages for these students.
-          </div>
-        )}
-
-        {activePackagesLoading && !studentsLoading && !studentsError && (
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
-            Loading active packages...
-          </div>
-        )}
-
         {!studentsLoading && !studentsError && filteredStudents.length === 0 && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
             No students found matching your search.
@@ -88,7 +73,7 @@ const StudentsSection = ({
         )}
 
         {filteredStudents.map((student) => {
-          const activePackage = student.playerId ? activePackagesByPlayer[student.playerId] : null;
+          const firstActivePackage = student.activePackages?.[0];
 
           return (
             <div
@@ -178,11 +163,16 @@ const StudentsSection = ({
                 <div className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs uppercase text-gray-500">Current Package</p>
                   <p className="mt-1 text-sm font-medium text-gray-900">
-                    {activePackage?.packageName || 'No active package'}
+                    {student.hasActivePackage ? `${student.activePackageCount} active package${student.activePackageCount === 1 ? '' : 's'}` : 'No active package'}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Remaining lessons: {activePackage?.creditsRemaining ?? 'N/A'}
+                    Remaining credits: {student.activePackageCreditsRemainingTotal}
                   </p>
+                  {firstActivePackage?.package_name && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Latest: {firstActivePackage.package_name}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs uppercase text-gray-500">Next Lesson</p>
