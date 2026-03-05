@@ -13,7 +13,8 @@ const CalendarSection = ({
   onLessonSelect,
   onAvailabilitySelect,
   onEmptySlotSelect,
-  onOpenAddAvailability
+  onOpenAddAvailability,
+  onEditAvailabilityDay
 }) => (
   <section className="mt-6 space-y-6 calendar-section">
     <div className="rounded-2xl bg-white p-4 shadow-sm calendar-section-card">
@@ -31,6 +32,7 @@ const CalendarSection = ({
           onAvailabilitySelect={onAvailabilitySelect}
           onEmptySlotSelect={onEmptySlotSelect}
           onOpenAddAvailability={onOpenAddAvailability}
+          onEditAvailabilityDay={onEditAvailabilityDay}
         />
       </div>
     </div>

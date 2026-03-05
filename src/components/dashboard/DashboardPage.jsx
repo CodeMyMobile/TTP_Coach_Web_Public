@@ -1541,6 +1541,7 @@ const DashboardPage = ({
             onAvailabilitySelect={handleAvailabilitySelect}
             onEmptySlotSelect={onEmptySlotSelect}
             onOpenAddAvailability={onOpenAddAvailability}
+            onEditAvailabilityDay={onRequestAvailabilityOnboarding}
           />
         )}
 

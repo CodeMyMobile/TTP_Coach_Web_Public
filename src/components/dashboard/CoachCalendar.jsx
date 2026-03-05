@@ -401,7 +401,8 @@ const CoachCalendar = ({
   onAvailabilitySelect,
   onEmptySlotSelect,
   onRangeChange,
-  onOpenAddAvailability
+  onOpenAddAvailability,
+  onEditAvailabilityDay
 }) => {
   const [mobileView, setMobileView] = useState(view === 'day' ? 'day' : 'week');
   const calendarRef = useRef(null);
@@ -751,7 +752,14 @@ const CoachCalendar = ({
                           <div className="availability-location">{slot.title || 'Location'}</div>
                         </div>
                       </div>
-                      <span className="availability-edit">✏️</span>
+                      <button
+                        type="button"
+                        className="availability-edit"
+                        onClick={() => onEditAvailabilityDay?.(moment(day).format('dddd'))}
+                        aria-label={`Edit availability for ${moment(day).format('dddd')}`}
+                      >
+                        ✏️
+                      </button>
                     </div>
                   ))
                 ) : (

@@ -138,7 +138,8 @@ const OnboardingFlow = ({
   onBack,
   onOpenGoogleCalendar,
   canonicalData,
-  onboardingWarning
+  onboardingWarning,
+  initialAvailabilityDay = ''
 }) => {
   const [formData, setFormData] = useState(() => ({ ...createInitialState(), ...(initialData || {}) }));
   const [currentStep, setCurrentStep] = useState(() => {
@@ -214,6 +215,22 @@ const OnboardingFlow = ({
   useEffect(() => {
     setCurrentStep(initialStep || 0);
   }, [initialStep]);
+
+  useEffect(() => {
+    if (!initialAvailabilityDay) {
+      return;
+    }
+
+    const normalized = String(initialAvailabilityDay).trim().toLowerCase();
+    const matchedDay = DAYS_OF_WEEK.find((day) => {
+      const dayLower = day.toLowerCase();
+      return dayLower === normalized || dayLower.startsWith(normalized.slice(0, 3));
+    });
+
+    if (matchedDay) {
+      setSelectedDay(matchedDay);
+    }
+  }, [initialAvailabilityDay]);
 
   useEffect(() => {
     return () => {

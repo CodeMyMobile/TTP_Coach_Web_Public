@@ -138,6 +138,7 @@ function App() {
   const [profileData, setProfileData] = useState(defaultProfile);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
+  const [onboardingAvailabilityDay, setOnboardingAvailabilityDay] = useState('');
   const [dashboardTab, setDashboardTab] = useState('calendar');
   const [calendarView, setCalendarView] = useState('week');
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -1362,7 +1363,8 @@ function App() {
     setIsProfileComplete(false);
   };
 
-  const handleRequestAvailabilityOnboarding = () => {
+  const handleRequestAvailabilityOnboarding = (day = '') => {
+    setOnboardingAvailabilityDay(day);
     setOnboardingInitialStep(8);
     setIsEditingProfile(true);
     setIsProfileComplete(false);
@@ -1552,6 +1554,7 @@ function App() {
         isMobile={isMobile}
         canonicalData={canonicalProfile}
         onboardingWarning={draftWarning}
+        initialAvailabilityDay={onboardingAvailabilityDay}
       />
     );
   }
