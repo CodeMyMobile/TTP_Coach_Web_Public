@@ -16,7 +16,6 @@ import {
   MapPin
 } from 'lucide-react';
 import {
-  getActivePlayerPackages,
   getCoachRequests,
   updateCoachPlayer,
   updateCoachRequest
@@ -482,9 +481,6 @@ const DashboardPage = ({
   };
 
   const [rosterAction, setRosterAction] = useState(null);
-  const [activePackagesLoading, setActivePackagesLoading] = useState(false);
-  const [activePackagesError, setActivePackagesError] = useState(null);
-  const [activePackagesByPlayer, setActivePackagesByPlayer] = useState({});
   const [locationAction, setLocationAction] = useState(null);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -537,7 +533,16 @@ const DashboardPage = ({
       isConfirmed,
       isPlayerRequest,
       playerId,
-      avatar: student?.profile_picture || student?.avatar || ''
+      avatar: student?.profile_picture || student?.avatar || '',
+      hasActivePackage: Boolean(student?.has_active_package ?? student?.hasActivePackage),
+      activePackageCount: parseNumber(student?.active_package_count ?? student?.activePackageCount) ?? 0,
+      activePackageCreditsRemainingTotal:
+        parseNumber(student?.active_package_credits_remaining_total ?? student?.activePackageCreditsRemainingTotal) ?? 0,
+      activePackages: Array.isArray(student?.active_packages)
+        ? student.active_packages
+        : Array.isArray(student?.activePackages)
+          ? student.activePackages
+          : []
     };
   };
 
@@ -799,87 +804,6 @@ const DashboardPage = ({
     }
   }, [declineModal, handleRequestAction]);
 
-
-  useEffect(() => {
-    if (dashboardTab !== 'students') {
-      return;
-    }
-
-    setActivePackagesByPlayer({});
-    setActivePackagesError(null);
-  }, [dashboardTab, studentSearchQuery, studentsPerPage]);
-
-  useEffect(() => {
-    if (dashboardTab !== 'students') {
-      return;
-    }
-
-    let isMounted = true;
-    const fetchActivePackages = async () => {
-      setActivePackagesLoading(true);
-      setActivePackagesError(null);
-
-      try {
-        const response = await getActivePlayerPackages({
-          perPage: studentsPerPage,
-          page: studentsPage,
-          search: studentSearchQuery
-        });
-        const purchases = Array.isArray(response)
-          ? response
-          : response?.purchases || [];
-
-        const map = purchases.reduce((acc, purchase) => {
-          const playerId = purchase?.player_id ?? purchase?.playerId ?? purchase?.player?.id;
-          if (!playerId) {
-            return acc;
-          }
-
-          const creditsRemaining = parseNumber(
-            purchase?.credits_remaining ??
-              purchase?.creditsRemaining ??
-              (parseNumber(purchase?.credits_total) ?? 0) - (parseNumber(purchase?.credits_used) ?? 0)
-          );
-
-          const existing = acc[playerId];
-          if (existing && creditsRemaining !== null && existing.creditsRemaining > creditsRemaining) {
-            return acc;
-          }
-
-          acc[playerId] = {
-            creditsRemaining,
-            packageName:
-              purchase?.package_name ||
-              purchase?.package_title ||
-              purchase?.package?.name ||
-              purchase?.packageName ||
-              'Active package'
-          };
-          return acc;
-        }, {});
-
-        if (isMounted) {
-          setActivePackagesByPlayer((previous) =>
-            studentsPage === 1 ? map : { ...previous, ...map }
-          );
-        }
-      } catch (error) {
-        if (isMounted) {
-          setActivePackagesError(error instanceof Error ? error : new Error('Failed to load packages.'));
-        }
-      } finally {
-        if (isMounted) {
-          setActivePackagesLoading(false);
-        }
-      }
-    };
-
-    fetchActivePackages();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [dashboardTab, studentSearchQuery, studentsPage, studentsPerPage]);
 
   useEffect(() => {
     if (!showNotificationsDropdown) {
@@ -1564,10 +1488,7 @@ const DashboardPage = ({
             studentsLoading={studentsLoading}
             studentsError={studentsError}
             onRefreshStudents={onRefreshStudents}
-            activePackagesLoading={activePackagesLoading}
-            activePackagesError={activePackagesError}
             filteredStudents={filteredStudents}
-            activePackagesByPlayer={activePackagesByPlayer}
             rosterAction={rosterAction}
             onRosterUpdate={handleRosterUpdate}
             onStudentSelect={onStudentSelect}
