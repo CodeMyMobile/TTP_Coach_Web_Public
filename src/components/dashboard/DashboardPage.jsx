@@ -1028,6 +1028,18 @@ const DashboardPage = ({
     setRequestsPage((prev) => prev + 1);
   }, [canGoToNextRequestPage, requestsLoading]);
 
+  const handleNotificationsClick = useCallback(() => {
+    const isMobileViewport =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 430px)').matches;
+
+    if (isMobileViewport) {
+      onOpenNotifications();
+      return;
+    }
+
+    setShowNotificationsDropdown((prev) => !prev);
+  }, [onOpenNotifications]);
+
   useEffect(() => {
     if (actionItems.length > 0) {
       setDismissedActionBar(false);
@@ -1155,7 +1167,7 @@ const DashboardPage = ({
               <div className="relative" ref={notificationRef}>
                 <button
                   type="button"
-                  onClick={() => setShowNotificationsDropdown((prev) => !prev)}
+                  onClick={handleNotificationsClick}
                   className="dashboard-header-btn"
                 >
                   <Bell className="h-5 w-5" />
