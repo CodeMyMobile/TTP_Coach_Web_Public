@@ -197,6 +197,7 @@ export const getCoachLessons = ({ perPage = 50, page = 1, date, search } = {}) =
   if (typeof page === 'number') {
     params.set('page', String(page));
   }
+
   if (search) {
     params.set('search', search);
   }
@@ -260,9 +261,6 @@ export const getActivePlayerPackages = ({ playerId, player_id, search, perPage, 
   if (typeof page === 'number') {
     params.set('page', String(page));
   }
-  if (search) {
-    params.set('search', search);
-  }
 
   const query = params.toString();
   const path = query ? `/players/packages/active?${query}` : '/players/packages/active';
@@ -314,9 +312,6 @@ export const getCoachPlayerPackageUsage = ({
 
   if (typeof page === 'number') {
     params.set('page', String(page));
-  }
-  if (search) {
-    params.set('search', search);
   }
 
   const query = params.toString();
@@ -399,7 +394,7 @@ const normalizeCoachRequestEndpoint = (endpoint) => {
   return value;
 };
 
-export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
+export const getCoachRequests = ({ perPage = 20, page = 1, search } = {}) => {
   const params = new URLSearchParams();
 
   if (typeof perPage === 'number') {
@@ -408,9 +403,6 @@ export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
 
   if (typeof page === 'number') {
     params.set('page', String(page));
-  }
-  if (search) {
-    params.set('search', search);
   }
 
   const query = params.toString();
