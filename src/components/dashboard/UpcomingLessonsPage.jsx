@@ -34,17 +34,28 @@ const resolveTotal = (payload, fallbackCount) => {
   return Number.isFinite(total) ? total : fallbackCount;
 };
 
-const toTimeLabel = (value) => {
+const toUtcMoment = (value) => {
   if (!value) {
-    return 'Time unavailable';
+    return null;
   }
 
   const parsed = moment.utc(value);
-  if (!parsed.isValid()) {
+  return parsed.isValid() ? parsed : null;
+};
+
+const toTimeLabel = (startValue, endValue) => {
+  const start = toUtcMoment(startValue);
+  const end = toUtcMoment(endValue);
+
+  if (!start) {
     return 'Time unavailable';
   }
 
-  return parsed.local().format('ddd, MMM D • hh:mm A');
+  if (!end) {
+    return start.format('ddd, MMM D • hh:mm A');
+  }
+
+  return `${start.format('ddd, MMM D')} • ${start.format('hh:mm A')} - ${end.format('hh:mm A')}`;
 };
 
 const UpcomingLessonsPage = ({ onBack }) => {
@@ -70,11 +81,11 @@ const UpcomingLessonsPage = ({ onBack }) => {
         : await getCoachLessons({ perPage, page, search: searchQuery || undefined });
 
       const nextLessons = resolveLessons(payload);
-      const now = new Date();
+      const now = moment.utc();
       const upcomingOnly = nextLessons.filter((lesson) => {
         const raw = lesson?.start_date_time || lesson?.startDateTime || lesson?.start;
-        const parsed = raw ? new Date(raw) : null;
-        return parsed && !Number.isNaN(parsed.getTime()) ? parsed >= now : true;
+        const parsed = toUtcMoment(raw);
+        return parsed ? parsed.isSameOrAfter(now) : true;
       });
 
       setLessons(upcomingOnly);
@@ -214,7 +225,10 @@ const UpcomingLessonsPage = ({ onBack }) => {
                       <span className="rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700">{type}</span>
                     </div>
                     <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex items-center gap-2"><Calendar className="h-4 w-4" />{toTimeLabel(lesson.start_date_time || lesson.startDateTime || lesson.start)}</div>
+                      <div className="flex items-center gap-2"><Calendar className="h-4 w-4" />{toTimeLabel(
+                        lesson.start_date_time || lesson.startDateTime || lesson.start,
+                        lesson.end_date_time || lesson.endDateTime || lesson.end
+                      )}</div>
                       <div className="flex items-center gap-2"><MapPin className="h-4 w-4" />{location}</div>
                     </div>
                   </button>
@@ -252,7 +266,10 @@ const UpcomingLessonsPage = ({ onBack }) => {
             ) : selectedLesson ? (
               <div className="space-y-3 text-sm text-gray-700">
                 <div className="text-base font-semibold text-gray-900">{selectedLesson.title || selectedLesson.lesson_title || selectedLesson.full_name || 'Lesson'}</div>
-                <div className="flex items-center gap-2"><Clock3 className="h-4 w-4" />{toTimeLabel(selectedLesson.start_date_time || selectedLesson.startDateTime || selectedLesson.start)}</div>
+                <div className="flex items-center gap-2"><Clock3 className="h-4 w-4" />{toTimeLabel(
+                    selectedLesson.start_date_time || selectedLesson.startDateTime || selectedLesson.start,
+                    selectedLesson.end_date_time || selectedLesson.endDateTime || selectedLesson.end
+                  )}</div>
                 <div className="flex items-center gap-2"><MapPin className="h-4 w-4" />{selectedLesson.location || selectedLesson.court || 'Location TBD'}</div>
                 <div>
                   <span className="font-medium text-gray-900">Status:</span>{' '}
