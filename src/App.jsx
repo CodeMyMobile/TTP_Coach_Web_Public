@@ -275,6 +275,7 @@ function App() {
       !isDashboardRoute &&
       !isSettingsRoute &&
       !isNotificationsRoute &&
+      !isUpcomingLessonsRoute &&
       !isGoogleCalendarRoute &&
       !isGoogleRedirectRoute
     ) {
@@ -287,6 +288,7 @@ function App() {
     isDashboardRoute,
     isSettingsRoute,
     isNotificationsRoute,
+    isUpcomingLessonsRoute,
     isGoogleCalendarRoute,
     isGoogleRedirectRoute,
     navigate
