@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
-import { ArrowLeft, Calendar, MapPin, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Search } from 'lucide-react';
 import {
   getCoachLessonById,
   getCoachLessons,
@@ -44,20 +44,6 @@ const toUtcMoment = (value) => {
   return parsed.isValid() ? parsed : null;
 };
 
-const toTimeLabel = (startValue, endValue) => {
-  const start = toUtcMoment(startValue);
-  const end = toUtcMoment(endValue);
-
-  if (!start) {
-    return 'Time unavailable';
-  }
-
-  if (!end) {
-    return start.format('ddd, MMM D • hh:mm A');
-  }
-
-  return `${start.format('ddd, MMM D')} • ${start.format('hh:mm A')} - ${end.format('hh:mm A')}`;
-};
 
 const UpcomingLessonsPage = ({ onBack }) => {
   const [lessons, setLessons] = useState([]);
@@ -210,29 +196,18 @@ const UpcomingLessonsPage = ({ onBack }) => {
             ) : (
               lessons.map((lesson) => {
                 const lessonId = lesson.id ?? lesson.lesson_id ?? lesson.lessonId;
-                const title = lesson.title || lesson.lesson_title || lesson.student || lesson.full_name || 'Upcoming lesson';
-                const type = lesson.lesson_type_name || lesson.lessonTypeName || lesson.lessonType || lesson.type || 'Lesson';
-                const location = lesson.location || lesson.court || lesson.courtName || 'Location TBD';
 
                 return (
-                  <button
-                    key={lessonId}
-                    type="button"
-                    onClick={() => openLessonDetail(lessonId)}
-                    className="w-full rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-300"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="font-semibold text-gray-900">{title}</div>
-                      <span className="rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700">{type}</span>
-                    </div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex items-center gap-2"><Calendar className="h-4 w-4" />{toTimeLabel(
-                        lesson.start_date_time || lesson.startDateTime || lesson.start,
-                        lesson.end_date_time || lesson.endDateTime || lesson.end
-                      )}</div>
-                      <div className="flex items-center gap-2"><MapPin className="h-4 w-4" />{location}</div>
-                    </div>
-                  </button>
+                  <div key={lessonId} className="space-y-2">
+                    <LessonDetailCard lesson={lesson} />
+                    <button
+                      type="button"
+                      onClick={() => openLessonDetail(lessonId)}
+                      className="rounded-md border border-purple-200 bg-white px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
+                    >
+                      Open lesson details panel
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -265,9 +240,22 @@ const UpcomingLessonsPage = ({ onBack }) => {
             {detailLoading ? (
               <div className="text-sm text-gray-500">Loading lesson detail...</div>
             ) : selectedLesson ? (
-              <LessonDetailCard lesson={selectedLesson} />
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="font-semibold text-gray-900">
+                  {selectedLesson.metadata?.title || selectedLesson.title || selectedLesson.lesson_title || selectedLesson.full_name || 'Lesson'}
+                </div>
+                <div>
+                  <span className="font-medium">Start:</span> {String(selectedLesson.start_date_time || selectedLesson.startDateTime || selectedLesson.start || 'N/A')}
+                </div>
+                <div>
+                  <span className="font-medium">End:</span> {String(selectedLesson.end_date_time || selectedLesson.endDateTime || selectedLesson.end || 'N/A')}
+                </div>
+                <div>
+                  <span className="font-medium">Location:</span> {selectedLesson.location || selectedLesson.court || 'Location TBD'}
+                </div>
+              </div>
             ) : (
-              <div className="text-sm text-gray-500">Select a lesson to view details.</div>
+              <div className="text-sm text-gray-500">Select a lesson from the list to load more detail data.</div>
             )}
           </div>
         </div>
