@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   ChevronDown,
@@ -7,94 +7,190 @@ import {
   Clock3,
   Download,
   Landmark,
-  MapPin,
+  Loader2,
   TrendingUp,
   Users
 } from 'lucide-react';
+import {
+  exportCoachEarningsTransactions,
+  getCoachEarningsDashboard,
+  getCoachEarningsPayouts,
+  getCoachEarningsTransactions
+} from '../../../services/coach';
 
-const balances = [
-  {
-    label: 'Available Balance',
-    value: '$2,840',
-    sub: 'Ready for payout',
-    icon: CircleDollarSign,
-    accent: 'green'
-  },
-  {
-    label: 'Pending',
-    value: '$1,440',
-    sub: 'Clearing in 2-3 days',
-    icon: Clock3,
-    accent: 'default'
-  },
-  {
-    label: 'Next Payout',
-    value: '$2,840',
-    sub: 'Arriving Mar 8 · Chase ****4521',
-    icon: Landmark,
-    accent: 'purple'
+const RANGE_OPTIONS = [
+  { value: '7d', label: 'Past 7 days' },
+  { value: '30d', label: 'Past 30 days' },
+  { value: '90d', label: 'Past 90 days' },
+  { value: 'month', label: 'This month' }
+];
+
+const getCollection = (payload, keys) => {
+  for (const key of keys) {
+    if (Array.isArray(payload?.[key])) {
+      return payload[key];
+    }
   }
-];
+  return [];
+};
 
-const transactions = [
-  { initials: 'SM', name: 'Sarah Miller', meta: 'Private Lesson · Today 2:30 PM', amount: '+$85.00' },
-  { initials: 'JT', name: 'James Thompson', meta: '5 Lesson Package · Yesterday', amount: '+$382.50' },
-  { initials: 'AL', name: 'Alex Lee', meta: 'Group Lesson · Mar 4', amount: '+$45.00' },
-  { initials: 'MR', name: 'Mike Rodriguez', meta: 'Refund · Cancelled lesson', amount: '-$85.00', refund: true }
-];
-
-const payouts = [
-  { day: 'Sat', date: '8', month: 'Mar', title: 'Scheduled Payout', meta: 'Chase ****4521', amount: '$2,840', status: 'Pending' },
-  { day: 'Wed', date: '5', month: 'Mar', title: 'Completed', meta: 'Chase ****4521', amount: '$2,180', status: 'Paid' },
-  { day: 'Sat', date: '1', month: 'Mar', title: 'Completed', meta: 'Chase ****4521', amount: '$1,920', status: 'Paid' }
-];
-
-const bars = [
-  {
-    title: 'Revenue by Lesson Type',
-    rows: [
-      { label: 'Private', value: '$2,782', width: '65%', color: 'bg-violet-500', pct: '65%' },
-      { label: 'Group', value: '$1,070', width: '25%', color: 'bg-blue-500', pct: '25%' },
-      { label: 'Packages', value: '$428', width: '10%', color: 'bg-emerald-500', pct: '' }
-    ]
-  },
-  {
-    title: 'Revenue by Location',
-    rows: [
-      { label: 'Penmar', value: '$2,354', width: '55%', color: 'bg-violet-500', pct: '55%' },
-      { label: 'Venice Beach', value: '$1,284', width: '30%', color: 'bg-blue-500', pct: '30%' },
-      { label: 'Mar Vista', value: '$642', width: '15%', color: 'bg-emerald-500', pct: '' }
-    ]
+const getValue = (payload, keys, fallback = 0) => {
+  for (const key of keys) {
+    if (payload?.[key] !== undefined && payload?.[key] !== null) {
+      return payload[key];
+    }
   }
-];
-
-const topStudents = [
-  { rank: 1, initials: 'JT', name: 'James Thompson', lessons: 32, value: '$2,720' },
-  { rank: 2, initials: 'SM', name: 'Sarah Miller', lessons: 28, value: '$2,380' },
-  { rank: 3, initials: 'EW', name: 'Emma Wilson', lessons: 24, value: '$2,040' },
-  { rank: 4, initials: 'AL', name: 'Alex Lee', lessons: 18, value: '$1,530' }
-];
-
-const topStatCards = (revenueValue) => [
-  { label: 'Today', value: '3', icon: Calendar, iconClass: 'bg-blue-100 text-blue-500' },
-  { label: 'Revenue', value: `$${revenueValue}`, icon: CircleDollarSign, iconClass: 'bg-emerald-100 text-emerald-500' },
-  { label: 'Students', value: '57', icon: Users, iconClass: 'bg-violet-100 text-violet-500' },
-  { label: 'Upcoming', value: '21', icon: TrendingUp, iconClass: 'bg-rose-100 text-rose-500' }
-];
-
-const balanceAccent = {
-  green: 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/70',
-  purple: 'border-violet-200 bg-gradient-to-br from-violet-50 to-violet-100/70',
-  default: 'border-slate-200 bg-white'
+  return fallback;
 };
 
 const EarningsSection = ({ stats }) => {
-  const statCards = topStatCards(stats?.weekRevenue || '4,280');
+  const [range, setRange] = useState('30d');
+  const [dashboard, setDashboard] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [payouts, setPayouts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const [dashboardData, transactionData, payoutData] = await Promise.all([
+          getCoachEarningsDashboard({ range, transactionsLimit: 4, topStudentsLimit: 4 }),
+          getCoachEarningsTransactions({ range, perPage: 4, page: 1 }),
+          getCoachEarningsPayouts({ limit: 3 })
+        ]);
+
+        if (!mounted) {
+          return;
+        }
+
+        setDashboard(dashboardData || null);
+        setTransactions(
+          getCollection(transactionData, ['transactions', 'data']).length > 0
+            ? getCollection(transactionData, ['transactions', 'data'])
+            : getCollection(dashboardData, ['recent_transactions', 'recentTransactions'])
+        );
+        setPayouts(
+          getCollection(payoutData, ['payouts', 'data']).length > 0
+            ? getCollection(payoutData, ['payouts', 'data'])
+            : getCollection(dashboardData, ['payout_schedule', 'payoutSchedule'])
+        );
+      } catch (err) {
+        if (mounted) {
+          setError(err?.message || 'Unable to load earnings data.');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, [range]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportCoachEarningsTransactions({ range });
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `earnings-transactions-${range}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      setError(err?.message || 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const topStats = useMemo(() => {
+    const apiTopStats = dashboard?.top_stats || dashboard?.topStats || {};
+    return [
+      {
+        label: 'Today',
+        value: getValue(apiTopStats, ['today_lessons', 'todayLessons'], stats?.todayLessons ?? 0),
+        icon: Calendar,
+        iconClass: 'bg-blue-100 text-blue-500'
+      },
+      {
+        label: 'Revenue',
+        value: `$${getValue(apiTopStats, ['revenue', 'total_revenue', 'weekRevenue'], stats?.weekRevenue ?? 0)}`,
+        icon: CircleDollarSign,
+        iconClass: 'bg-emerald-100 text-emerald-500'
+      },
+      {
+        label: 'Students',
+        value: getValue(apiTopStats, ['students', 'active_students', 'activeStudents'], stats?.activeStudents ?? 0),
+        icon: Users,
+        iconClass: 'bg-violet-100 text-violet-500'
+      },
+      {
+        label: 'Upcoming',
+        value: getValue(apiTopStats, ['upcoming', 'upcoming_lessons', 'upcomingLessons'], stats?.upcomingLessons ?? 0),
+        icon: TrendingUp,
+        iconClass: 'bg-rose-100 text-rose-500'
+      }
+    ];
+  }, [dashboard, stats]);
+
+  const balances = useMemo(() => {
+    const apiBalances = dashboard?.balances || {};
+    return [
+      {
+        label: 'Available Balance',
+        value: `$${getValue(apiBalances, ['available', 'available_balance'], 0)}`,
+        sub: 'Ready for payout',
+        icon: CircleDollarSign,
+        accent: 'green'
+      },
+      {
+        label: 'Pending',
+        value: `$${getValue(apiBalances, ['pending', 'pending_balance'], 0)}`,
+        sub: 'Clearing in 2-3 days',
+        icon: Clock3,
+        accent: 'default'
+      },
+      {
+        label: 'Next Payout',
+        value: `$${getValue(apiBalances, ['next_payout_amount', 'nextPayoutAmount'], 0)}`,
+        sub: getValue(apiBalances, ['next_payout_label', 'nextPayoutLabel'], 'Stripe connected account'),
+        icon: Landmark,
+        accent: 'purple'
+      }
+    ];
+  }, [dashboard]);
+
+  const lessonTypeBreakdown = getCollection(dashboard?.breakdown, ['lesson_type', 'lessonType']);
+  const locationBreakdown = getCollection(dashboard?.breakdown, ['location']);
+  const topStudents = getCollection(dashboard?.breakdown, ['top_students', 'topStudents']);
+
+  const balanceAccent = {
+    green: 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/70',
+    purple: 'border-violet-200 bg-gradient-to-br from-violet-50 to-violet-100/70',
+    default: 'border-slate-200 bg-white'
+  };
 
   return (
     <section className="mt-6 space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 sm:p-4">
+      {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+
       <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((card) => {
+        {topStats.map((card) => {
           const Icon = card.icon;
           return (
             <div key={card.label} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3 sm:border-0 sm:p-1">
@@ -110,21 +206,6 @@ const EarningsSection = ({ stats }) => {
         })}
       </div>
 
-      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:flex-wrap">
-        {['Calendar', 'Students', 'Earnings', 'Packages', 'Locations', 'Groups'].map((tab) => (
-          <button
-            key={tab}
-            className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-              tab === 'Earnings'
-                ? 'border-emerald-500 bg-emerald-500 text-white'
-                : 'border-slate-200 bg-white text-slate-600'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
       <p className="flex items-center gap-2 px-1 text-xs text-slate-500">
         <Circle className="h-3 w-3 fill-emerald-500 text-emerald-500" /> Secure portal · Last synced moments ago
       </p>
@@ -136,14 +217,35 @@ const EarningsSection = ({ stats }) => {
             <p className="text-sm text-slate-500">Track revenue, payouts, and performance</p>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
-              <Calendar className="h-4 w-4" /> Past 30 days <ChevronDown className="h-4 w-4" />
-            </button>
-            <button className="flex items-center gap-1 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white">
-              <Download className="h-4 w-4" /> Export
+            <label className="relative">
+              <select
+                value={range}
+                onChange={(event) => setRange(event.target.value)}
+                className="appearance-none rounded-lg border border-slate-200 px-3 py-2 pr-8 text-sm text-slate-600"
+              >
+                {RANGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-4 w-4 text-slate-500" />
+            </label>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-1 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export
             </button>
           </div>
         </div>
+
+        {loading ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading earnings data...
+          </div>
+        ) : null}
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {balances.map((balance) => {
@@ -166,21 +268,32 @@ const EarningsSection = ({ stats }) => {
               <span className="text-sm font-semibold text-violet-600">View all →</span>
             </div>
             <div className="px-4 py-2">
-              {transactions.map((item) => (
-                <div key={item.name} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-none">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-xs font-semibold text-white">
-                    {item.initials}
+              {transactions.slice(0, 4).map((item, index) => {
+                const name = getValue(item, ['student_name', 'name', 'title'], `Transaction ${index + 1}`);
+                const meta = getValue(item, ['description', 'meta'], 'Earnings transaction');
+                const amount = Number(getValue(item, ['amount', 'net_amount', 'value'], 0));
+                const initials = name
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part[0]?.toUpperCase())
+                  .join('');
+
+                return (
+                  <div key={`${name}-${index}`} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-none">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-xs font-semibold text-white">
+                      {initials || 'TR'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-800">{name}</p>
+                      <p className="truncate text-xs text-slate-500">{meta}</p>
+                    </div>
+                    <p className={`text-sm font-semibold ${amount < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {amount < 0 ? '-' : '+'}${Math.abs(amount).toFixed(2)}
+                    </p>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
-                    <p className="truncate text-xs text-slate-500">{item.meta}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-semibold ${item.refund ? 'text-red-600' : 'text-emerald-600'}`}>{item.amount}</p>
-                    <p className="text-xs text-slate-400">{item.refund ? 'Refunded' : '✓ Paid'}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -190,18 +303,20 @@ const EarningsSection = ({ stats }) => {
               <span className="text-sm font-semibold text-violet-600">View history →</span>
             </div>
             <div className="px-4 py-2">
-              {payouts.map((item) => (
-                <div key={`${item.day}-${item.date}`} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-none">
+              {payouts.slice(0, 3).map((item, index) => (
+                <div key={`${item?.id || index}`} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-none">
                   <div className="w-10 text-center">
-                    <p className="text-[10px] uppercase text-slate-400">{item.day}</p>
-                    <p className="text-lg font-bold text-slate-800">{item.date}</p>
-                    <p className="text-[10px] text-slate-500">{item.month}</p>
+                    <p className="text-[10px] uppercase text-slate-400">{getValue(item, ['day'], '---')}</p>
+                    <p className="text-lg font-bold text-slate-800">{getValue(item, ['date', 'day_of_month'], '--')}</p>
+                    <p className="text-[10px] text-slate-500">{getValue(item, ['month'], '')}</p>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                    <p className="text-xs text-slate-500">{item.meta}</p>
+                    <p className="text-sm font-semibold text-slate-800">{getValue(item, ['title', 'status'], 'Payout')}</p>
+                    <p className="text-xs text-slate-500">{getValue(item, ['meta', 'bank'], 'Stripe connected account')}</p>
                   </div>
-                  <p className="text-sm font-bold text-emerald-600">{item.amount}</p>
+                  <p className="text-sm font-bold text-emerald-600">
+                    ${Number(getValue(item, ['amount', 'value'], 0)).toFixed(2)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -209,21 +324,28 @@ const EarningsSection = ({ stats }) => {
         </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          {bars.map((group) => (
+          {[{ title: 'Revenue by Lesson Type', rows: lessonTypeBreakdown }, { title: 'Revenue by Location', rows: locationBreakdown }].map((group) => (
             <div key={group.title} className="rounded-xl border border-slate-200">
               <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{group.title}</div>
               <div className="space-y-3 px-4 py-3">
-                {group.rows.map((row) => (
-                  <div key={row.label} className="flex items-center gap-2">
-                    <p className="w-20 text-xs text-slate-500">{row.label}</p>
-                    <div className="h-5 flex-1 rounded bg-slate-100">
-                      <div style={{ width: row.width }} className={`flex h-5 items-center rounded px-2 text-[11px] font-semibold text-white ${row.color}`}>
-                        {row.pct}
+                {group.rows.slice(0, 3).map((row, index) => {
+                  const label = getValue(row, ['label', 'name', 'type'], `Item ${index + 1}`);
+                  const value = Number(getValue(row, ['amount', 'value'], 0));
+                  const percent = Number(getValue(row, ['percentage', 'percent'], 0));
+                  const color = index === 0 ? 'bg-violet-500' : index === 1 ? 'bg-blue-500' : 'bg-emerald-500';
+
+                  return (
+                    <div key={`${label}-${index}`} className="flex items-center gap-2">
+                      <p className="w-20 text-xs text-slate-500">{label}</p>
+                      <div className="h-5 flex-1 rounded bg-slate-100">
+                        <div style={{ width: `${Math.max(Math.min(percent, 100), 0)}%` }} className={`flex h-5 items-center rounded px-2 text-[11px] font-semibold text-white ${color}`}>
+                          {percent > 12 ? `${Math.round(percent)}%` : ''}
+                        </div>
                       </div>
+                      <p className="w-16 text-right text-xs font-semibold text-slate-800">${value.toFixed(0)}</p>
                     </div>
-                    <p className="w-16 text-right text-xs font-semibold text-slate-800">{row.value}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -231,37 +353,33 @@ const EarningsSection = ({ stats }) => {
           <div className="rounded-xl border border-slate-200">
             <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">Top Students (LTV)</div>
             <div className="space-y-2 px-4 py-3">
-              {topStudents.map((student) => (
-                <div key={student.name} className="flex items-center gap-2 border-b border-slate-100 py-2 last:border-none">
-                  <div className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${student.rank === 1 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {student.rank}
+              {topStudents.slice(0, 4).map((student, index) => {
+                const name = getValue(student, ['name', 'student_name'], `Student ${index + 1}`);
+                const lessons = getValue(student, ['lessons', 'lessons_count'], 0);
+                const value = Number(getValue(student, ['amount', 'value', 'ltv'], 0));
+                const initials = name
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part[0]?.toUpperCase())
+                  .join('');
+
+                return (
+                  <div key={`${name}-${index}`} className="flex items-center gap-2 border-b border-slate-100 py-2 last:border-none">
+                    <div className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${index === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {index + 1}
+                    </div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-[10px] font-semibold text-white">
+                      {initials || 'ST'}
+                    </div>
+                    <p className="flex-1 truncate text-xs font-medium text-slate-700">{name}</p>
+                    <p className="text-[11px] text-slate-400">{lessons}</p>
+                    <p className="text-xs font-semibold text-slate-800">${value.toFixed(0)}</p>
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-[10px] font-semibold text-white">
-                    {student.initials}
-                  </div>
-                  <p className="flex-1 truncate text-xs font-medium text-slate-700">{student.name}</p>
-                  <p className="text-[11px] text-slate-400">{student.lessons}</p>
-                  <p className="text-xs font-semibold text-slate-800">{student.value}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 lg:hidden">
-        <p className="mb-2 text-sm font-semibold text-slate-700">Mobile quick nav</p>
-        <div className="flex justify-between text-xs text-slate-500">
-          <span>Calendar</span>
-          <span>Students</span>
-          <span className="font-semibold text-violet-600">Earnings</span>
-          <span>Settings</span>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500">
-        <div className="flex items-center justify-center gap-2">
-          <MapPin className="h-4 w-4" /> Desktop and mobile-friendly earnings layout implemented.
         </div>
       </div>
     </section>

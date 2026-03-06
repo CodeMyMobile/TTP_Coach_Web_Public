@@ -549,6 +549,91 @@ export const deleteCoachAvailability = (availabilityId) => {
 
 export const getCoachStats = () => request('/coach/stats');
 
+
+const buildEarningsQuery = ({ range, from, to, transactionsLimit, topStudentsLimit, page, perPage, limit, startingAfter } = {}) => {
+  const params = new URLSearchParams();
+
+  if (range) {
+    params.set('range', range);
+  }
+  if (from && to) {
+    params.set('from', from);
+    params.set('to', to);
+  }
+  if (typeof transactionsLimit === 'number') {
+    params.set('transactionsLimit', String(transactionsLimit));
+  }
+  if (typeof topStudentsLimit === 'number') {
+    params.set('topStudentsLimit', String(topStudentsLimit));
+  }
+  if (typeof page === 'number') {
+    params.set('page', String(page));
+  }
+  if (typeof perPage === 'number') {
+    params.set('perPage', String(perPage));
+  }
+  if (typeof limit === 'number') {
+    params.set('limit', String(limit));
+  }
+  if (startingAfter) {
+    params.set('starting_after', startingAfter);
+  }
+
+  return params.toString();
+};
+
+export const getCoachEarningsDashboard = (filters = {}) => {
+  const query = buildEarningsQuery(filters);
+  const path = query ? `/coach/earnings/dashboard?${query}` : '/coach/earnings/dashboard';
+  return request(path);
+};
+
+export const getCoachEarningsTransactions = (filters = {}) => {
+  const query = buildEarningsQuery(filters);
+  const path = query ? `/coach/earnings/transactions?${query}` : '/coach/earnings/transactions';
+  return request(path);
+};
+
+export const getCoachEarningsPayouts = (filters = {}) => {
+  const query = buildEarningsQuery(filters);
+  const path = query ? `/coach/earnings/payouts?${query}` : '/coach/earnings/payouts';
+  return request(path);
+};
+
+export const exportCoachEarningsTransactions = async (filters = {}) => {
+  const query = buildEarningsQuery(filters);
+  const path = query
+    ? `/coach/earnings/transactions/export?${query}`
+    : '/coach/earnings/transactions/export';
+
+  const accessToken = await getAccessToken();
+  const headers = {};
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(buildUrl(path), {
+    method: 'GET',
+    headers
+  });
+
+  if (!response.ok) {
+    const errorBody = await parseJsonSafely(response);
+    const message =
+      errorBody?.message ||
+      errorBody?.error ||
+      response.statusText ||
+      'Unable to export earnings transactions.';
+    const error = new Error(message);
+    error.status = response.status;
+    error.body = errorBody;
+    throw error;
+  }
+
+  return response.blob();
+};
+
 export const getGoogleCalendarSyncedEvents = ({ timeMin, timeMax } = {}) => {
   const params = new URLSearchParams();
   if (timeMin) {
@@ -611,6 +696,10 @@ export default {
   getCoachAvailability,
   deleteCoachAvailability,
   getCoachStats,
+  getCoachEarningsDashboard,
+  getCoachEarningsTransactions,
+  getCoachEarningsPayouts,
+  exportCoachEarningsTransactions,
   getGoogleCalendarSyncedEvents,
   sendLessonInvites,
   createLessonShareLink
