@@ -148,6 +148,9 @@ export const getCoachStudents = ({ perPage, page, search } = {}) => {
     params.set('page', String(page));
   }
 
+  if (search) {
+    params.set('search', search);
+  }
 
   const query = params.toString();
   const path = query ? `/coach/players?${query}` : '/coach/players';
@@ -231,10 +234,6 @@ export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) 
   if (typeof page === 'number') {
     params.set('page', String(page));
   }
-  if (search) {
-    params.set('search', search);
-  }
-
   const query = params.toString();
   const path = query
     ? `/coach/player_previous_lessons/${playerId}?${query}`

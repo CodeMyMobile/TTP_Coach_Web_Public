@@ -13,7 +13,8 @@ import {
   Shield,
   Edit,
   Users,
-  MapPin
+  MapPin,
+  TrendingUp
 } from 'lucide-react';
 import {
   getCoachRequests,
@@ -1254,14 +1255,21 @@ const DashboardPage = ({
               { key: 'earnings', label: 'Earnings', icon: DollarSign },
               { key: 'packages', label: 'Packages', icon: Package },
               { key: 'locations', label: 'Locations', icon: MapPin },
-              { key: 'groups', label: 'Groups', icon: Users }
+              { key: 'groups', label: 'Groups', icon: Users },
+              { key: 'upcoming', label: 'Upcoming', icon: TrendingUp, isRouteLink: true }
             ].map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => onDashboardTabChange(tab.key)}
+                onClick={() => {
+                  if (tab.isRouteLink) {
+                    onOpenUpcomingLessons();
+                    return;
+                  }
+                  onDashboardTabChange(tab.key);
+                }}
                 className={`flex w-full items-center justify-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium sm:w-auto sm:justify-start ${
-                  dashboardTab === tab.key
+                  dashboardTab === tab.key && !tab.isRouteLink
                     ? 'bg-purple-600 text-white shadow'
                     : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
