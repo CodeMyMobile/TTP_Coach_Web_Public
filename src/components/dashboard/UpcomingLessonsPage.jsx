@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
-import { ArrowLeft, Calendar, Clock3, MapPin, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, RefreshCw, Search } from 'lucide-react';
 import {
   getCoachLessonById,
   getCoachLessons,
   getCoachLessonsByDate,
   getCoachRequests
 } from '../../services/coach';
+import LessonDetailCard from './LessonDetailCard';
 
 const resolveLessons = (payload) => {
   if (Array.isArray(payload)) {
@@ -264,24 +265,7 @@ const UpcomingLessonsPage = ({ onBack }) => {
             {detailLoading ? (
               <div className="text-sm text-gray-500">Loading lesson detail...</div>
             ) : selectedLesson ? (
-              <div className="space-y-3 text-sm text-gray-700">
-                <div className="text-base font-semibold text-gray-900">{selectedLesson.title || selectedLesson.lesson_title || selectedLesson.full_name || 'Lesson'}</div>
-                <div className="flex items-center gap-2"><Clock3 className="h-4 w-4" />{toTimeLabel(
-                    selectedLesson.start_date_time || selectedLesson.startDateTime || selectedLesson.start,
-                    selectedLesson.end_date_time || selectedLesson.endDateTime || selectedLesson.end
-                  )}</div>
-                <div className="flex items-center gap-2"><MapPin className="h-4 w-4" />{selectedLesson.location || selectedLesson.court || 'Location TBD'}</div>
-                <div>
-                  <span className="font-medium text-gray-900">Status:</span>{' '}
-                  <span className="capitalize">{selectedLesson.lessonStatus || selectedLesson.status || 'scheduled'}</span>
-                </div>
-                {(selectedLesson.notes || selectedLesson.description) && (
-                  <div>
-                    <div className="font-medium text-gray-900">Notes</div>
-                    <p className="mt-1 text-gray-600">{selectedLesson.notes || selectedLesson.description}</p>
-                  </div>
-                )}
-              </div>
+              <LessonDetailCard lesson={selectedLesson} />
             ) : (
               <div className="text-sm text-gray-500">Select a lesson to view details.</div>
             )}
