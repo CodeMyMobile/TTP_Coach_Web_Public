@@ -185,7 +185,7 @@ export const getCoachPlayerById = ({ playerId } = {}) => {
   return request(`/coach/players/${playerId}`);
 };
 
-export const getCoachLessons = ({ perPage = 50, page = 1, date } = {}) => {
+export const getCoachLessons = ({ perPage = 50, page = 1, date, search } = {}) => {
   if (date) {
     return request(`/coach/lessons/${date}`);
   }
@@ -197,10 +197,29 @@ export const getCoachLessons = ({ perPage = 50, page = 1, date } = {}) => {
   if (typeof page === 'number') {
     params.set('page', String(page));
   }
+  if (search) {
+    params.set('search', search);
+  }
 
   const query = params.toString();
   const path = query ? `/coach/lessons?${query}` : '/coach/lessons';
   return request(path);
+};
+
+export const getCoachLessonById = ({ lessonId } = {}) => {
+  if (!lessonId) {
+    throw new Error('A lesson id is required to fetch lesson details.');
+  }
+
+  return request(`/coach/lesson/${lessonId}`);
+};
+
+export const getCoachLessonsByDate = ({ date } = {}) => {
+  if (!date) {
+    throw new Error('A date is required to fetch lessons by date.');
+  }
+
+  return request(`/coach/lessons/date/${date}`);
 };
 
 export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) => {
@@ -215,7 +234,6 @@ export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) 
   if (typeof page === 'number') {
     params.set('page', String(page));
   }
-
   const query = params.toString();
   const path = query
     ? `/coach/player_previous_lessons/${playerId}?${query}`
@@ -241,6 +259,9 @@ export const getActivePlayerPackages = ({ playerId, player_id, search, perPage, 
 
   if (typeof page === 'number') {
     params.set('page', String(page));
+  }
+  if (search) {
+    params.set('search', search);
   }
 
   const query = params.toString();
@@ -293,6 +314,9 @@ export const getCoachPlayerPackageUsage = ({
 
   if (typeof page === 'number') {
     params.set('page', String(page));
+  }
+  if (search) {
+    params.set('search', search);
   }
 
   const query = params.toString();
@@ -384,6 +408,9 @@ export const getCoachRequests = ({ perPage = 20, page = 1 } = {}) => {
 
   if (typeof page === 'number') {
     params.set('page', String(page));
+  }
+  if (search) {
+    params.set('search', search);
   }
 
   const query = params.toString();
@@ -572,6 +599,8 @@ export const createLessonShareLink = (lessonId, payload = {}) => {
 export default {
   getCoachStudents,
   getCoachLessons,
+  getCoachLessonById,
+  getCoachLessonsByDate,
   getActivePlayerPackages,
   getCoachPlayerPackageUsage,
   createCoachAvailability,
