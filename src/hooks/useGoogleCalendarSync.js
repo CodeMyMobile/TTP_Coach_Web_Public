@@ -101,10 +101,29 @@ export const useGoogleCalendarSync = () => {
     return request(path, token);
   };
 
+  const disconnectGoogleCalendar = async ({ token, clearSyncedEvents = false }) => {
+    if (!token) {
+      throw new Error('Auth token is required.');
+    }
+
+    const params = new URLSearchParams();
+    if (clearSyncedEvents) {
+      params.set('clearSyncedEvents', 'true');
+    }
+
+    const query = params.toString();
+    const path = query
+      ? `/api/coach/google-calendar/disconnect?${query}`
+      : '/api/coach/google-calendar/disconnect';
+
+    return request(path, token, 'DELETE');
+  };
+
   return {
     getAuthUrl,
     syncEvents,
-    getSyncedEvents
+    getSyncedEvents,
+    disconnectGoogleCalendar
   };
 };
 

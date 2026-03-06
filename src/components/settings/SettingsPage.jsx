@@ -31,13 +31,14 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
     chargesEnabled: false,
     chargesDisabledReason: ''
   });
-  const { getAuthUrl, syncEvents, getSyncedEvents } = useGoogleCalendarSync();
+  const { getAuthUrl, syncEvents, getSyncedEvents, disconnectGoogleCalendar } = useGoogleCalendarSync();
   const authToken = user?.session?.access_token || localStorage.getItem('token') || '';
   const [googleError, setGoogleError] = useState(null);
   const [googleStatus, setGoogleStatus] = useState('unknown');
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleSyncLoading, setGoogleSyncLoading] = useState(false);
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
+  const [googleDisconnectLoading, setGoogleDisconnectLoading] = useState(false);
   const [googleSyncResult, setGoogleSyncResult] = useState(null);
   const [googleEvents, setGoogleEvents] = useState([]);
   const [lastGoogleSyncAt, setLastGoogleSyncAt] = useState(() => localStorage.getItem('google_calendar_last_sync') || '');
@@ -262,6 +263,35 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
       setGoogleSyncLoading(false);
     }
   }, [authToken, handleGoogleReconnect, syncEvents, timeRange.timeMax, timeRange.timeMin]);
+
+
+  const handleGoogleDisconnect = useCallback(async ({ clearSyncedEvents = false } = {}) => {
+    setGoogleError(null);
+    setGoogleDisconnectLoading(true);
+    setGoogleSyncResult(null);
+    try {
+      if (!authToken) {
+        throw new Error('Unauthorized. Please sign in again.');
+      }
+
+      const payload = await disconnectGoogleCalendar({ token: authToken, clearSyncedEvents });
+      sessionStorage.removeItem(GOOGLE_RETRY_ACTION_KEY);
+      setGoogleStatus('not_connected');
+      setGoogleEvents([]);
+      setLastGoogleSyncAt('');
+      localStorage.removeItem('google_calendar_last_sync');
+      const clearedEventsCount = payload?.synced_events_deleted ?? 0;
+      const clearedMessage = clearSyncedEvents
+        ? ` Cleared synced events: ${clearedEventsCount}.`
+        : '';
+      setGoogleError(`Google Calendar disconnected.${clearedMessage}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disconnect Google Calendar.';
+      setGoogleError(message);
+    } finally {
+      setGoogleDisconnectLoading(false);
+    }
+  }, [authToken, disconnectGoogleCalendar]);
 
   const handleLoadSyncedEvents = useCallback(async () => {
     setGoogleError(null);
@@ -501,7 +531,7 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
                 <button
                   type="button"
                   onClick={handleGoogleSync}
-                  disabled={googleSyncLoading}
+                  disabled={googleSyncLoading || googleDisconnectLoading}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                 >
                   {googleSyncLoading ? 'Syncing…' : 'Sync Now'}
@@ -509,10 +539,26 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
                 <button
                   type="button"
                   onClick={handleLoadSyncedEvents}
-                  disabled={googleEventsLoading}
+                  disabled={googleEventsLoading || googleDisconnectLoading}
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {googleEventsLoading ? 'Loading…' : 'View Synced Events'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGoogleDisconnect()}
+                  disabled={googleDisconnectLoading || googleSyncLoading || googleEventsLoading}
+                  className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {googleDisconnectLoading ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGoogleDisconnect({ clearSyncedEvents: true })}
+                  disabled={googleDisconnectLoading || googleSyncLoading || googleEventsLoading}
+                  className="rounded-lg border border-rose-200 px-4 py-2 text-sm text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {googleDisconnectLoading ? 'Disconnecting…' : 'Disconnect + Clear Synced'}
                 </button>
               </div>
 

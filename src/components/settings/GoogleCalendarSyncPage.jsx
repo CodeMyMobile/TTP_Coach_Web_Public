@@ -61,7 +61,7 @@ const extractEvents = (payload) => {
 const GoogleCalendarSyncPage = ({ onBack }) => {
   const { user } = useAuth();
   const authToken = user?.session?.access_token || localStorage.getItem('token') || '';
-  const { getAuthUrl, syncEvents, getSyncedEvents } = useGoogleCalendarSync();
+  const { getAuthUrl, syncEvents, getSyncedEvents, disconnectGoogleCalendar } = useGoogleCalendarSync();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -70,6 +70,7 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
   const [googleStatus, setGoogleStatus] = useState('unknown');
   const [syncResult, setSyncResult] = useState(null);
   const [lastSyncedAt, setLastSyncedAt] = useState(() => localStorage.getItem('google_calendar_last_sync') || '');
+  const [disconnecting, setDisconnecting] = useState(false);
   const [activeMonth, setActiveMonth] = useState(() => {
     const today = new Date();
     return { year: today.getFullYear(), month: today.getMonth() };
@@ -195,6 +196,36 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     });
   };
 
+
+  const handleDisconnect = useCallback(async ({ clearSyncedEvents = false } = {}) => {
+    if (!authToken) {
+      setError('Unauthorized. Please sign in again.');
+      return;
+    }
+
+    setDisconnecting(true);
+    setError(null);
+    setSyncResult(null);
+
+    try {
+      const payload = await disconnectGoogleCalendar({ token: authToken, clearSyncedEvents });
+      setEvents([]);
+      setGoogleStatus('not_connected');
+      setLastSyncedAt('');
+      localStorage.removeItem('google_calendar_last_sync');
+      const clearedEventsCount = payload?.synced_events_deleted ?? 0;
+      const clearedMessage = clearSyncedEvents
+        ? ` Cleared synced events: ${clearedEventsCount}.`
+        : '';
+      setError(`Google Calendar disconnected.${clearedMessage}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disconnect Google Calendar.';
+      setError(message);
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [authToken, disconnectGoogleCalendar]);
+
   const handleConnect = useCallback(async () => {
     if (!authToken) {
       setError('Unauthorized. Please sign in again.');
@@ -269,14 +300,32 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
                 {loading ? 'Refreshing…' : 'Refresh'}
               </button>
               {googleStatus !== 'not_connected' && (
-                <button
-                  type="button"
-                  onClick={handleSyncNow}
-                  disabled={syncing}
-                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
-                >
-                  {syncing ? 'Syncing…' : 'Sync Now'}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSyncNow}
+                    disabled={syncing || disconnecting}
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                  >
+                    {syncing ? 'Syncing…' : 'Sync Now'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDisconnect()}
+                    disabled={disconnecting || syncing}
+                    className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDisconnect({ clearSyncedEvents: true })}
+                    disabled={disconnecting || syncing}
+                    className="rounded-lg border border-rose-200 px-3 py-2 text-sm text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {disconnecting ? 'Disconnecting…' : 'Disconnect + Clear Synced'}
+                  </button>
+                </>
               )}
             </div>
           </div>
