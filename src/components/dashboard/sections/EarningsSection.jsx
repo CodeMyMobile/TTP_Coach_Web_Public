@@ -1,15 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Calendar,
   ChevronDown,
-  Circle,
   CircleDollarSign,
   Clock3,
   Download,
   Landmark,
-  Loader2,
-  TrendingUp,
-  Users
+  Loader2
 } from 'lucide-react';
 import {
   exportCoachEarningsTransactions,
@@ -44,24 +40,6 @@ const currency = (value) => {
   }).format(numeric);
 };
 
-const formatSyncLabel = (syncedAt) => {
-  if (!syncedAt) {
-    return 'Secure portal · Last synced moments ago';
-  }
-
-  const date = new Date(syncedAt);
-  if (Number.isNaN(date.getTime())) {
-    return 'Secure portal · Last synced moments ago';
-  }
-
-  return `Secure portal · Last synced ${date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  })}`;
-};
-
 const dateParts = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -75,7 +53,7 @@ const dateParts = (value) => {
   };
 };
 
-const EarningsSection = ({ stats }) => {
+const EarningsSection = () => {
   const [range, setRange] = useState('30d');
   const [dashboard, setDashboard] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -150,42 +128,11 @@ const EarningsSection = ({ stats }) => {
     }
   };
 
-  const apiTopStats = dashboard?.top_stats || {};
   const apiBalances = dashboard?.balances || {};
   const nextPayout = apiBalances?.next_payout || null;
   const lessonTypeBreakdown = getCollection(dashboard?.breakdown, ['lesson_type']);
   const locationBreakdown = getCollection(dashboard?.breakdown, ['location']);
   const topStudents = getCollection(dashboard?.breakdown, ['top_students']);
-
-  const topStats = useMemo(
-    () => [
-      {
-        label: 'Today',
-        value: apiTopStats?.today_lessons ?? stats?.todayLessons ?? 0,
-        icon: Calendar,
-        iconClass: 'bg-blue-100 text-blue-500'
-      },
-      {
-        label: 'Revenue',
-        value: currency(apiTopStats?.revenue ?? stats?.weekRevenue ?? 0),
-        icon: CircleDollarSign,
-        iconClass: 'bg-emerald-100 text-emerald-500'
-      },
-      {
-        label: 'Students',
-        value: apiTopStats?.students ?? stats?.activeStudents ?? 0,
-        icon: Users,
-        iconClass: 'bg-violet-100 text-violet-500'
-      },
-      {
-        label: 'Upcoming',
-        value: apiTopStats?.upcoming_lessons ?? stats?.upcomingLessons ?? 0,
-        icon: TrendingUp,
-        iconClass: 'bg-rose-100 text-rose-500'
-      }
-    ],
-    [apiTopStats, stats]
-  );
 
   const balances = [
     {
@@ -225,27 +172,6 @@ const EarningsSection = ({ stats }) => {
   return (
     <section className="mt-6 space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 sm:p-4">
       {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
-
-      <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
-        {topStats.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div key={card.label} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3 sm:border-0 sm:p-1">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${card.iconClass}`}>
-                <Icon className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">{card.label}</p>
-                <p className="text-lg font-bold text-slate-800">{card.value}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="flex items-center gap-2 px-1 text-xs text-slate-500">
-        <Circle className="h-3 w-3 fill-emerald-500 text-emerald-500" /> {formatSyncLabel(dashboard?.synced_at)}
-      </p>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
