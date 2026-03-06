@@ -58,6 +58,38 @@ const UpcomingLessonsPage = ({ onBack }) => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [requestsCount, setRequestsCount] = useState(0);
 
+  const resolveLessonId = (lesson) => lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId;
+
+  const fetchLessonDetail = useCallback(async (lessonId, fallbackLessons = []) => {
+    if (!lessonId) {
+      return null;
+    }
+
+    setDetailLoading(true);
+    try {
+      const detail = await getCoachLessonById({ lessonId });
+      const resolved = detail?.lesson || detail;
+      setSelectedLesson(resolved);
+      return resolved;
+    } catch {
+      const fallback = fallbackLessons.find((item) => String(resolveLessonId(item)) === String(lessonId)) || null;
+      setSelectedLesson(fallback);
+      return fallback;
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const fetchRequests = useCallback(async () => {
+    try {
+      const payload = await getCoachRequests({ perPage: 1, page: 1 });
+      const total = Number(payload?.count || payload?.total || payload?.pagination?.total || 0);
+      setRequestsCount(Number.isFinite(total) ? total : 0);
+    } catch {
+      setRequestsCount(0);
+    }
+  }, []);
+
   const fetchLessons = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -77,6 +109,17 @@ const UpcomingLessonsPage = ({ onBack }) => {
 
       setLessons(upcomingOnly);
       setTotalLessons(resolveTotal(payload, upcomingOnly.length));
+
+      await fetchRequests();
+
+      if (selectedDate) {
+        const firstLessonId = resolveLessonId(upcomingOnly[0]);
+        if (firstLessonId) {
+          await fetchLessonDetail(firstLessonId, upcomingOnly);
+        } else {
+          setSelectedLesson(null);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load upcoming lessons.');
       setLessons([]);
@@ -84,17 +127,8 @@ const UpcomingLessonsPage = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, [page, perPage, searchQuery, selectedDate]);
+  }, [fetchLessonDetail, fetchRequests, page, perPage, searchQuery, selectedDate]);
 
-  const fetchRequests = useCallback(async () => {
-    try {
-      const payload = await getCoachRequests({ perPage: 1, page: 1 });
-      const total = Number(payload?.count || payload?.total || payload?.pagination?.total || 0);
-      setRequestsCount(Number.isFinite(total) ? total : 0);
-    } catch {
-      setRequestsCount(0);
-    }
-  }, []);
 
   useEffect(() => {
     fetchLessons();
@@ -111,20 +145,7 @@ const UpcomingLessonsPage = ({ onBack }) => {
   };
 
   const openLessonDetail = async (lessonId) => {
-    if (!lessonId) {
-      return;
-    }
-
-    setDetailLoading(true);
-    try {
-      const detail = await getCoachLessonById({ lessonId });
-      setSelectedLesson(detail?.lesson || detail);
-    } catch {
-      const fallback = lessons.find((item) => String(item.id) === String(lessonId)) || null;
-      setSelectedLesson(fallback);
-    } finally {
-      setDetailLoading(false);
-    }
+    await fetchLessonDetail(lessonId, lessons);
   };
 
   const hasNextPage = useMemo(() => {
@@ -195,7 +216,7 @@ const UpcomingLessonsPage = ({ onBack }) => {
               <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">No upcoming lessons found.</div>
             ) : (
               lessons.map((lesson) => {
-                const lessonId = lesson.id ?? lesson.lesson_id ?? lesson.lessonId;
+                const lessonId = resolveLessonId(lesson);
 
                 return (
                   <div key={lessonId} className="space-y-2">
