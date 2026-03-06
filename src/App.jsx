@@ -23,6 +23,7 @@ import LessonCreatedSuccessModal from './components/modals/LessonCreatedSuccessM
 import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
+import UpcomingLessonsPage from './components/dashboard/UpcomingLessonsPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
 import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet';
 import {
@@ -190,6 +191,7 @@ function App() {
   const isDashboardRoute = currentPath === '/dashboard';
   const isSettingsRoute = currentPath === '/settings';
   const isNotificationsRoute = currentPath === '/notifications';
+  const isUpcomingLessonsRoute = currentPath === '/upcoming-lessons';
   const isGoogleCalendarRoute = currentPath === '/google-calendar';
   const isGoogleRedirectRoute = currentPath === '/redirect';
 
@@ -273,6 +275,7 @@ function App() {
       !isDashboardRoute &&
       !isSettingsRoute &&
       !isNotificationsRoute &&
+      !isUpcomingLessonsRoute &&
       !isGoogleCalendarRoute &&
       !isGoogleRedirectRoute
     ) {
@@ -285,6 +288,7 @@ function App() {
     isDashboardRoute,
     isSettingsRoute,
     isNotificationsRoute,
+    isUpcomingLessonsRoute,
     isGoogleCalendarRoute,
     isGoogleRedirectRoute,
     navigate
@@ -1578,6 +1582,8 @@ function App() {
         <GoogleCalendarSyncPage onBack={() => navigate('/settings')} />
       ) : isNotificationsRoute ? (
         <NotificationsPage onBack={() => navigate('/dashboard')} />
+      ) : isUpcomingLessonsRoute ? (
+        <UpcomingLessonsPage onBack={() => navigate('/dashboard')} />
       ) : (
         <DashboardPage
           profile={profileData}
@@ -1618,6 +1624,7 @@ function App() {
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
           onOpenNotifications={() => navigate('/notifications')}
+          onOpenUpcomingLessons={() => navigate('/upcoming-lessons')}
           onLogout={logout}
           studentSearchQuery={studentSearchQuery}
           onStudentSearchQueryChange={setStudentSearchQuery}

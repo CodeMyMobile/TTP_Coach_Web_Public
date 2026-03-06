@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calendar, DollarSign, TrendingUp, Users } from 'lucide-react';
 
-const StatsSummary = ({ stats }) => (
+const StatsSummary = ({ stats, onOpenUpcomingLessons }) => (
   <div className="border-b bg-white stats-summary">
     <div className="mx-auto max-w-7xl px-4 py-4 stats-summary-desktop">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
@@ -32,7 +32,11 @@ const StatsSummary = ({ stats }) => (
             <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.activeStudents}</p>
           </div>
         </div>
-        <div className="flex items-center rounded-lg bg-gray-50 p-3">
+        <button
+          type="button"
+          onClick={onOpenUpcomingLessons}
+          className="flex items-center rounded-lg bg-gray-50 p-3 text-left transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
+        >
           <div className="rounded-lg bg-orange-50 p-2">
             <TrendingUp className="h-4 w-4 text-orange-600 md:h-5 md:w-5" />
           </div>
@@ -40,7 +44,7 @@ const StatsSummary = ({ stats }) => (
             <p className="text-xs text-gray-500">Upcoming</p>
             <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.upcomingLessons}</p>
           </div>
-        </div>
+        </button>
       </div>
     </div>
     <div className="stats-summary-mobile">
