@@ -387,7 +387,8 @@ const DashboardPage = ({
   onRefreshGroups = () => {},
   onCreateGroup = () => {},
   onUpdateGroup = () => {},
-  onDeleteGroup = () => {}
+  onDeleteGroup = () => {},
+  onOpenUpcomingLessons = () => {}
 }) => {
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
@@ -1242,7 +1243,7 @@ const DashboardPage = ({
         />
       )}
 
-      <StatsSummary stats={stats} />
+      <StatsSummary stats={stats} onOpenUpcomingLessons={onOpenUpcomingLessons} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
