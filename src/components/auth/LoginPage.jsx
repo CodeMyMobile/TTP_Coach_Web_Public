@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useAuth from '../../hooks/useAuth.jsx';
 
 const loginInitialState = {
@@ -14,6 +14,9 @@ const signupInitialState = {
   email: '',
   password: ''
 };
+
+const GOOGLE_SCRIPT_ID = 'google-identity-script';
+const googleClientId = import.meta.env.VITE_GOOGLE_AUTH_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
@@ -37,11 +40,14 @@ const GoogleIcon = () => (
 );
 
 const LoginPage = () => {
-  const { login, signup, authLoading, authError } = useAuth();
+  const { login, signup, loginWithGoogle, authLoading, authError } = useAuth();
   const [mode, setMode] = useState('login');
   const [loginState, setLoginState] = useState(loginInitialState);
   const [signupState, setSignupState] = useState(signupInitialState);
   const [formError, setFormError] = useState(null);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const googleButtonRef = useRef(null);
 
   const activeState = mode === 'login' ? loginState : signupState;
 
@@ -53,6 +59,94 @@ const LoginPage = () => {
     }
     setSignupState((previous) => ({ ...previous, [field]: value }));
   }, [mode]);
+
+  const handleGoogleCredential = useCallback(async (response) => {
+    const idToken = response?.credential;
+
+    if (!idToken) {
+      setFormError('Could not verify Google Sign-In. Please try again.');
+      return;
+    }
+
+    setFormError(null);
+    setGoogleLoading(true);
+
+    const result = await loginWithGoogle(idToken);
+    if (result?.error) {
+      setFormError(result.error);
+      setGoogleLoading(false);
+      return;
+    }
+
+    setGoogleLoading(false);
+  }, [loginWithGoogle]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!googleClientId) {
+      setGoogleReady(false);
+      setFormError('Google auth client id not configured.');
+      return;
+    }
+
+    const initializeGoogle = () => {
+      if (!window.google?.accounts?.id) {
+        return;
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredential
+      });
+
+      if (googleButtonRef.current) {
+        googleButtonRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          type: 'standard',
+          shape: 'pill',
+          theme: 'outline',
+          text: mode === 'login' ? 'continue_with' : 'signup_with',
+          size: 'large',
+          width: 360,
+          logo_alignment: 'left'
+        });
+      }
+
+      setGoogleReady(true);
+    };
+
+    if (window.google?.accounts?.id) {
+      initializeGoogle();
+      return;
+    }
+
+    const existingScript = document.getElementById(GOOGLE_SCRIPT_ID);
+    if (existingScript) {
+      existingScript.addEventListener('load', initializeGoogle);
+      return () => existingScript.removeEventListener('load', initializeGoogle);
+    }
+
+    const script = document.createElement('script');
+    script.id = GOOGLE_SCRIPT_ID;
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = initializeGoogle;
+    script.onerror = () => {
+      setGoogleReady(false);
+      setFormError('Failed to load Google Sign-In. Please use email and password.');
+    };
+
+    document.head.appendChild(script);
+
+    return () => {
+      script.onload = null;
+      script.onerror = null;
+    };
+  }, [handleGoogleCredential, mode]);
 
   const validate = useCallback(() => {
     const emailPattern = /.+@.+\..+/i;
@@ -178,7 +272,7 @@ const LoginPage = () => {
                   ]
               ).map(([icon, text]) => (
                 <div key={text} className="flex items-center gap-3 text-base">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-sm">{icon}</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-sm">{icon}</span>
                   <span>{text}</span>
                 </div>
               ))}
@@ -186,51 +280,38 @@ const LoginPage = () => {
           </div>
         </aside>
 
-        <section className="w-full p-6 sm:p-8 md:w-[460px] md:p-12">
-          <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 p-6 text-center md:hidden">
-            <div className="absolute -right-4 -top-5 text-8xl opacity-10">🎾</div>
-            <div className="relative z-10">
-              <div className="mb-3 flex items-center justify-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">🎾</div>
-                <p className="text-xl font-bold text-white">
-                  The Tennis <span className="font-normal text-white/90">Plan</span>
-                </p>
-              </div>
-              <h1 className="text-xl font-bold text-white">{mode === 'login' ? 'Manage your coaching business' : 'Start growing your business'}</h1>
-            </div>
-          </div>
-
-          <div className="mb-6 flex rounded-xl bg-slate-100 p-1">
+        <section className="w-full max-w-xl flex-1 px-6 py-10 md:px-10 md:py-12">
+          <div className="mb-8 flex rounded-xl bg-slate-100 p-1">
             <button
               type="button"
-              className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
                 mode === 'login' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'
               }`}
               onClick={() => switchMode('login')}
-              disabled={authLoading}
+              disabled={authLoading || googleLoading}
             >
               Sign In
             </button>
             <button
               type="button"
-              className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
                 mode === 'signup' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'
               }`}
               onClick={() => switchMode('signup')}
-              disabled={authLoading}
+              disabled={authLoading || googleLoading}
             >
               Sign Up
             </button>
           </div>
 
           <h2 className="mb-1 text-2xl font-bold text-slate-800">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
-          <p className="mb-6 text-sm text-slate-500">
+          <p className="mb-7 text-sm text-slate-500">
             {mode === 'login' ? 'Sign in to your coach account' : 'Start managing your coaching business'}
           </p>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={handleSubmit}>
             {mode === 'signup' && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-sm font-semibold text-slate-800" htmlFor="signup-first-name">First name</label>
                   <input
@@ -240,7 +321,7 @@ const LoginPage = () => {
                     className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
                     value={signupState.firstName}
                     onChange={(event) => updateField('firstName', event.target.value)}
-                    disabled={authLoading}
+                    disabled={authLoading || googleLoading}
                     placeholder="Paul"
                   />
                 </div>
@@ -253,7 +334,7 @@ const LoginPage = () => {
                     className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
                     value={signupState.lastName}
                     onChange={(event) => updateField('lastName', event.target.value)}
-                    disabled={authLoading}
+                    disabled={authLoading || googleLoading}
                     placeholder="Cochrane"
                   />
                 </div>
@@ -270,7 +351,7 @@ const LoginPage = () => {
                   className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
                   value={signupState.phone}
                   onChange={(event) => updateField('phone', event.target.value)}
-                  disabled={authLoading}
+                  disabled={authLoading || googleLoading}
                   placeholder="(555) 123-4567"
                 />
               </div>
@@ -285,7 +366,7 @@ const LoginPage = () => {
                 className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
                 value={activeState.email}
                 onChange={(event) => updateField('email', event.target.value)}
-                disabled={authLoading}
+                disabled={authLoading || googleLoading}
                 placeholder="coach@example.com"
               />
             </div>
@@ -299,7 +380,7 @@ const LoginPage = () => {
                 className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
                 value={activeState.password}
                 onChange={(event) => updateField('password', event.target.value)}
-                disabled={authLoading}
+                disabled={authLoading || googleLoading}
                 placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
               />
             </div>
@@ -312,7 +393,7 @@ const LoginPage = () => {
                     className="h-4 w-4 accent-violet-500"
                     checked={loginState.rememberMe}
                     onChange={(event) => updateField('rememberMe', event.target.checked)}
-                    disabled={authLoading}
+                    disabled={authLoading || googleLoading}
                   />
                   Remember me
                 </label>
@@ -329,7 +410,7 @@ const LoginPage = () => {
             <button
               type="submit"
               className="w-full rounded-xl bg-violet-500 px-4 py-4 text-sm font-bold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={authLoading}
+              disabled={authLoading || googleLoading}
             >
               {authLoading ? (mode === 'login' ? 'Signing in…' : 'Creating account…') : mode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
@@ -341,14 +422,20 @@ const LoginPage = () => {
             <span className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-            disabled
-          >
-            <GoogleIcon />
-            {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
-          </button>
+          <div className="min-h-[44px] w-full">
+            {googleReady ? (
+              <div ref={googleButtonRef} className="flex w-full justify-center" />
+            ) : (
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                disabled
+              >
+                <GoogleIcon />
+                {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+              </button>
+            )}
+          </div>
 
           {mode === 'signup' && (
             <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">

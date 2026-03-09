@@ -19,3 +19,16 @@ This update adds coach-facing player-group management and lesson creation group 
 - Final submit still uses full onboarding `PUT` and then refreshes canonical onboarding data.
 - A **Discard draft** action deletes the server draft and restores the form to last saved onboarding data.
 - Current onboarding step is persisted locally so refresh restores the same step.
+
+## Google coach sign-in configuration
+
+Google coach login uses the Google Identity Services SDK in the login page and sends the returned `id_token` to:
+
+- `POST /api/auth/google/coach-login`
+
+Required frontend env vars:
+
+- `VITE_GOOGLE_AUTH_CLIENT_ID` (preferred)
+- `VITE_GOOGLE_CLIENT_ID` (fallback)
+
+Set the frontend client ID to the same Google OAuth client configured in backend auth audience env settings (for example `GOOGLE_AUTH_CLIENT_ID`).

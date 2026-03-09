@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { coachSignup, logIn } from '../api/auth';
+import { coachGoogleLogin, coachSignup, logIn } from '../api/auth';
 import { AS_USER_KEY } from '../constants/urls';
 import { USER_TYPES } from '../constants';
 import { removeTokens, storeTokens } from '../utils/tokenHelper';
@@ -38,8 +38,31 @@ const normaliseUserPayload = (data) => ({
   userType: data?.user_type ?? null,
   userId: data?.user_id ?? null,
   onboardingComplete: Boolean(data?.onboarding_complete ?? data?.is_complete),
-  profile: data?.profile ?? null
+  profile: data?.profile ?? null,
+  locations: Array.isArray(data?.locations) ? data.locations : []
 });
+
+const getGoogleAuthErrorMessage = (result) => {
+  const code = result?.data?.error || result?.data?.code;
+
+  if (result?.status === 400 && code === 'google_email_not_verified') {
+    return 'Use a verified Google account.';
+  }
+
+  if (result?.status === 403 && code === 'account_exists_with_different_role') {
+    return 'This email is registered as a different account type.';
+  }
+
+  if (result?.status === 401 && code === 'invalid_google_token') {
+    return 'Google sign-in failed. Please retry sign-in.';
+  }
+
+  if (result?.status === 500 && result?.data?.message === 'Google auth client id not configured') {
+    return 'Google auth client id not configured. Please contact support.';
+  }
+
+  return result?.data?.message || 'Unable to sign in with Google. Please try again.';
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => readStoredUser());
@@ -103,6 +126,42 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const loginWithGoogle = useCallback(async (idToken) => {
+    setAuthError(null);
+    setAuthLoading(true);
+
+    try {
+      const result = await coachGoogleLogin(idToken);
+
+      if (!result.ok) {
+        throw new Error(getGoogleAuthErrorMessage(result));
+      }
+
+      if (!result.data) {
+        throw new Error('Google login response did not include user data.');
+      }
+
+      if (result.data.user_type !== USER_TYPES.coach) {
+        throw new Error('This portal is only available to coaches.');
+      }
+
+      await storeTokens(result.data.access_token, result.data.refresh_token);
+
+      const nextUser = normaliseUserPayload(result.data);
+      setUser(nextUser);
+      writeStoredUser(nextUser);
+      setAuthError(null);
+      return { data: nextUser };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected error while logging in with Google.';
+      setAuthError(message);
+      await removeTokens();
+      return { error: message };
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
   const signup = useCallback(async (payload) => {
     setAuthError(null);
     setAuthLoading(true);
@@ -154,10 +213,11 @@ export const AuthProvider = ({ children }) => {
       authError,
       initialising,
       login,
+      loginWithGoogle,
       signup,
       logout
     }),
-    [user, authLoading, authError, initialising, login, signup, logout]
+    [user, authLoading, authError, initialising, login, loginWithGoogle, signup, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
