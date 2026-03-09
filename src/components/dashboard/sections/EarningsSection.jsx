@@ -53,7 +53,7 @@ const dateParts = (value) => {
   };
 };
 
-const EarningsSection = () => {
+const EarningsSection = ({ onOpenTransactionsHistory, onOpenPayoutHistory }) => {
   const [range, setRange] = useState('30d');
   const [dashboard, setDashboard] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -226,7 +226,7 @@ const EarningsSection = () => {
           <div className="rounded-xl border border-slate-200 lg:col-span-3">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <h3 className="text-sm font-semibold text-slate-800">Recent Transactions</h3>
-              <span className="text-sm font-semibold text-violet-600">View all →</span>
+              <button onClick={onOpenTransactionsHistory} className="text-sm font-semibold text-violet-600">View all →</button>
             </div>
             <div className="px-4 py-2">
               {transactions.slice(0, 4).map((item) => {
@@ -264,7 +264,7 @@ const EarningsSection = () => {
           <div className="rounded-xl border border-slate-200 lg:col-span-2">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <h3 className="text-sm font-semibold text-slate-800">Payout Schedule</h3>
-              <span className="text-sm font-semibold text-violet-600">View history →</span>
+              <button onClick={onOpenPayoutHistory} className="text-sm font-semibold text-violet-600">View history →</button>
             </div>
             <div className="px-4 py-2">
               {payouts.slice(0, 3).map((item) => {

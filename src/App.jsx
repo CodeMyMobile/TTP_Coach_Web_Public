@@ -24,6 +24,7 @@ import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
 import UpcomingLessonsPage from './components/dashboard/UpcomingLessonsPage';
+import EarningsHistoryPage from './components/dashboard/sections/EarningsHistoryPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
 import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet';
 import {
@@ -194,6 +195,8 @@ function App() {
   const isUpcomingLessonsRoute = currentPath === '/upcoming-lessons';
   const isGoogleCalendarRoute = currentPath === '/google-calendar';
   const isGoogleRedirectRoute = currentPath === '/redirect';
+  const isTransactionsHistoryRoute = currentPath === '/earnings/transactions';
+  const isPayoutHistoryRoute = currentPath === '/earnings/payouts';
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -277,7 +280,9 @@ function App() {
       !isNotificationsRoute &&
       !isUpcomingLessonsRoute &&
       !isGoogleCalendarRoute &&
-      !isGoogleRedirectRoute
+      !isGoogleRedirectRoute &&
+      !isTransactionsHistoryRoute &&
+      !isPayoutHistoryRoute
     ) {
       navigate('/dashboard', { replace: true });
     }
@@ -291,6 +296,8 @@ function App() {
     isUpcomingLessonsRoute,
     isGoogleCalendarRoute,
     isGoogleRedirectRoute,
+    isTransactionsHistoryRoute,
+    isPayoutHistoryRoute,
     navigate
   ]);
 
@@ -1584,6 +1591,10 @@ function App() {
         <NotificationsPage onBack={() => navigate('/dashboard')} />
       ) : isUpcomingLessonsRoute ? (
         <UpcomingLessonsPage onBack={() => navigate('/dashboard')} />
+      ) : isTransactionsHistoryRoute ? (
+        <EarningsHistoryPage mode="transactions" onBack={() => navigate('/dashboard')} />
+      ) : isPayoutHistoryRoute ? (
+        <EarningsHistoryPage mode="payouts" onBack={() => navigate('/dashboard')} />
       ) : (
         <DashboardPage
           profile={profileData}
@@ -1625,6 +1636,8 @@ function App() {
           onOpenSettings={() => navigate('/settings')}
           onOpenNotifications={() => navigate('/notifications')}
           onOpenUpcomingLessons={() => navigate('/upcoming-lessons')}
+          onOpenTransactionsHistory={() => navigate('/earnings/transactions')}
+          onOpenPayoutHistory={() => navigate('/earnings/payouts')}
           onLogout={logout}
           studentSearchQuery={studentSearchQuery}
           onStudentSearchQueryChange={setStudentSearchQuery}

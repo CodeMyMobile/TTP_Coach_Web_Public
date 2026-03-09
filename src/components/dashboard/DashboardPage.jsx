@@ -389,7 +389,9 @@ const DashboardPage = ({
   onCreateGroup = () => {},
   onUpdateGroup = () => {},
   onDeleteGroup = () => {},
-  onOpenUpcomingLessons = () => {}
+  onOpenUpcomingLessons = () => {},
+  onOpenTransactionsHistory = () => {},
+  onOpenPayoutHistory = () => {}
 }) => {
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
@@ -1507,7 +1509,13 @@ const DashboardPage = ({
           />
         )}
 
-        {dashboardTab === 'earnings' && <EarningsSection stats={stats} />}
+        {dashboardTab === 'earnings' && (
+          <EarningsSection
+            stats={stats}
+            onOpenTransactionsHistory={onOpenTransactionsHistory}
+            onOpenPayoutHistory={onOpenPayoutHistory}
+          />
+        )}
 
         {dashboardTab === 'packages' && (
           <PackagesSection

@@ -550,14 +550,16 @@ export const deleteCoachAvailability = (availabilityId) => {
 export const getCoachStats = () => request('/coach/stats');
 
 
-const buildEarningsQuery = ({ range, from, to, transactionsLimit, topStudentsLimit, page, perPage, limit, startingAfter } = {}) => {
+const buildEarningsQuery = ({ range, from, to, transactionsLimit, topStudentsLimit, page, perPage, limit, startingAfter, search, type, status } = {}) => {
   const params = new URLSearchParams();
 
   if (range) {
     params.set('range', range);
   }
-  if (from && to) {
+  if (from) {
     params.set('from', from);
+  }
+  if (to) {
     params.set('to', to);
   }
   if (typeof transactionsLimit === 'number') {
@@ -577,6 +579,15 @@ const buildEarningsQuery = ({ range, from, to, transactionsLimit, topStudentsLim
   }
   if (startingAfter) {
     params.set('starting_after', startingAfter);
+  }
+  if (search) {
+    params.set('search', search);
+  }
+  if (type) {
+    params.set('type', type);
+  }
+  if (status) {
+    params.set('status', status);
   }
 
   return params.toString();
