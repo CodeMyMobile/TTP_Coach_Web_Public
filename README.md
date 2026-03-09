@@ -30,5 +30,6 @@ Required frontend env vars:
 
 - `VITE_GOOGLE_AUTH_CLIENT_ID` (preferred)
 - `VITE_GOOGLE_CLIENT_ID` (fallback)
+- Default fallback (currently configured): `1015123062756-ikedpium5t5p5a8pduq509haavm2j9un.apps.googleusercontent.com`
 
 Set the frontend client ID to the same Google OAuth client configured in backend auth audience env settings (for example `GOOGLE_AUTH_CLIENT_ID`).

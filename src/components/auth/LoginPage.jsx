@@ -16,7 +16,10 @@ const signupInitialState = {
 };
 
 const GOOGLE_SCRIPT_ID = 'google-identity-script';
-const googleClientId = import.meta.env.VITE_GOOGLE_AUTH_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const googleClientId =
+  import.meta.env.VITE_GOOGLE_AUTH_CLIENT_ID ||
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '1015123062756-ikedpium5t5p5a8pduq509haavm2j9un.apps.googleusercontent.com';
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
