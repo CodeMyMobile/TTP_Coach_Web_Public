@@ -51,6 +51,7 @@ const LoginPage = () => {
   const [googleReady, setGoogleReady] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleButtonRef = useRef(null);
+  const googleContainerRef = useRef(null);
 
   const activeState = mode === 'login' ? loginState : signupState;
 
@@ -84,6 +85,27 @@ const LoginPage = () => {
     setGoogleLoading(false);
   }, [loginWithGoogle]);
 
+  const renderGoogleButton = useCallback(() => {
+    if (!window.google?.accounts?.id || !googleButtonRef.current) {
+      return;
+    }
+
+    const containerWidth = googleContainerRef.current?.offsetWidth || googleButtonRef.current.offsetWidth || 360;
+
+    googleButtonRef.current.innerHTML = '';
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      type: 'standard',
+      shape: 'pill',
+      theme: 'outline',
+      text: mode === 'login' ? 'continue_with' : 'signup_with',
+      size: 'large',
+      width: Math.max(240, Math.min(400, Math.floor(containerWidth))),
+      logo_alignment: 'left'
+    });
+
+    setGoogleReady(true);
+  }, [mode]);
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
@@ -105,51 +127,44 @@ const LoginPage = () => {
         callback: handleGoogleCredential
       });
 
-      if (googleButtonRef.current) {
-        googleButtonRef.current.innerHTML = '';
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: 'standard',
-          shape: 'pill',
-          theme: 'outline',
-          text: mode === 'login' ? 'continue_with' : 'signup_with',
-          size: 'large',
-          width: 360,
-          logo_alignment: 'left'
-        });
-      }
-
-      setGoogleReady(true);
+      renderGoogleButton();
     };
 
     if (window.google?.accounts?.id) {
       initializeGoogle();
-      return;
+    } else {
+      const existingScript = document.getElementById(GOOGLE_SCRIPT_ID);
+      if (existingScript) {
+        existingScript.addEventListener('load', initializeGoogle);
+        return () => existingScript.removeEventListener('load', initializeGoogle);
+      }
+
+      const script = document.createElement('script');
+      script.id = GOOGLE_SCRIPT_ID;
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogle;
+      script.onerror = () => {
+        setGoogleReady(false);
+        setFormError('Failed to load Google Sign-In. Please use email and password.');
+      };
+
+      document.head.appendChild(script);
+
+      return () => {
+        script.onload = null;
+        script.onerror = null;
+      };
     }
 
-    const existingScript = document.getElementById(GOOGLE_SCRIPT_ID);
-    if (existingScript) {
-      existingScript.addEventListener('load', initializeGoogle);
-      return () => existingScript.removeEventListener('load', initializeGoogle);
-    }
-
-    const script = document.createElement('script');
-    script.id = GOOGLE_SCRIPT_ID;
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = initializeGoogle;
-    script.onerror = () => {
-      setGoogleReady(false);
-      setFormError('Failed to load Google Sign-In. Please use email and password.');
-    };
-
-    document.head.appendChild(script);
+    const handleResize = () => renderGoogleButton();
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      script.onload = null;
-      script.onerror = null;
+      window.removeEventListener('resize', handleResize);
     };
-  }, [handleGoogleCredential, mode]);
+  }, [handleGoogleCredential, renderGoogleButton]);
 
   const validate = useCallback(() => {
     const emailPattern = /.+@.+\..+/i;
@@ -425,9 +440,9 @@ const LoginPage = () => {
             <span className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <div className="min-h-[44px] w-full">
+          <div ref={googleContainerRef} className="min-h-[44px] w-full">
             {googleReady ? (
-              <div ref={googleButtonRef} className="flex w-full justify-center" />
+              <div ref={googleButtonRef} className="flex w-full justify-center [&>div]:w-full [&_iframe]:w-full" />
             ) : (
               <button
                 type="button"
