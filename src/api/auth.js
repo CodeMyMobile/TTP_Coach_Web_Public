@@ -48,7 +48,26 @@ export const coachSignup = async (payload = {}) => {
   };
 };
 
+export const forgotPassword = async (email) => {
+  const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    body: JSON.stringify({ email })
+  });
+
+  const data = await parseJson(response);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data
+  };
+};
+
 export default {
   logIn,
-  coachSignup
+  coachSignup,
+  forgotPassword
 };
