@@ -48,7 +48,30 @@ export const coachSignup = async (payload = {}) => {
   };
 };
 
+export const coachGoogleLogin = async (idToken) => {
+  if (!idToken) {
+    throw new Error('Google ID token is required for Google login.');
+  }
+
+  const response = await fetch(`${API_URL}/api/auth/google/coach-login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    body: JSON.stringify({ id_token: idToken })
+  });
+
+  const data = await parseJson(response);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data
+  };
+};
+
 export default {
   logIn,
-  coachSignup
+  coachSignup,
+  coachGoogleLogin
 };
