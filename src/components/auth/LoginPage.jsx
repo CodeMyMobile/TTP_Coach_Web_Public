@@ -37,21 +37,23 @@ const GoogleIcon = () => (
 );
 
 const LoginPage = () => {
-  const { login, signup, authLoading, authError } = useAuth();
+  const { login, signup, requestPasswordReset, authLoading, authError } = useAuth();
   const [mode, setMode] = useState('login');
   const [loginState, setLoginState] = useState(loginInitialState);
   const [signupState, setSignupState] = useState(signupInitialState);
   const [formError, setFormError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
-  const activeState = mode === 'login' ? loginState : signupState;
+  const activeState = mode === 'signup' ? signupState : loginState;
 
   const updateField = useCallback((field, value) => {
     setFormError(null);
-    if (mode === 'login') {
-      setLoginState((previous) => ({ ...previous, [field]: value }));
+    setSuccessMessage(null);
+    if (mode === 'signup') {
+      setSignupState((previous) => ({ ...previous, [field]: value }));
       return;
     }
-    setSignupState((previous) => ({ ...previous, [field]: value }));
+    setLoginState((previous) => ({ ...previous, [field]: value }));
   }, [mode]);
 
   const validate = useCallback(() => {
@@ -63,6 +65,10 @@ const LoginPage = () => {
 
     if (!emailPattern.test(activeState.email.trim())) {
       return 'Please enter a valid email address.';
+    }
+
+    if (mode === 'forgot-password') {
+      return null;
     }
 
     if (mode === 'login') {
@@ -94,10 +100,21 @@ const LoginPage = () => {
   const handleSubmit = useCallback(async (event) => {
     event.preventDefault();
     setFormError(null);
+    setSuccessMessage(null);
     const validationError = validate();
 
     if (validationError) {
       setFormError(validationError);
+      return;
+    }
+
+    if (mode === 'forgot-password') {
+      const result = await requestPasswordReset(loginState.email.trim());
+      if (result?.error) {
+        setFormError(result.error);
+      } else {
+        setSuccessMessage('If an account exists for this email, a reset link has been sent.');
+      }
       return;
     }
 
@@ -128,23 +145,24 @@ const LoginPage = () => {
       setSignupState(signupInitialState);
       setMode('login');
     }
-  }, [login, loginState.email, loginState.password, mode, signup, signupState, validate]);
+  }, [login, loginState.email, loginState.password, mode, requestPasswordReset, signup, signupState, validate]);
 
   const switchMode = useCallback((nextMode) => {
     setFormError(null);
+    setSuccessMessage(null);
     setMode(nextMode);
   }, []);
 
   const headline = useMemo(
-    () => (mode === 'login' ? 'Manage your coaching business with ease' : 'Start growing your coaching business today'),
+    () => (mode === 'signup' ? 'Start growing your coaching business today' : 'Manage your coaching business with ease'),
     [mode]
   );
 
   const subhead = useMemo(
     () =>
-      mode === 'login'
-        ? 'Schedule lessons, track payments, and grow your tennis coaching business — all in one place.'
-        : 'Join hundreds of coaches using The Tennis Plan to manage lessons, students, and payments.',
+      mode === 'signup'
+        ? 'Join hundreds of coaches using The Tennis Plan to manage lessons, students, and payments.'
+        : 'Schedule lessons, track payments, and grow your tennis coaching business — all in one place.',
     [mode]
   );
 
@@ -165,16 +183,16 @@ const LoginPage = () => {
             <p className="mb-10 text-lg leading-relaxed text-white/85">{subhead}</p>
 
             <div className="space-y-4 text-white/90">
-              {(mode === 'login'
+              {(mode === 'signup'
                 ? [
-                    ['📅', 'Smart scheduling & calendar sync'],
-                    ['💳', 'Easy payments & invoicing'],
-                    ['👥', 'Student management & progress']
-                  ]
-                : [
                     ['✓', 'Free to get started'],
                     ['✓', 'Set up in under 2 minutes'],
                     ['✓', 'No credit card required']
+                  ]
+                : [
+                    ['📅', 'Smart scheduling & calendar sync'],
+                    ['💳', 'Easy payments & invoicing'],
+                    ['👥', 'Student management & progress']
                   ]
               ).map(([icon, text]) => (
                 <div key={text} className="flex items-center gap-3 text-base">
@@ -196,36 +214,44 @@ const LoginPage = () => {
                   The Tennis <span className="font-normal text-white/90">Plan</span>
                 </p>
               </div>
-              <h1 className="text-xl font-bold text-white">{mode === 'login' ? 'Manage your coaching business' : 'Start growing your business'}</h1>
+              <h1 className="text-xl font-bold text-white">{mode === 'signup' ? 'Start growing your business' : 'Manage your coaching business'}</h1>
             </div>
           </div>
 
-          <div className="mb-6 flex rounded-xl bg-slate-100 p-1">
-            <button
-              type="button"
-              className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                mode === 'login' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'
-              }`}
-              onClick={() => switchMode('login')}
-              disabled={authLoading}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                mode === 'signup' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'
-              }`}
-              onClick={() => switchMode('signup')}
-              disabled={authLoading}
-            >
-              Sign Up
-            </button>
-          </div>
+          {mode !== 'forgot-password' && (
+            <div className="mb-6 flex rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                  mode === 'login' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => switchMode('login')}
+                disabled={authLoading}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                  mode === 'signup' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => switchMode('signup')}
+                disabled={authLoading}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
 
-          <h2 className="mb-1 text-2xl font-bold text-slate-800">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
+          <h2 className="mb-1 text-2xl font-bold text-slate-800">
+            {mode === 'signup' ? 'Create your account' : mode === 'forgot-password' ? 'Reset your password' : 'Welcome back'}
+          </h2>
           <p className="mb-6 text-sm text-slate-500">
-            {mode === 'login' ? 'Sign in to your coach account' : 'Start managing your coaching business'}
+            {mode === 'signup'
+              ? 'Start managing your coaching business'
+              : mode === 'forgot-password'
+                ? 'Enter your email to receive a password reset link.'
+                : 'Sign in to your coach account'}
           </p>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -290,19 +316,21 @@ const LoginPage = () => {
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-800" htmlFor="auth-password">Password</label>
-              <input
-                id="auth-password"
-                type="password"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
-                value={activeState.password}
-                onChange={(event) => updateField('password', event.target.value)}
-                disabled={authLoading}
-                placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
-              />
-            </div>
+            {mode !== 'forgot-password' && (
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-800" htmlFor="auth-password">Password</label>
+                <input
+                  id="auth-password"
+                  type="password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-violet-500"
+                  value={activeState.password}
+                  onChange={(event) => updateField('password', event.target.value)}
+                  disabled={authLoading}
+                  placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
+                />
+              </div>
+            )}
 
             {mode === 'login' && (
               <div className="flex items-center justify-between text-sm">
@@ -316,7 +344,7 @@ const LoginPage = () => {
                   />
                   Remember me
                 </label>
-                <button type="button" className="font-semibold text-violet-500 hover:underline" disabled>
+                <button type="button" className="font-semibold text-violet-500 hover:underline" onClick={() => switchMode('forgot-password')}>
                   Forgot password?
                 </button>
               </div>
@@ -326,29 +354,53 @@ const LoginPage = () => {
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{formError || authError}</div>
             )}
 
+            {successMessage && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</div>
+            )}
+
             <button
               type="submit"
               className="w-full rounded-xl bg-violet-500 px-4 py-4 text-sm font-bold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-70"
               disabled={authLoading}
             >
-              {authLoading ? (mode === 'login' ? 'Signing in…' : 'Creating account…') : mode === 'login' ? 'Sign In' : 'Create Account'}
+              {authLoading
+                ? mode === 'login'
+                  ? 'Signing in…'
+                  : mode === 'signup'
+                    ? 'Creating account…'
+                    : 'Sending reset link…'
+                : mode === 'login'
+                  ? 'Sign In'
+                  : mode === 'signup'
+                    ? 'Create Account'
+                    : 'Send reset link'}
             </button>
+
+            {mode === 'forgot-password' && (
+              <button type="button" className="w-full text-sm font-semibold text-violet-500 hover:underline" onClick={() => switchMode('login')}>
+                Back to sign in
+              </button>
+            )}
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs text-slate-400">or</span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
+          {mode !== 'forgot-password' && (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs text-slate-400">or</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
 
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-            disabled
-          >
-            <GoogleIcon />
-            {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
-          </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                disabled
+              >
+                <GoogleIcon />
+                {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+              </button>
+            </>
+          )}
 
           {mode === 'signup' && (
             <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">

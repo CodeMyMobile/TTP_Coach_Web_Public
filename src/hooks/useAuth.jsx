@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { coachSignup, logIn } from '../api/auth';
+import { coachSignup, forgotPassword, logIn } from '../api/auth';
 import { AS_USER_KEY } from '../constants/urls';
 import { USER_TYPES } from '../constants';
 import { removeTokens, storeTokens } from '../utils/tokenHelper';
@@ -147,6 +147,37 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+
+  const requestPasswordReset = useCallback(async (email) => {
+    setAuthError(null);
+    setAuthLoading(true);
+
+    try {
+      const result = await forgotPassword(email);
+
+      if (!result.ok) {
+        let message = 'Unable to process password reset right now. Please try again.';
+
+        if (result.status === 404) {
+          message = 'No account found with this email address.';
+        } else if (result.status === 400) {
+          message = 'Please provide a valid email address.';
+        }
+
+        throw new Error(message);
+      }
+
+      setAuthError(null);
+      return { data: result.data };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected error while requesting a password reset.';
+      setAuthError(message);
+      return { error: message };
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -155,9 +186,10 @@ export const AuthProvider = ({ children }) => {
       initialising,
       login,
       signup,
+      requestPasswordReset,
       logout
     }),
-    [user, authLoading, authError, initialising, login, signup, logout]
+    [user, authLoading, authError, initialising, login, signup, requestPasswordReset, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
