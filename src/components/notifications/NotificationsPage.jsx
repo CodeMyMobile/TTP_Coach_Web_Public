@@ -54,6 +54,18 @@ const formatLessonTime = (value) => {
   return parsed.isValid() ? parsed : null;
 };
 
+const isCoachActionableLessonRequest = (lesson, notificationType) => {
+  if (notificationType !== LESSON_TYPES.LESSON_CREATED || !lesson) {
+    return false;
+  }
+
+  const lessonStatus = lesson?.status;
+  const isLessonPending = lessonStatus === 0 || lessonStatus === 'PENDING';
+  const isPlayerCreatedLesson = lesson?.created_by != null && lesson?.player_id != null && lesson.created_by === lesson.player_id;
+
+  return isLessonPending && isPlayerCreatedLesson;
+};
+
 const NotificationsPage = ({ onBack }) => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -290,8 +302,6 @@ const NotificationsPage = ({ onBack }) => {
               const createdAt = item?.created_at ? moment(item.created_at).fromNow() : '';
               const lesson = item.lesson || item.lesson_details;
               const relation = item.cp_relation || item.relation;
-              const lessonStatus = lesson?.status;
-              const isLessonPending = lessonStatus === 0 || lessonStatus === 'PENDING';
               const startMoment = formatLessonTime(lesson?.start_date_time);
               const endMoment = formatLessonTime(lesson?.end_date_time);
               const timeRange =
@@ -301,7 +311,7 @@ const NotificationsPage = ({ onBack }) => {
                 ? `${lesson?.location || ''} · Court ${lesson.court}`
                 : lesson?.location || '';
 
-              const showLessonActions = notificationType === LESSON_TYPES.LESSON_CREATED && isLessonPending;
+              const showLessonActions = isCoachActionableLessonRequest(lesson, notificationType);
               const showRelationActions = [
                 RELATION_TYPES.RELATION_CREATED_BY_PLAYER,
                 RELATION_TYPES.RELATION_DECLINED_BY_COACH
