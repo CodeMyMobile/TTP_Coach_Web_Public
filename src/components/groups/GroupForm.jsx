@@ -1,5 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+const resolvePlayerId = (player = {}) => {
+  const id = Number(player.playerId ?? player.player_id ?? player.id ?? player.user_id ?? player.userId);
+  return Number.isFinite(id) ? id : null;
+};
+
+const resolveGroupPlayerIds = (group = {}) => {
+  if (Array.isArray(group?.player_ids)) {
+    return group.player_ids
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+  }
+
+  const memberEntries = Array.isArray(group?.members)
+    ? group.members
+    : Array.isArray(group?.players)
+      ? group.players
+      : [];
+
+  return memberEntries
+    .map((player) => resolvePlayerId(player))
+    .filter((id) => id !== null);
+};
+
 const GroupForm = ({
   isOpen,
   mode = 'create',
@@ -21,18 +44,52 @@ const GroupForm = ({
       description: initialGroup?.description || '',
       emoji: initialGroup?.emoji || '',
       image_url: initialGroup?.image_url || '',
-      player_ids: Array.isArray(initialGroup?.player_ids)
-        ? initialGroup.player_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
-        : []
+      player_ids: resolveGroupPlayerIds(initialGroup)
     });
     setSearch('');
   }, [isOpen, initialGroup]);
 
+  const availablePlayers = useMemo(() => {
+    const groupMembers = Array.isArray(initialGroup?.members)
+      ? initialGroup.members
+      : Array.isArray(initialGroup?.players)
+        ? initialGroup.players
+        : [];
+
+    const normalizedGroupMembers = groupMembers
+      .map((player) => {
+        const id = resolvePlayerId(player);
+        if (id === null) return null;
+        return {
+          id,
+          name: player.name || player.full_name || 'Student',
+          email: player.email || ''
+        };
+      })
+      .filter(Boolean);
+
+    const mergedPlayers = [...players, ...normalizedGroupMembers];
+    const deduped = new Map();
+    mergedPlayers.forEach((player) => {
+      const id = resolvePlayerId(player);
+      if (id === null) return;
+      if (!deduped.has(id)) {
+        deduped.set(id, {
+          id,
+          name: player.name || player.full_name || 'Student',
+          email: player.email || ''
+        });
+      }
+    });
+
+    return Array.from(deduped.values());
+  }, [players, initialGroup]);
+
   const filteredPlayers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return players;
-    return players.filter((player) => `${player.name || ''} ${player.email || ''}`.toLowerCase().includes(q));
-  }, [players, search]);
+    if (!q) return availablePlayers;
+    return availablePlayers.filter((player) => `${player.name || ''} ${player.email || ''}`.toLowerCase().includes(q));
+  }, [availablePlayers, search]);
 
   if (!isOpen) return null;
 
@@ -55,7 +112,8 @@ const GroupForm = ({
             <input className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Search players..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <div className="max-h-44 space-y-1 overflow-y-auto">
               {filteredPlayers.map((player) => {
-                const id = Number(player.playerId ?? player.id ?? player.user_id);
+                const id = resolvePlayerId(player);
+                if (id === null) return null;
                 const selected = form.player_ids.includes(id);
                 return (
                   <button
