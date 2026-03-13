@@ -17,7 +17,7 @@ const GroupAvatar = ({ group }) => {
   );
 };
 
-const GroupList = ({ groups, loading, error, onRetry, onCreate, onEdit, onDelete }) => {
+const GroupList = ({ groups, loading, error, onRetry, onCreate, onView, onEdit, onDelete }) => {
   if (loading) {
     return <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Loading groups...</div>;
   }
@@ -49,6 +49,7 @@ const GroupList = ({ groups, loading, error, onRetry, onCreate, onEdit, onDelete
             <p className="text-sm font-semibold text-slate-900">{group.name}</p>
             <p className="text-xs text-slate-500">{getMemberCount(group)} players</p>
           </div>
+          <button type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={() => onView(group)}>View</button>
           <button type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={() => onEdit(group)}>Edit</button>
           <button type="button" className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600" onClick={() => onDelete(group)}>Delete</button>
         </div>

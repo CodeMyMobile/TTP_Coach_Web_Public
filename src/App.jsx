@@ -30,6 +30,7 @@ import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet
 import {
   createCoachPlayerGroup,
   deleteCoachPlayerGroup,
+  getCoachPlayerGroupById,
   getCoachPlayerPreviousLessons,
   getCoachPlayerGroups,
   updateCoachPlayerGroup
@@ -1045,6 +1046,19 @@ function App() {
     }
   };
 
+
+  const handleViewGroup = async (group) => {
+    if (!group?.id) return group;
+
+    try {
+      const payload = await getCoachPlayerGroupById(group.id);
+      const resolved = payload?.group || payload?.data || payload;
+      return resolved && typeof resolved === 'object' ? { ...group, ...resolved } : group;
+    } catch (_error) {
+      return group;
+    }
+  };
+
   const handleDeleteGroup = async (group, onDone) => {
     const confirmed = window.confirm(`Delete group "${group?.name || 'this group'}"?`);
     if (!confirmed) return;
@@ -1660,6 +1674,7 @@ function App() {
           onCreateGroup={handleCreateGroup}
           onUpdateGroup={handleUpdateGroup}
           onDeleteGroup={handleDeleteGroup}
+          onViewGroup={handleViewGroup}
         />
       )}
 

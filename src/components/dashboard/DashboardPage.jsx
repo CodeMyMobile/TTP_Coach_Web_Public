@@ -389,6 +389,7 @@ const DashboardPage = ({
   onCreateGroup = () => {},
   onUpdateGroup = () => {},
   onDeleteGroup = () => {},
+  onViewGroup = async () => null,
   onOpenUpcomingLessons = () => {},
   onOpenTransactionsHistory = () => {},
   onOpenPayoutHistory = () => {}
@@ -1554,6 +1555,7 @@ const DashboardPage = ({
             onCreateGroup={onCreateGroup}
             onUpdateGroup={onUpdateGroup}
             onDeleteGroup={onDeleteGroup}
+            onViewGroup={onViewGroup}
             players={filteredStudents}
           />
         )}

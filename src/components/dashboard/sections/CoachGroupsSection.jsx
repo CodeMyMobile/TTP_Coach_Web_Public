@@ -21,10 +21,12 @@ const CoachGroupsSection = ({
   onCreateGroup,
   onUpdateGroup,
   onDeleteGroup,
+  onViewGroup,
   players = []
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState(null);
+  const [formMode, setFormMode] = useState('create');
+  const [selectedGroup, setSelectedGroup] = useState(null);
 
   const normalizedPlayers = useMemo(() => normalizePlayers(players), [players]);
 
@@ -38,7 +40,8 @@ const CoachGroupsSection = ({
         <button
           type="button"
           onClick={() => {
-            setEditingGroup(null);
+            setSelectedGroup(null);
+            setFormMode('create');
             setIsFormOpen(true);
           }}
           className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white"
@@ -55,11 +58,20 @@ const CoachGroupsSection = ({
         error={groupsError}
         onRetry={onRefreshGroups}
         onCreate={() => {
-          setEditingGroup(null);
+          setSelectedGroup(null);
+          setFormMode('create');
           setIsFormOpen(true);
         }}
-        onEdit={(group) => {
-          setEditingGroup(group);
+        onView={async (group) => {
+          const resolvedGroup = await onViewGroup(group);
+          setSelectedGroup(resolvedGroup || group);
+          setFormMode('view');
+          setIsFormOpen(true);
+        }}
+        onEdit={async (group) => {
+          const resolvedGroup = await onViewGroup(group);
+          setSelectedGroup(resolvedGroup || group);
+          setFormMode('edit');
           setIsFormOpen(true);
         }}
         onDelete={(group) => onDeleteGroup(group)}
@@ -67,19 +79,21 @@ const CoachGroupsSection = ({
 
       <GroupForm
         isOpen={isFormOpen}
-        mode={editingGroup ? 'edit' : 'create'}
-        initialGroup={editingGroup}
+        mode={formMode}
+        initialGroup={selectedGroup}
         players={normalizedPlayers}
         isSaving={groupsSaving}
         onClose={() => {
           setIsFormOpen(false);
-          setEditingGroup(null);
+          setSelectedGroup(null);
+          setFormMode('create');
         }}
         onSubmit={(payload) => {
-          if (editingGroup?.id) {
-            onUpdateGroup(editingGroup.id, payload, () => {
+          if (selectedGroup?.id && formMode === 'edit') {
+            onUpdateGroup(selectedGroup.id, payload, () => {
               setIsFormOpen(false);
-              setEditingGroup(null);
+              setSelectedGroup(null);
+              setFormMode('create');
             });
             return;
           }
@@ -91,7 +105,8 @@ const CoachGroupsSection = ({
         onDelete={(group) => {
           onDeleteGroup(group, () => {
             setIsFormOpen(false);
-            setEditingGroup(null);
+            setSelectedGroup(null);
+            setFormMode('create');
           });
         }}
       />
