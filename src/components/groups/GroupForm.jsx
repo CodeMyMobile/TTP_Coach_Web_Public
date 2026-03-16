@@ -24,9 +24,41 @@ const resolveGroupPlayerIds = (group = {}) => {
 };
 
 const getTitleByMode = (mode) => {
-  if (mode === 'view') return 'View Group';
-  if (mode === 'edit') return 'Edit Group';
-  return 'Create Group';
+  if (mode === 'view') return 'View group';
+  if (mode === 'edit') return 'Edit group';
+  return 'Create group';
+};
+
+const avatarThemes = [
+  { bg: 'bg-violet-100', text: 'text-violet-700' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  { bg: 'bg-amber-100', text: 'text-amber-700' },
+  { bg: 'bg-rose-100', text: 'text-rose-700' },
+  { bg: 'bg-sky-100', text: 'text-sky-700' }
+];
+
+const getPlayerDisplayName = (player = {}) => player.name || player.full_name || 'Student';
+
+const getPlayerInitials = (name = '') =>
+  String(name)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'ST';
+
+const getAvatarTheme = (id) => avatarThemes[Math.abs(Number(id) || 0) % avatarThemes.length];
+
+const PlayerAvatar = ({ player }) => {
+  const theme = getAvatarTheme(player?.id);
+  const initials = getPlayerInitials(getPlayerDisplayName(player));
+
+  return (
+    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${theme.bg} ${theme.text}`}>
+      {initials}
+    </div>
+  );
 };
 
 const GroupForm = ({
@@ -40,7 +72,7 @@ const GroupForm = ({
   onDelete,
   errorMessage = ''
 }) => {
-  const [form, setForm] = useState({ name: '', description: '', emoji: '', image_url: '', player_ids: [] });
+  const [form, setForm] = useState({ name: '', player_ids: [] });
   const [search, setSearch] = useState('');
   const isViewMode = mode === 'view';
 
@@ -48,9 +80,6 @@ const GroupForm = ({
     if (!isOpen) return;
     setForm({
       name: initialGroup?.name || '',
-      description: initialGroup?.description || '',
-      emoji: initialGroup?.emoji || '',
-      image_url: initialGroup?.image_url || '',
       player_ids: resolveGroupPlayerIds(initialGroup)
     });
     setSearch('');
@@ -83,7 +112,7 @@ const GroupForm = ({
       if (!deduped.has(id)) {
         deduped.set(id, {
           id,
-          name: player.name || player.full_name || 'Student',
+          name: getPlayerDisplayName(player),
           email: player.email || ''
         });
       }
@@ -92,71 +121,166 @@ const GroupForm = ({
     return Array.from(deduped.values());
   }, [players, initialGroup]);
 
+  const selectedPlayers = useMemo(
+    () => form.player_ids
+      .map((id) => availablePlayers.find((player) => player.id === id))
+      .filter(Boolean),
+    [availablePlayers, form.player_ids]
+  );
+
+  const addablePlayers = useMemo(
+    () => availablePlayers.filter((player) => !form.player_ids.includes(player.id)),
+    [availablePlayers, form.player_ids]
+  );
+
   const filteredPlayers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return availablePlayers;
-    return availablePlayers.filter((player) => `${player.name || ''} ${player.email || ''}`.toLowerCase().includes(q));
-  }, [availablePlayers, search]);
+    if (!q) return addablePlayers;
+    return addablePlayers.filter((player) => `${player.name || ''} ${player.email || ''}`.toLowerCase().includes(q));
+  }, [addablePlayers, search]);
+
+  const addPlayer = (id) => {
+    if (isViewMode) return;
+    setForm((prev) => ({
+      ...prev,
+      player_ids: prev.player_ids.includes(id) ? prev.player_ids : [...prev.player_ids, id]
+    }));
+  };
+
+  const removePlayer = (id) => {
+    if (isViewMode) return;
+    setForm((prev) => ({
+      ...prev,
+      player_ids: prev.player_ids.filter((playerId) => playerId !== id)
+    }));
+  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-slate-900">{getTitleByMode(mode)}</h3>
-        {errorMessage ? <p className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{errorMessage}</p> : null}
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-b from-violet-50 via-white to-white p-5 sm:p-6">
+          <div className="space-y-1">
+            <h3 className="text-[22px] font-bold tracking-tight text-slate-950">{getTitleByMode(mode)}</h3>
+            <p className="text-sm text-slate-500">
+              {isViewMode ? 'Review this group and its current members.' : 'Name the group and manage members inline.'}
+            </p>
+          </div>
 
-        <div className="mt-4 space-y-3">
-          <input disabled={isViewMode} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50" placeholder="Group name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-          <input disabled={isViewMode} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50" placeholder="Description (optional)" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
-          <input disabled={isViewMode} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50" placeholder="Emoji (optional)" value={form.emoji} onChange={(e) => setForm((p) => ({ ...p, emoji: e.target.value }))} />
-          <input disabled={isViewMode} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50" placeholder="Image URL (optional)" value={form.image_url} onChange={(e) => setForm((p) => ({ ...p, image_url: e.target.value }))} />
+          {errorMessage ? <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p> : null}
 
-          <div className="rounded-lg border border-slate-200 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-700">Players ({form.player_ids.length})</p>
-            </div>
-            <input disabled={isViewMode} className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50" placeholder="Search players..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <div className="max-h-44 space-y-1 overflow-y-auto">
-              {filteredPlayers.map((player) => {
-                const id = resolvePlayerId(player);
-                if (id === null) return null;
-                const selected = form.player_ids.includes(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    disabled={isViewMode}
-                    onClick={() => setForm((prev) => ({
-                      ...prev,
-                      player_ids: selected ? prev.player_ids.filter((x) => x !== id) : [...prev.player_ids, id]
-                    }))}
-                    className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm ${selected ? 'bg-violet-100' : 'bg-slate-50'} ${isViewMode ? 'cursor-default' : ''}`}
-                  >
-                    <span>{player.name || player.full_name || 'Student'}</span>
-                    {selected ? <span>✓</span> : null}
-                  </button>
-                );
-              })}
+          <div className="mt-5 space-y-4">
+            <input
+              disabled={isViewMode}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-violet-500 disabled:bg-slate-50 disabled:text-slate-500"
+              placeholder="Group name"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  In this group <span className="text-violet-600">({form.player_ids.length})</span>
+                </p>
+              </div>
+
+              {selectedPlayers.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {selectedPlayers.map((player) => (
+                    <div key={player.id} className="flex items-center gap-3 px-4 py-3">
+                      <PlayerAvatar player={player} />
+                      <span className="flex-1 text-sm font-medium text-slate-900">{getPlayerDisplayName(player)}</span>
+                      {!isViewMode ? (
+                        <button
+                          type="button"
+                          onClick={() => removePlayer(player.id)}
+                          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-lg leading-none text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                          aria-label={`Remove ${getPlayerDisplayName(player)}`}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border-b border-slate-200 px-4 py-4 text-center text-sm italic text-slate-400">
+                  No players added yet
+                </div>
+              )}
+
+              {!isViewMode ? (
+                <>
+                  <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Add players</p>
+                  </div>
+                  <div className="border-b border-slate-200 px-3 py-3">
+                    <input
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500"
+                      placeholder="Search players..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {filteredPlayers.length > 0 ? (
+                      <div className="divide-y divide-slate-100">
+                        {filteredPlayers.map((player) => (
+                          <div key={player.id} className="flex items-center gap-3 px-4 py-3">
+                            <PlayerAvatar player={player} />
+                            <span className="flex-1 text-sm font-medium text-slate-900">{getPlayerDisplayName(player)}</span>
+                            <button
+                              type="button"
+                              onClick={() => addPlayer(player.id)}
+                              className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-violet-500 text-lg font-light leading-none text-violet-600 transition hover:bg-violet-50"
+                              aria-label={`Add ${getPlayerDisplayName(player)}`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-5 text-center text-sm text-slate-400">
+                        {addablePlayers.length === 0 ? 'All players are already in this group.' : 'No players match your search.'}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
-        </div>
 
-        <div className="mt-4 flex gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">{isViewMode ? 'Close' : 'Cancel'}</button>
-          {!isViewMode ? (
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => onSubmit(form)}
-              disabled={isSaving || !String(form.name).trim()}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              onClick={onClose}
+              className="flex-1 rounded-2xl border border-slate-200 px-4 py-3.5 text-base font-medium text-slate-900 transition hover:bg-slate-50 sm:flex-none sm:min-w-[120px]"
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              {isViewMode ? 'Close' : 'Cancel'}
             </button>
-          ) : null}
-          {mode === 'edit' ? (
-            <button type="button" onClick={() => onDelete?.(initialGroup)} className="ml-auto rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">Delete</button>
-          ) : null}
+            {!isViewMode ? (
+              <button
+                type="button"
+                onClick={() => onSubmit(form)}
+                disabled={isSaving || !String(form.name).trim()}
+                className="flex-[1.4] rounded-2xl bg-violet-600 px-5 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            ) : null}
+            {mode === 'edit' ? (
+              <button
+                type="button"
+                onClick={() => onDelete?.(initialGroup)}
+                className="rounded-2xl border border-red-200 px-4 py-3.5 text-base font-medium text-red-600 transition hover:bg-red-50"
+              >
+                Delete
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
