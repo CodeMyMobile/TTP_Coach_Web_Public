@@ -159,8 +159,8 @@ const GroupForm = ({
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-gradient-to-b from-violet-50 via-white to-white p-5 sm:p-6">
+      <div className="flex h-[min(90vh,760px)] w-full max-w-xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex min-h-0 flex-1 flex-col bg-gradient-to-b from-violet-50 via-white to-white p-5 sm:p-6">
           <div className="space-y-1">
             <h3 className="text-[22px] font-bold tracking-tight text-slate-950">{getTitleByMode(mode)}</h3>
             <p className="text-sm text-slate-500">
@@ -170,61 +170,63 @@ const GroupForm = ({
 
           {errorMessage ? <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p> : null}
 
-          <div className="mt-5 space-y-4">
+          <div className="mt-5 flex min-h-0 flex-1 flex-col gap-4">
             <input
               disabled={isViewMode}
+              type="text"
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 shadow-sm outline-none transition focus:border-violet-500 disabled:bg-slate-50 disabled:text-slate-500"
               placeholder="Group name"
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
             />
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                   In this group <span className="text-violet-600">({form.player_ids.length})</span>
                 </p>
               </div>
 
-              {selectedPlayers.length > 0 ? (
-                <div className="divide-y divide-slate-100">
-                  {selectedPlayers.map((player) => (
-                    <div key={player.id} className="flex items-center gap-3 px-4 py-3">
-                      <PlayerAvatar player={player} />
-                      <span className="flex-1 text-sm font-medium text-slate-900">{getPlayerDisplayName(player)}</span>
-                      {!isViewMode ? (
-                        <button
-                          type="button"
-                          onClick={() => removePlayer(player.id)}
-                          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-lg leading-none text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                          aria-label={`Remove ${getPlayerDisplayName(player)}`}
-                        >
-                          ×
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="border-b border-slate-200 px-4 py-4 text-center text-sm italic text-slate-400">
-                  No players added yet
-                </div>
-              )}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {selectedPlayers.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {selectedPlayers.map((player) => (
+                      <div key={player.id} className="flex items-center gap-3 px-4 py-3">
+                        <PlayerAvatar player={player} />
+                        <span className="flex-1 text-sm font-medium text-slate-900">{getPlayerDisplayName(player)}</span>
+                        {!isViewMode ? (
+                          <button
+                            type="button"
+                            onClick={() => removePlayer(player.id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-lg leading-none text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                            aria-label={`Remove ${getPlayerDisplayName(player)}`}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border-b border-slate-200 px-4 py-4 text-center text-sm italic text-slate-400">
+                    No players added yet
+                  </div>
+                )}
 
-              {!isViewMode ? (
-                <>
-                  <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Add players</p>
-                  </div>
-                  <div className="border-b border-slate-200 px-3 py-3">
-                    <input
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500"
-                      placeholder="Search players..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="max-h-72 overflow-y-auto">
+                {!isViewMode ? (
+                  <>
+                    <div className="border-y border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Add players</p>
+                    </div>
+                    <div className="border-b border-slate-200 px-3 py-3">
+                      <input
+                        type="text"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500"
+                        placeholder="Search players..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
                     {filteredPlayers.length > 0 ? (
                       <div className="divide-y divide-slate-100">
                         {filteredPlayers.map((player) => (
@@ -247,13 +249,13 @@ const GroupForm = ({
                         {addablePlayers.length === 0 ? 'All players are already in this group.' : 'No players match your search.'}
                       </div>
                     )}
-                  </div>
-                </>
-              ) : null}
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-200/80 bg-white/90 pt-4 backdrop-blur-sm">
             <button
               type="button"
               onClick={onClose}
