@@ -174,6 +174,7 @@ const OnboardingFlow = ({
     () => (initialData?.profileImage && typeof initialData.profileImage === 'string' ? initialData.profileImage : '')
   );
   const [profileImageUploading, setProfileImageUploading] = useState(false);
+  const profileImageInputRef = useRef(null);
   const uploadObjectUrlRef = useRef(null);
   const previousFormDataRef = useRef(null);
   const autosaveTimeoutRef = useRef(null);
@@ -512,7 +513,10 @@ const OnboardingFlow = ({
     setIsDraggingImage(false);
   };
 
-  const handleRemoveProfileImage = () => {
+  const handleRemoveProfileImage = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
     if (uploadObjectUrlRef.current) {
       URL.revokeObjectURL(uploadObjectUrlRef.current);
       uploadObjectUrlRef.current = null;
@@ -520,6 +524,10 @@ const OnboardingFlow = ({
     setProfileImagePreview('');
     setFormData((previous) => ({ ...previous, profileImage: '', profileImageFile: null }));
     clearProfileImageError();
+
+    if (!profileImageUploading) {
+      profileImageInputRef.current?.click();
+    }
   };
 
 
@@ -1259,7 +1267,7 @@ const OnboardingFlow = ({
                           type="button"
                           onClick={handleRemoveProfileImage}
                           disabled={profileImageUploading}
-                          className={`mt-3 inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium transition ${
+                          className={`relative z-10 mt-3 inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium transition ${
                             profileImageUploading
                               ? 'cursor-not-allowed text-gray-400'
                               : 'text-gray-600 hover:bg-gray-100'
@@ -1278,6 +1286,7 @@ const OnboardingFlow = ({
                       </>
                     )}
                     <input
+                      ref={profileImageInputRef}
                       id="profileImageInput"
                       type="file"
                       accept="image/*"
