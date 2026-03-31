@@ -329,6 +329,36 @@ const getInitials = (name) => {
   return parts.map((part) => part.charAt(0).toUpperCase()).join('');
 };
 
+const buildRequestLessonDetails = (lesson = {}, player = {}) => {
+  const lessonMetadata = lesson?.metadata && typeof lesson.metadata === 'object' ? lesson.metadata : {};
+  const sessionPrep =
+    lessonMetadata.session_prep ??
+    lessonMetadata.sessionPrep ??
+    lesson?.session_prep ??
+    lesson?.sessionPrep;
+
+  return {
+    ...(lesson || {}),
+    metadata: sessionPrep
+      ? {
+          ...lessonMetadata,
+          session_prep: sessionPrep
+        }
+      : lessonMetadata,
+    player_id: lesson?.player_id ?? lesson?.playerId ?? player?.id ?? player?.player_id ?? null,
+    playerId: lesson?.playerId ?? lesson?.player_id ?? player?.id ?? player?.player_id ?? null,
+    full_name: player?.full_name || lesson?.full_name || lesson?.player_name || lesson?.student_name || lesson?.studentName,
+    player_name: player?.full_name || lesson?.player_name || lesson?.full_name || lesson?.student_name || lesson?.studentName,
+    student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
+    studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
+    profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
+    player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || '',
+    status: lesson?.status,
+    lessonStatus: lesson?.lessonStatus ?? lesson?.status ?? lesson?.lesson_status,
+    lesson_status: lesson?.lesson_status ?? lesson?.status ?? lesson?.lessonStatus
+  };
+};
+
 const DashboardPage = ({
   profile,
   dashboardTab,
@@ -859,22 +889,12 @@ const DashboardPage = ({
     const isLessonRequest = requestItem.request_type === 'lesson_request';
     const lesson = requestItem.lesson;
     const player = requestItem?.player || {};
-    const lessonForDetails = isLessonRequest
-      ? {
-          ...(lesson || {}),
-          player_id: lesson?.player_id ?? lesson?.playerId ?? player?.id ?? player?.player_id ?? null,
-          playerId: lesson?.playerId ?? lesson?.player_id ?? player?.id ?? player?.player_id ?? null,
-          full_name: player?.full_name || lesson?.full_name || lesson?.player_name || lesson?.student_name || lesson?.studentName,
-          player_name: player?.full_name || lesson?.player_name || lesson?.full_name || lesson?.student_name || lesson?.studentName,
-          student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
-          studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
-          profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
-          player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || '',
-          status: requestItem?.status ?? lesson?.status ?? lesson?.lessonStatus ?? lesson?.lesson_status,
-          lessonStatus: requestItem?.status ?? lesson?.lessonStatus ?? lesson?.status ?? lesson?.lesson_status,
-          lesson_status: requestItem?.status ?? lesson?.lesson_status ?? lesson?.status ?? lesson?.lessonStatus
-        }
-      : null;
+    const lessonForDetails = isLessonRequest ? buildRequestLessonDetails({
+      ...lesson,
+      status: requestItem?.status ?? lesson?.status ?? lesson?.lessonStatus ?? lesson?.lesson_status,
+      lessonStatus: requestItem?.status ?? lesson?.lessonStatus ?? lesson?.status ?? lesson?.lesson_status,
+      lesson_status: requestItem?.status ?? lesson?.lesson_status ?? lesson?.status ?? lesson?.lessonStatus
+    }, player) : null;
     const actionKey = `${requestItem.request_type}-${requestItem.request_id}`;
     const activeAction = requestActionLoading[actionKey] || null;
 
@@ -907,20 +927,12 @@ const DashboardPage = ({
   const awaitingItems = awaitingPlayerItems.map((requestItem, index) => {
     const player = requestItem?.player || {};
     const lesson = requestItem?.lesson || {};
-    const lessonForDetails = {
+    const lessonForDetails = buildRequestLessonDetails({
       ...lesson,
-      player_id: lesson?.player_id ?? lesson?.playerId ?? player?.id ?? player?.player_id ?? null,
-      playerId: lesson?.playerId ?? lesson?.player_id ?? player?.id ?? player?.player_id ?? null,
-      full_name: player?.full_name || lesson?.full_name || lesson?.player_name || lesson?.student_name || lesson?.studentName,
-      player_name: player?.full_name || lesson?.player_name || lesson?.full_name || lesson?.student_name || lesson?.studentName,
-      student_name: player?.full_name || lesson?.student_name || lesson?.full_name || lesson?.player_name || lesson?.studentName,
-      studentName: player?.full_name || lesson?.studentName || lesson?.full_name || lesson?.player_name || lesson?.student_name,
-      profile_picture: player?.profile_picture || lesson?.profile_picture || lesson?.profilePicture || '',
-      player_skill_level: player?.skill_level || lesson?.player_skill_level || lesson?.skill_level || lesson?.level || '',
       status: requestItem?.status ?? lesson?.status ?? lesson?.lessonStatus ?? lesson?.lesson_status,
       lessonStatus: requestItem?.status ?? lesson?.lessonStatus ?? lesson?.status ?? lesson?.lesson_status,
       lesson_status: requestItem?.status ?? lesson?.lesson_status ?? lesson?.status ?? lesson?.lessonStatus
-    };
+    }, player);
 
     return {
       id: `awaiting-${requestItem.request_id}-${index}`,

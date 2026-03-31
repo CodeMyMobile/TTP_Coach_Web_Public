@@ -99,6 +99,31 @@ const resolvePlayerStatus = (player) => {
   return { label: 'Pending', tone: 'pending' };
 };
 
+const resolveSessionPrep = (lesson) => {
+  const metadata = lesson?.metadata && typeof lesson.metadata === 'object' ? lesson.metadata : {};
+  const rawSessionPrep =
+    metadata.session_prep ??
+    metadata.sessionPrep ??
+    lesson?.session_prep ??
+    lesson?.sessionPrep ??
+    {};
+
+  if (rawSessionPrep && typeof rawSessionPrep === 'object') {
+    return rawSessionPrep;
+  }
+
+  if (typeof rawSessionPrep === 'string') {
+    try {
+      const parsed = JSON.parse(rawSessionPrep);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  return {};
+};
+
 const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
   const [playersOpen, setPlayersOpen] = useState(false);
 
@@ -119,7 +144,7 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
   const record = lesson || {};
   const metadata = lesson.metadata || {};
   const level = metadata.level || lesson.metadata_level;
-  const sessionPrep = metadata.session_prep || {};
+  const sessionPrep = resolveSessionPrep(lesson);
   const sessionPrepGoals = Array.isArray(sessionPrep.goals) ? sessionPrep.goals.filter(Boolean) : [];
   const sessionPrepSummary = [
     sessionPrep.who_for === 'my_child' ? 'For child' : sessionPrep.who_for === 'myself' ? 'For self' : null,

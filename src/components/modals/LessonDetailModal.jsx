@@ -39,6 +39,31 @@ const PLAYER_LESSON_BASE_URL =
     .trim()
     .replace(/\/$/, '');
 
+const resolveSessionPrep = (lesson) => {
+  const metadata = lesson?.metadata && typeof lesson.metadata === 'object' ? lesson.metadata : {};
+  const rawSessionPrep =
+    metadata.session_prep ??
+    metadata.sessionPrep ??
+    lesson?.session_prep ??
+    lesson?.sessionPrep ??
+    {};
+
+  if (rawSessionPrep && typeof rawSessionPrep === 'object') {
+    return rawSessionPrep;
+  }
+
+  if (typeof rawSessionPrep === 'string') {
+    try {
+      const parsed = JSON.parse(rawSessionPrep);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  return {};
+};
+
 const useMediaQuery = (query) => {
   const [matches, setMatches] = useState(false);
 
@@ -370,7 +395,7 @@ const LessonDetailModal = ({
   const isGroupOrSemiPrivate =
     resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
   const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
-  const sessionPrep = resolvedLesson.metadata?.session_prep || {};
+  const sessionPrep = resolveSessionPrep(resolvedLesson);
   const sessionPrepWhoFor =
     sessionPrep.who_for === 'my_child'
       ? 'My child'
