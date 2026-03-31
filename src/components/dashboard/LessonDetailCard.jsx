@@ -119,6 +119,15 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
   const record = lesson || {};
   const metadata = lesson.metadata || {};
   const level = metadata.level || lesson.metadata_level;
+  const sessionPrep = metadata.session_prep || {};
+  const sessionPrepGoals = Array.isArray(sessionPrep.goals) ? sessionPrep.goals.filter(Boolean) : [];
+  const sessionPrepSummary = [
+    sessionPrep.who_for === 'my_child' ? 'For child' : sessionPrep.who_for === 'myself' ? 'For self' : null,
+    sessionPrep.level || null,
+    sessionPrepGoals.length ? sessionPrepGoals.slice(0, 2).join(', ') : null
+  ]
+    .filter(Boolean)
+    .join(' • ');
   const lessonTypeName = lesson.lesson_type_name || record.lesson_type_name;
   const typeId = Number(record.lessontype_id ?? record.lesson_type_id ?? record.lessonTypeId);
   const normalizedTypeLabel = (lessonTypeName || '').toLowerCase();
@@ -278,6 +287,11 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
         </header>
 
         {metadata.description ? <p className="lesson-detail-card__description">{metadata.description}</p> : null}
+        {sessionPrepSummary ? (
+          <p className="lesson-detail-card__prep">
+            <strong>Session prep:</strong> {sessionPrepSummary}
+          </p>
+        ) : null}
 
         {showStatusCounts ? (
           <div className="lesson-detail-card__players">

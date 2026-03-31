@@ -68,6 +68,16 @@
 .lesson-detail-card__status--neutral { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }
 
 .lesson-detail-card__description { margin: 0; color: #475569; line-height: 1.55; font-size: 14px; }
+.lesson-detail-card__prep {
+  margin: 0;
+  color: #5b21b6;
+  line-height: 1.55;
+  font-size: 13px;
+  font-weight: 500;
+}
+.lesson-detail-card__prep strong {
+  color: #4c1d95;
+}
 .lesson-detail-card__players { display: flex; flex-direction: column; gap: 8px; }
 
 .lesson-detail-card__players-toggle {
