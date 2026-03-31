@@ -39,6 +39,31 @@ const PLAYER_LESSON_BASE_URL =
     .trim()
     .replace(/\/$/, '');
 
+const resolveSessionPrep = (lesson) => {
+  const metadata = lesson?.metadata && typeof lesson.metadata === 'object' ? lesson.metadata : {};
+  const rawSessionPrep =
+    metadata.session_prep ??
+    metadata.sessionPrep ??
+    lesson?.session_prep ??
+    lesson?.sessionPrep ??
+    {};
+
+  if (rawSessionPrep && typeof rawSessionPrep === 'object') {
+    return rawSessionPrep;
+  }
+
+  if (typeof rawSessionPrep === 'string') {
+    try {
+      const parsed = JSON.parse(rawSessionPrep);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  return {};
+};
+
 const useMediaQuery = (query) => {
   const [matches, setMatches] = useState(false);
 
@@ -370,6 +395,21 @@ const LessonDetailModal = ({
   const isGroupOrSemiPrivate =
     resolvedLesson.lessonType === 'group' || resolvedLesson.lessonType === 'semi-private';
   const isAwaitingPlayerConfirmation = resolvedLesson.lessonType === 'private' && resolvedLesson.isCoachCreatedLesson;
+  const sessionPrep = resolveSessionPrep(resolvedLesson);
+  const sessionPrepWhoFor =
+    sessionPrep.who_for === 'my_child'
+      ? 'My child'
+      : sessionPrep.who_for === 'myself'
+        ? 'Myself'
+        : '';
+  const sessionPrepGoals = Array.isArray(sessionPrep.goals) ? sessionPrep.goals.filter(Boolean) : [];
+  const sessionPrepNote = typeof sessionPrep.note === 'string' ? sessionPrep.note.trim() : '';
+  const hasSessionPrep = Boolean(
+    sessionPrepWhoFor ||
+    sessionPrep.level ||
+    sessionPrepGoals.length ||
+    sessionPrepNote
+  );
 
   const lessonGroupPlayers = Array.isArray(resolvedLesson.group_players)
     ? resolvedLesson.group_players
@@ -1077,6 +1117,47 @@ const LessonDetailModal = ({
                     <p className="mt-2 text-sm text-slate-600">{resolvedLesson.studentMessage}</p>
                   </div>
                 )}
+
+                {hasSessionPrep ? (
+                  <div className="rounded-xl border border-purple-100 border-l-4 border-l-purple-500 bg-purple-50/60 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-purple-500">Session Prep</p>
+                    <div className="mt-3 space-y-3">
+                      {sessionPrepWhoFor ? (
+                        <div>
+                          <p className="text-xs font-medium uppercase text-slate-400">Lesson for</p>
+                          <p className="mt-1 text-sm font-medium text-slate-700">{sessionPrepWhoFor}</p>
+                        </div>
+                      ) : null}
+                      {sessionPrep.level ? (
+                        <div>
+                          <p className="text-xs font-medium uppercase text-slate-400">Current level</p>
+                          <p className="mt-1 text-sm font-medium text-slate-700">{sessionPrep.level}</p>
+                        </div>
+                      ) : null}
+                      {sessionPrepGoals.length ? (
+                        <div>
+                          <p className="text-xs font-medium uppercase text-slate-400">Focus areas</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {sessionPrepGoals.map((goal) => (
+                              <span
+                                key={goal}
+                                className="inline-flex rounded-full border border-purple-200 bg-white px-3 py-1 text-xs font-semibold text-purple-700"
+                              >
+                                {goal}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {sessionPrepNote ? (
+                        <div>
+                          <p className="text-xs font-medium uppercase text-slate-400">Notes</p>
+                          <p className="mt-1 text-sm text-slate-600">{sessionPrepNote}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
 
                 {resolvedLesson.status === 'cancelled' && resolvedLesson.cancellationReason && (
                   <div className="rounded-xl border border-red-100 border-l-4 border-l-red-500 bg-red-50 p-4">

@@ -803,6 +803,8 @@
 .requests-alert-shell {
   margin-top: 16px;
   width: 100%;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
 }
 
 .notif-banner {
@@ -873,7 +875,7 @@
 .request-card {
   background: #fff;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .request-top {
