@@ -64,6 +64,20 @@ const resolveSessionPrep = (lesson) => {
   return {};
 };
 
+const parseDisplayMoment = (dateInput, { treatUtcAsLocal = false } = {}) => {
+  if (!dateInput) {
+    return null;
+  }
+
+  if (treatUtcAsLocal && typeof dateInput === 'string' && /z$/i.test(dateInput)) {
+    const parsedLocal = moment(dateInput.replace(/z$/i, ''));
+    return parsedLocal.isValid() ? parsedLocal : null;
+  }
+
+  const parsed = moment(dateInput);
+  return parsed.isValid() ? parsed : null;
+};
+
 const useMediaQuery = (query) => {
   const [matches, setMatches] = useState(false);
 
@@ -264,11 +278,14 @@ const LessonDetailModal = ({
     };
 
     const lessonType = resolveType();
-    const startRaw = lesson.start_date_time || lesson.startDateTime;
-    const endRaw = lesson.end_date_time || lesson.endDateTime;
-    const start = startRaw ? moment.utc(startRaw) : null;
+    const startWithTimezone = lesson.start_date_time_tz || lesson.startDateTimeTz || lesson.startDateTime;
+    const endWithTimezone = lesson.end_date_time_tz || lesson.endDateTimeTz || lesson.endDateTime;
+    const startRaw = startWithTimezone || lesson.start_date_time;
+    const endRaw = endWithTimezone || lesson.end_date_time;
+    const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
+    const start = parseDisplayMoment(startRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal });
     const end = endRaw
-      ? moment.utc(endRaw)
+      ? parseDisplayMoment(endRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal })
       : start?.isValid()
         ? start.clone().add(1, 'hour')
         : null;
