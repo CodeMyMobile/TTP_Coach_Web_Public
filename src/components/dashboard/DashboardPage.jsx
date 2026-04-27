@@ -39,6 +39,20 @@ const parseNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const parseLessonDisplayMoment = (dateInput, { treatUtcAsLocal = false } = {}) => {
+  if (!dateInput) {
+    return null;
+  }
+
+  if (treatUtcAsLocal && typeof dateInput === 'string' && /z$/i.test(dateInput)) {
+    const parsedLocal = moment(dateInput.replace(/z$/i, ''));
+    return parsedLocal.isValid() ? parsedLocal : null;
+  }
+
+  const parsed = moment(dateInput);
+  return parsed.isValid() ? parsed : null;
+};
+
 const formatLessonTypeLabel = (value) => {
   if (typeof value !== 'string') {
     return '';
@@ -198,11 +212,14 @@ const formatLessonInfo = (lesson) => {
     return '';
   }
 
-  const startRaw = lesson.start_date_time || lesson.startDateTime || lesson.start_time;
-  const endRaw = lesson.end_date_time || lesson.endDateTime || lesson.end_time;
-  const startMoment = startRaw ? moment.utc(startRaw) : null;
+  const startWithTimezone = lesson.start_date_time_tz || lesson.startDateTimeTz || lesson.startDateTime;
+  const endWithTimezone = lesson.end_date_time_tz || lesson.endDateTimeTz || lesson.endDateTime;
+  const startRaw = startWithTimezone || lesson.start_date_time || lesson.start_time;
+  const endRaw = endWithTimezone || lesson.end_date_time || lesson.end_time;
+  const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
+  const startMoment = parseLessonDisplayMoment(startRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal });
   const endMoment = endRaw
-    ? moment.utc(endRaw)
+    ? parseLessonDisplayMoment(endRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal })
     : startMoment?.isValid()
       ? startMoment.clone().add(1, 'hour')
       : null;
