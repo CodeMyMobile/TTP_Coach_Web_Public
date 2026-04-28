@@ -129,6 +129,7 @@ function App() {
   const {
     profile: remoteProfile,
     isComplete: remoteProfileComplete,
+    hasExplicitCompletion: profileHasExplicitCompletion,
     loading: profileLoading,
     error: profileError,
     hasFetched: profileFetched,
@@ -189,6 +190,8 @@ function App() {
   const [groupsError, setGroupsError] = useState(null);
   const [groupsActionError, setGroupsActionError] = useState(null);
   const [groupsSaving, setGroupsSaving] = useState(false);
+  const sessionProfileComplete = user?.onboardingComplete ?? false;
+  const hasSessionProfileComplete = Boolean(user?.hasOnboardingCompleteSignal);
   const isLoginRoute = currentPath === '/';
   const isDashboardRoute = currentPath === '/dashboard';
   const isSettingsRoute = currentPath === '/settings';
@@ -212,15 +215,33 @@ function App() {
 
   useEffect(() => {
     if (!isEditingProfile) {
-      setIsProfileComplete(remoteProfileComplete);
+      setIsProfileComplete(profileHasExplicitCompletion ? remoteProfileComplete : sessionProfileComplete);
     }
-  }, [remoteProfileComplete, isEditingProfile]);
+  }, [remoteProfileComplete, profileHasExplicitCompletion, sessionProfileComplete, isEditingProfile]);
 
   useEffect(() => {
     if (profileError) {
       console.error('Failed to load coach profile', profileError);
     }
   }, [profileError]);
+
+  useEffect(() => {
+    if (!hasSessionProfileComplete || !profileHasExplicitCompletion) {
+      return;
+    }
+
+    if (sessionProfileComplete !== remoteProfileComplete) {
+      console.warn('Profile completion mismatch between auth session and onboarding profile payload', {
+        sessionProfileComplete,
+        remoteProfileComplete
+      });
+    }
+  }, [
+    hasSessionProfileComplete,
+    profileHasExplicitCompletion,
+    sessionProfileComplete,
+    remoteProfileComplete
+  ]);
 
 
   useEffect(() => {

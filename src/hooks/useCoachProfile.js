@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCoachOnboarding, getCoachOnboardingDraft, putCoachOnboarding } from '../api/CoachApi/onboarding';
 import { createDefaultProfile } from '../constants/profile';
 import { mergeOnboardingWithDraft } from '../components/onboarding/draftUtils';
+import { resolveCompletionValue } from '../utils/profileCompletion';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -204,22 +205,21 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     resolvedProfile.charges_disabled_reason = profileCandidate.charges_disabled_reason;
   }
 
-  const isComplete = Boolean(
-    pickDefined(
-      container?.is_complete,
-      container?.isCompleted,
-      container?.onboarding_complete,
-      profileCandidate?.is_complete,
-      profileCandidate?.isCompleted,
-      profileCandidate?.is_completed,
-      profileCandidate?.onboarding_complete
-    ) ?? (resolvedProfile.name && resolvedProfile.bio)
+  const explicitIsComplete = resolveCompletionValue(
+    container?.is_complete,
+    container?.isCompleted,
+    container?.onboarding_complete,
+    profileCandidate?.is_complete,
+    profileCandidate?.isCompleted,
+    profileCandidate?.is_completed,
+    profileCandidate?.onboarding_complete
   );
 
   return {
     id: resolvedProfile.id,
     profile: resolvedProfile,
-    isComplete,
+    isComplete: explicitIsComplete ?? false,
+    hasExplicitCompletion: explicitIsComplete !== undefined,
     raw
   };
 };
@@ -230,6 +230,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
   const [loading, setLoading] = useState(Boolean(enabled));
   const [error, setError] = useState(null);
   const [isComplete, setIsComplete] = useState(false);
+  const [hasExplicitCompletion, setHasExplicitCompletion] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
   const [draftWarning, setDraftWarning] = useState(null);
   const [hasDraft, setHasDraft] = useState(false);
@@ -254,6 +255,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
         setProfile(fallback);
         setCanonicalProfile(fallback);
         setProfileId(null);
+        setHasExplicitCompletion(false);
         setHasDraft(false);
         return null;
       }
@@ -297,6 +299,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       setHasDraft(draftDetected);
       setProfileId(normalised.id ?? null);
       setIsComplete(normalised.isComplete);
+      setHasExplicitCompletion(normalised.hasExplicitCompletion);
       setHasFetched(true);
       return { ...normalised, profile: mergedProfile, canonicalProfile: canonical, hasDraft: draftDetected };
     } catch (err) {
@@ -309,6 +312,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       setProfile(fallback);
       setCanonicalProfile(fallback);
       setProfileId(null);
+      setHasExplicitCompletion(false);
       setHasDraft(false);
       return null;
     } finally {
@@ -325,6 +329,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       setCanonicalProfile(fallback);
       setProfileId(null);
       setIsComplete(false);
+      setHasExplicitCompletion(false);
       setHasFetched(false);
       setError(null);
       setDraftWarning(null);
@@ -365,6 +370,7 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
         setDraftWarning(null);
         setProfileId(normalised.id ?? normalised.profile?.id ?? profileId);
         setIsComplete(normalised.isComplete ?? true);
+        setHasExplicitCompletion(normalised.hasExplicitCompletion);
         setHasFetched(true);
 
         return normalised;
@@ -385,16 +391,18 @@ export const useCoachProfile = ({ enabled = true } = {}) => {
       loading,
       error,
       isComplete,
+      hasExplicitCompletion,
       profileId,
       hasFetched
     }),
-    [loading, error, isComplete, profileId, hasFetched]
+    [loading, error, isComplete, hasExplicitCompletion, profileId, hasFetched]
   );
 
   return {
     profile,
     profileId,
     isComplete,
+    hasExplicitCompletion,
     loading,
     error,
     hasFetched,

@@ -3,6 +3,7 @@ import { coachSignup, forgotPassword, logIn } from '../api/auth';
 import { AS_USER_KEY } from '../constants/urls';
 import { USER_TYPES } from '../constants';
 import { removeTokens, storeTokens } from '../utils/tokenHelper';
+import { resolveCompletionValue } from '../utils/profileCompletion';
 
 const AuthContext = createContext(null);
 
@@ -33,13 +34,18 @@ const writeStoredUser = (payload) => {
   window.localStorage.setItem(AS_USER_KEY, JSON.stringify(payload));
 };
 
-const normaliseUserPayload = (data) => ({
-  session: data,
-  userType: data?.user_type ?? null,
-  userId: data?.user_id ?? null,
-  onboardingComplete: Boolean(data?.onboarding_complete ?? data?.is_complete),
-  profile: data?.profile ?? null
-});
+const normaliseUserPayload = (data) => {
+  const onboardingComplete = resolveCompletionValue(data?.onboarding_complete, data?.is_complete);
+
+  return {
+    session: data,
+    userType: data?.user_type ?? null,
+    userId: data?.user_id ?? null,
+    onboardingComplete: onboardingComplete ?? false,
+    hasOnboardingCompleteSignal: onboardingComplete !== undefined,
+    profile: data?.profile ?? null
+  };
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => readStoredUser());
