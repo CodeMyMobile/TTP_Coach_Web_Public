@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCoachOnboarding, getCoachOnboardingDraft, putCoachOnboarding } from '../api/CoachApi/onboarding';
 import { createDefaultProfile } from '../constants/profile';
 import { mergeOnboardingWithDraft } from '../components/onboarding/draftUtils';
-import { resolveCompletionValue } from '../utils/profileCompletion';
+import { deriveOnboardingCompletion, resolveCompletionValue } from '../utils/profileCompletion';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -218,7 +218,7 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
   return {
     id: resolvedProfile.id,
     profile: resolvedProfile,
-    isComplete: explicitIsComplete ?? false,
+    isComplete: explicitIsComplete ?? deriveOnboardingCompletion(resolvedProfile),
     hasExplicitCompletion: explicitIsComplete !== undefined,
     raw
   };

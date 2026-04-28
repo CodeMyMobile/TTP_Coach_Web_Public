@@ -215,9 +215,17 @@ function App() {
 
   useEffect(() => {
     if (!isEditingProfile) {
-      setIsProfileComplete(profileHasExplicitCompletion ? remoteProfileComplete : sessionProfileComplete);
+      const shouldTrustProfileCompletion = profileHasExplicitCompletion || (profileFetched && !profileError);
+      setIsProfileComplete(shouldTrustProfileCompletion ? remoteProfileComplete : sessionProfileComplete);
     }
-  }, [remoteProfileComplete, profileHasExplicitCompletion, sessionProfileComplete, isEditingProfile]);
+  }, [
+    remoteProfileComplete,
+    profileHasExplicitCompletion,
+    profileFetched,
+    profileError,
+    sessionProfileComplete,
+    isEditingProfile
+  ]);
 
   useEffect(() => {
     if (profileError) {

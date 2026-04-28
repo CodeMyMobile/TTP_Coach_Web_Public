@@ -2,6 +2,38 @@ const SERVER_MANAGED_ONBOARDING_FIELDS = new Set(['charges_enabled', 'charges_di
 
 export const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+const isEmptyArrayPatch = (value) => Array.isArray(value) && value.length === 0;
+
+const shouldApplyDraftValue = (key, value, baseValue) => {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+
+  if (isEmptyArrayPatch(value)) {
+    return false;
+  }
+
+  if (isObject(value)) {
+    return Object.values(value).some((entry) => {
+      if (Array.isArray(entry)) {
+        return entry.length > 0;
+      }
+
+      if (isObject(entry)) {
+        return Object.keys(entry).length > 0;
+      }
+
+      return entry !== undefined && entry !== null && String(entry).trim().length > 0;
+    });
+  }
+
+  return true;
+};
+
 export const mergeOnboardingWithDraft = (onboarding = {}, draftPayload = {}) => {
   if (!isObject(draftPayload) || Object.keys(draftPayload).length === 0) {
     return onboarding;
@@ -18,7 +50,7 @@ export const mergeOnboardingWithDraft = (onboarding = {}, draftPayload = {}) => 
 
     const merged = { ...base };
     for (const [key, value] of Object.entries(override)) {
-      if (value === undefined) {
+      if (!shouldApplyDraftValue(key, value, base[key])) {
         continue;
       }
       merged[key] = isObject(value) && isObject(base[key]) ? merge(base[key], value) : value;
