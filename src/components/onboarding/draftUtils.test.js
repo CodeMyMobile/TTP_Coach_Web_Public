@@ -24,6 +24,39 @@ test('merge priority prefers draft payload over onboarding fields', () => {
   assert.deepEqual(merged.formats, ['group']);
 });
 
+test('merge ignores empty default draft fields over complete onboarding data', () => {
+  const onboarding = {
+    name: 'A K',
+    bio: 'Complete saved profile',
+    email: 'coach@example.com',
+    profileImage: 'https://example.com/avatar.png',
+    home_courts: ['Court A'],
+    levels: ['beginner'],
+    availability: { Monday: ['09:00 - 10:00'], Tuesday: [] },
+    availabilityLocations: { Monday: { '09:00 - 10:00': 'Court A' }, Tuesday: {} }
+  };
+  const draft = {
+    name: '',
+    bio: '',
+    email: '',
+    profileImage: '',
+    home_courts: [],
+    levels: [],
+    availability: { Monday: [], Tuesday: [] },
+    availabilityLocations: { Monday: { '09:00 - 10:00': 'Court A' }, Tuesday: {} }
+  };
+
+  const merged = mergeOnboardingWithDraft(onboarding, draft);
+
+  assert.equal(merged.name, 'A K');
+  assert.equal(merged.bio, 'Complete saved profile');
+  assert.equal(merged.email, 'coach@example.com');
+  assert.equal(merged.profileImage, 'https://example.com/avatar.png');
+  assert.deepEqual(merged.home_courts, ['Court A']);
+  assert.deepEqual(merged.levels, ['beginner']);
+  assert.deepEqual(merged.availability.Monday, ['09:00 - 10:00']);
+});
+
 test('buildDraftPartialPayload returns only changed meaningful keys', () => {
   const previous = { name: 'A', formats: [], availability: { monday: [] }, bio: '' };
   const current = { name: 'B', formats: [], availability: { monday: ['09:00'] }, bio: '' };
