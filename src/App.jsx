@@ -4,6 +4,7 @@ import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import AvailabilityModal from './components/modals/AvailabilityModal';
 import ConfirmationDialog from './components/modals/ConfirmationDialog';
 import CreatePackageModal from './components/modals/CreatePackageModal';
+import PackagePurchasesModal from './components/modals/PackagePurchasesModal';
 import LessonDetailModal from './components/modals/LessonDetailModal';
 import LoginPage from './components/auth/LoginPage';
 import { useCoachSchedule } from './hooks/useCoachSchedule';
@@ -11,7 +12,11 @@ import { useCoachStudents } from './hooks/useCoachStudents';
 import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
 import { createDefaultProfile } from './constants/profile';
-import { listCoachPackages } from './api/CoachApi/packages';
+import {
+  deleteCoachPackage,
+  listCoachPackages,
+  updateCoachPackage
+} from './api/CoachApi/packages';
 import {
   addCoachCustomLocation,
   deleteCoachLocation,
@@ -66,6 +71,20 @@ const resolvePackagesFromPayload = (payload) => {
 
   return [];
 };
+
+const resolvePackageFromPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  return payload.package || payload.data?.package || payload.data || payload.result || payload.item || payload;
+};
+
+const getApiErrorMessage = (errorBody, fallbackMessage) =>
+  errorBody?.message ||
+  errorBody?.error ||
+  errorBody?.errors?.[0] ||
+  fallbackMessage;
 
 const defaultProfile = createDefaultProfile();
 
@@ -149,6 +168,8 @@ function App() {
   const [visibleCalendarDates, setVisibleCalendarDates] = useState([]);
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
+  const [selectedPackageForEdit, setSelectedPackageForEdit] = useState(null);
+  const [selectedPackageForPurchases, setSelectedPackageForPurchases] = useState(null);
   const [showLessonDetailModal, setShowLessonDetailModal] = useState(false);
   const [showCreateLessonModal, setShowCreateLessonModal] = useState(false);
   const [showLessonConfirmedSheet, setShowLessonConfirmedSheet] = useState(false);
@@ -1395,6 +1416,125 @@ function App() {
     packagesFetchedRef.current = true;
   };
 
+  const handlePackageUpdated = useCallback((updatedPackage, packageId, fallbackChanges = {}) => {
+    setProfileData((previousProfile) => {
+      const previousPackages = Array.isArray(previousProfile.packages)
+        ? previousProfile.packages
+        : [];
+
+      return {
+        ...previousProfile,
+        packages: previousPackages.map((existingPackage) => {
+          const existingId = existingPackage?.id ?? existingPackage?.package_id;
+
+          if (String(existingId) !== String(packageId)) {
+            return existingPackage;
+          }
+
+          if (updatedPackage && typeof updatedPackage === 'object') {
+            return {
+              ...existingPackage,
+              ...updatedPackage
+            };
+          }
+
+          return {
+            ...existingPackage,
+            ...fallbackChanges
+          };
+        })
+      };
+    });
+
+    setPackagesError(null);
+    packagesFetchedRef.current = true;
+  }, []);
+
+  const handlePackageArchiveToggle = useCallback(async (packageId, isActive) => {
+    try {
+      const response = await updateCoachPackage(packageId, { isActive });
+
+      if (!response) {
+        return { ok: false, error: 'Your session has expired. Please sign in again.' };
+      }
+
+      if (!response.ok) {
+        let message = 'Failed to update package. Please try again.';
+
+        try {
+          const errorBody = await response.json();
+          message = getApiErrorMessage(errorBody, message);
+        } catch {
+          // Ignore JSON parse errors.
+        }
+
+        return { ok: false, error: message };
+      }
+
+      const payload = await response.json().catch(() => null);
+      const updatedPackage = resolvePackageFromPayload(payload);
+
+      handlePackageUpdated(updatedPackage, packageId, { is_active: isActive, isActive });
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to update package.'
+      };
+    }
+  }, [handlePackageUpdated]);
+
+  const handlePackageDelete = useCallback(async (packageId) => {
+    try {
+      const response = await deleteCoachPackage(packageId);
+
+      if (!response) {
+        return { ok: false, error: 'Your session has expired. Please sign in again.' };
+      }
+
+      if (!response.ok) {
+        let message = 'Failed to delete package. Please try again.';
+
+        try {
+          const errorBody = await response.json();
+          message = getApiErrorMessage(errorBody, message);
+        } catch {
+          // Ignore JSON parse errors.
+        }
+
+        return { ok: false, error: message };
+      }
+
+      setProfileData((previousProfile) => {
+        const previousPackages = Array.isArray(previousProfile.packages)
+          ? previousProfile.packages
+          : [];
+
+        return {
+          ...previousProfile,
+          packages: previousPackages.filter((existingPackage) => {
+            const existingId = existingPackage?.id ?? existingPackage?.package_id;
+            return String(existingId) !== String(packageId);
+          })
+        };
+      });
+
+      setPackagesError(null);
+      packagesFetchedRef.current = true;
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to delete package.'
+      };
+    }
+  }, []);
+
+  const handlePackageModalClose = useCallback(() => {
+    setShowCreatePackageModal(false);
+    setSelectedPackageForEdit(null);
+  }, []);
+
   const handleOnboardingComplete = async (data) => {
     try {
       const result = await saveProfile(data);
@@ -1674,7 +1814,15 @@ function App() {
           onEmptySlotSelect={handleEmptySlotSelect}
           onOpenAddAvailability={handleAddAvailabilityOpen}
           onOpenCreateLesson={handleCreateLessonOpen}
-          onOpenCreatePackage={() => setShowCreatePackageModal(true)}
+          onOpenCreatePackage={() => {
+            setSelectedPackageForEdit(null);
+            setShowCreatePackageModal(true);
+          }}
+          onEditPackage={(lessonPackage) => {
+            setSelectedPackageForEdit(lessonPackage);
+            setShowCreatePackageModal(true);
+          }}
+          onViewPackagePurchases={(lessonPackage) => setSelectedPackageForPurchases(lessonPackage)}
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
           onOpenNotifications={() => navigate('/notifications')}
@@ -1688,6 +1836,8 @@ function App() {
           packagesLoading={packagesLoading}
           packagesError={packagesError}
           onRefreshPackages={refreshPackages}
+          onTogglePackageActive={handlePackageArchiveToggle}
+          onDeletePackage={handlePackageDelete}
           locationsData={coachLocations}
           locationsLoading={locationsLoading}
           locationsError={locationsError}
@@ -1768,8 +1918,16 @@ function App() {
 
       <CreatePackageModal
         isOpen={showCreatePackageModal}
-        onClose={() => setShowCreatePackageModal(false)}
+        onClose={handlePackageModalClose}
         onCreated={handlePackageCreated}
+        onUpdated={handlePackageUpdated}
+        packageToEdit={selectedPackageForEdit}
+      />
+
+      <PackagePurchasesModal
+        isOpen={Boolean(selectedPackageForPurchases)}
+        onClose={() => setSelectedPackageForPurchases(null)}
+        lessonPackage={selectedPackageForPurchases}
       />
 
       <AvailabilityModal
