@@ -11,7 +11,11 @@ import { useCoachStudents } from './hooks/useCoachStudents';
 import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
 import { createDefaultProfile } from './constants/profile';
-import { listCoachPackages } from './api/CoachApi/packages';
+import {
+  deleteCoachPackage,
+  listCoachPackages,
+  updateCoachPackage
+} from './api/CoachApi/packages';
 import {
   addCoachCustomLocation,
   deleteCoachLocation,
@@ -66,6 +70,20 @@ const resolvePackagesFromPayload = (payload) => {
 
   return [];
 };
+
+const resolvePackageFromPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  return payload.package || payload.data?.package || payload.data || payload.result || payload.item || payload;
+};
+
+const getApiErrorMessage = (errorBody, fallbackMessage) =>
+  errorBody?.message ||
+  errorBody?.error ||
+  errorBody?.errors?.[0] ||
+  fallbackMessage;
 
 const defaultProfile = createDefaultProfile();
 
@@ -1395,6 +1413,120 @@ function App() {
     packagesFetchedRef.current = true;
   };
 
+  const handlePackageUpdated = useCallback((updatedPackage, packageId, fallbackChanges = {}) => {
+    setProfileData((previousProfile) => {
+      const previousPackages = Array.isArray(previousProfile.packages)
+        ? previousProfile.packages
+        : [];
+
+      return {
+        ...previousProfile,
+        packages: previousPackages.map((existingPackage) => {
+          const existingId = existingPackage?.id ?? existingPackage?.package_id;
+
+          if (String(existingId) !== String(packageId)) {
+            return existingPackage;
+          }
+
+          if (updatedPackage && typeof updatedPackage === 'object') {
+            return {
+              ...existingPackage,
+              ...updatedPackage
+            };
+          }
+
+          return {
+            ...existingPackage,
+            ...fallbackChanges
+          };
+        })
+      };
+    });
+
+    setPackagesError(null);
+    packagesFetchedRef.current = true;
+  }, []);
+
+  const handlePackageArchiveToggle = useCallback(async (packageId, isActive) => {
+    try {
+      const response = await updateCoachPackage(packageId, { isActive });
+
+      if (!response) {
+        return { ok: false, error: 'Your session has expired. Please sign in again.' };
+      }
+
+      if (!response.ok) {
+        let message = 'Failed to update package. Please try again.';
+
+        try {
+          const errorBody = await response.json();
+          message = getApiErrorMessage(errorBody, message);
+        } catch {
+          // Ignore JSON parse errors.
+        }
+
+        return { ok: false, error: message };
+      }
+
+      const payload = await response.json().catch(() => null);
+      const updatedPackage = resolvePackageFromPayload(payload);
+
+      handlePackageUpdated(updatedPackage, packageId, { is_active: isActive, isActive });
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to update package.'
+      };
+    }
+  }, [handlePackageUpdated]);
+
+  const handlePackageDelete = useCallback(async (packageId) => {
+    try {
+      const response = await deleteCoachPackage(packageId);
+
+      if (!response) {
+        return { ok: false, error: 'Your session has expired. Please sign in again.' };
+      }
+
+      if (!response.ok) {
+        let message = 'Failed to delete package. Please try again.';
+
+        try {
+          const errorBody = await response.json();
+          message = getApiErrorMessage(errorBody, message);
+        } catch {
+          // Ignore JSON parse errors.
+        }
+
+        return { ok: false, error: message };
+      }
+
+      setProfileData((previousProfile) => {
+        const previousPackages = Array.isArray(previousProfile.packages)
+          ? previousProfile.packages
+          : [];
+
+        return {
+          ...previousProfile,
+          packages: previousPackages.filter((existingPackage) => {
+            const existingId = existingPackage?.id ?? existingPackage?.package_id;
+            return String(existingId) !== String(packageId);
+          })
+        };
+      });
+
+      setPackagesError(null);
+      packagesFetchedRef.current = true;
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to delete package.'
+      };
+    }
+  }, []);
+
   const handleOnboardingComplete = async (data) => {
     try {
       const result = await saveProfile(data);
@@ -1688,6 +1820,8 @@ function App() {
           packagesLoading={packagesLoading}
           packagesError={packagesError}
           onRefreshPackages={refreshPackages}
+          onTogglePackageActive={handlePackageArchiveToggle}
+          onDeletePackage={handlePackageDelete}
           locationsData={coachLocations}
           locationsLoading={locationsLoading}
           locationsError={locationsError}

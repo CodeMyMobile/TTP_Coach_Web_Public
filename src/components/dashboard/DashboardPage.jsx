@@ -421,6 +421,8 @@ const DashboardPage = ({
   packagesLoading = false,
   packagesError = null,
   onRefreshPackages = () => {},
+  onTogglePackageActive = async () => ({ ok: false }),
+  onDeletePackage = async () => ({ ok: false }),
   locationsData = [],
   locationsLoading = false,
   locationsError = null,
@@ -1554,6 +1556,8 @@ const DashboardPage = ({
             packagesError={packagesError}
             onRefreshPackages={onRefreshPackages}
             onOpenCreatePackage={onOpenCreatePackage}
+            onTogglePackageActive={onTogglePackageActive}
+            onDeletePackage={onDeletePackage}
             currencyFormatter={currencyFormatter}
             formatLessonTypeLabel={formatLessonTypeLabel}
             formatValidityLabel={formatValidityLabel}
