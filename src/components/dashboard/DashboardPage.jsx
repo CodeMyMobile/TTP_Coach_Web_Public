@@ -410,6 +410,8 @@ const DashboardPage = ({
   onEmptySlotSelect,
   onOpenAddAvailability,
   onOpenCreatePackage,
+  onEditPackage = () => {},
+  onViewPackagePurchases = () => {},
   onOpenCreateLesson,
   onRequestAvailabilityOnboarding,
   onOpenSettings,
@@ -494,7 +496,15 @@ const DashboardPage = ({
               ? totalPrice / lessonCount
               : null,
           lessonTypes,
-          isActive: entry.is_active ?? entry.isActive ?? true
+          isActive: entry.is_active ?? entry.isActive ?? true,
+          hasPurchaseHistory: Boolean(
+            entry.has_purchase_history ?? entry.hasPurchaseHistory ?? false
+          ),
+          purchaseCount: parseNumber(entry.purchase_count ?? entry.purchaseCount) ?? 0,
+          lastPurchasedAt:
+            entry.last_purchased_at ??
+            entry.lastPurchasedAt ??
+            null
         };
       })
       .sort((a, b) => {
@@ -1556,6 +1566,8 @@ const DashboardPage = ({
             packagesError={packagesError}
             onRefreshPackages={onRefreshPackages}
             onOpenCreatePackage={onOpenCreatePackage}
+            onEditPackage={onEditPackage}
+            onViewPackagePurchases={onViewPackagePurchases}
             onTogglePackageActive={onTogglePackageActive}
             onDeletePackage={onDeletePackage}
             currencyFormatter={currencyFormatter}

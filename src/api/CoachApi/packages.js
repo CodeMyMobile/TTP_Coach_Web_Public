@@ -10,6 +10,13 @@ export const listCoachPackages = async ({ includeInactive = false } = {}) =>
     method: 'GET'
   });
 
+export const createCoachPackage = async (payload) =>
+  apiRequest('/coach/packages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
 export const updateCoachPackage = async (id, payload) =>
   apiRequest(buildPackagePath(id), {
     method: 'PATCH',
@@ -22,8 +29,31 @@ export const deleteCoachPackage = async (id) =>
     method: 'DELETE'
   });
 
+export const getCoachPackagePurchases = async (id, params = {}) => {
+  const query = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') {
+      return;
+    }
+
+    query.set(key, String(value));
+  });
+
+  const queryString = query.toString();
+  const path = queryString
+    ? `${buildPackagePath(id)}/purchases?${queryString}`
+    : `${buildPackagePath(id)}/purchases`;
+
+  return apiRequest(path, {
+    method: 'GET'
+  });
+};
+
 export default {
+  createCoachPackage,
   listCoachPackages,
   updateCoachPackage,
-  deleteCoachPackage
+  deleteCoachPackage,
+  getCoachPackagePurchases
 };

@@ -4,6 +4,7 @@ import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import AvailabilityModal from './components/modals/AvailabilityModal';
 import ConfirmationDialog from './components/modals/ConfirmationDialog';
 import CreatePackageModal from './components/modals/CreatePackageModal';
+import PackagePurchasesModal from './components/modals/PackagePurchasesModal';
 import LessonDetailModal from './components/modals/LessonDetailModal';
 import LoginPage from './components/auth/LoginPage';
 import { useCoachSchedule } from './hooks/useCoachSchedule';
@@ -167,6 +168,8 @@ function App() {
   const [visibleCalendarDates, setVisibleCalendarDates] = useState([]);
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showCreatePackageModal, setShowCreatePackageModal] = useState(false);
+  const [selectedPackageForEdit, setSelectedPackageForEdit] = useState(null);
+  const [selectedPackageForPurchases, setSelectedPackageForPurchases] = useState(null);
   const [showLessonDetailModal, setShowLessonDetailModal] = useState(false);
   const [showCreateLessonModal, setShowCreateLessonModal] = useState(false);
   const [showLessonConfirmedSheet, setShowLessonConfirmedSheet] = useState(false);
@@ -1527,6 +1530,11 @@ function App() {
     }
   }, []);
 
+  const handlePackageModalClose = useCallback(() => {
+    setShowCreatePackageModal(false);
+    setSelectedPackageForEdit(null);
+  }, []);
+
   const handleOnboardingComplete = async (data) => {
     try {
       const result = await saveProfile(data);
@@ -1806,7 +1814,15 @@ function App() {
           onEmptySlotSelect={handleEmptySlotSelect}
           onOpenAddAvailability={handleAddAvailabilityOpen}
           onOpenCreateLesson={handleCreateLessonOpen}
-          onOpenCreatePackage={() => setShowCreatePackageModal(true)}
+          onOpenCreatePackage={() => {
+            setSelectedPackageForEdit(null);
+            setShowCreatePackageModal(true);
+          }}
+          onEditPackage={(lessonPackage) => {
+            setSelectedPackageForEdit(lessonPackage);
+            setShowCreatePackageModal(true);
+          }}
+          onViewPackagePurchases={(lessonPackage) => setSelectedPackageForPurchases(lessonPackage)}
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
           onOpenNotifications={() => navigate('/notifications')}
@@ -1902,8 +1918,16 @@ function App() {
 
       <CreatePackageModal
         isOpen={showCreatePackageModal}
-        onClose={() => setShowCreatePackageModal(false)}
+        onClose={handlePackageModalClose}
         onCreated={handlePackageCreated}
+        onUpdated={handlePackageUpdated}
+        packageToEdit={selectedPackageForEdit}
+      />
+
+      <PackagePurchasesModal
+        isOpen={Boolean(selectedPackageForPurchases)}
+        onClose={() => setSelectedPackageForPurchases(null)}
+        lessonPackage={selectedPackageForPurchases}
       />
 
       <AvailabilityModal

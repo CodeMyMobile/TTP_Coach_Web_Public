@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Archive, Package, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Edit3, Package, RefreshCw, RotateCcw, Trash2, Users } from 'lucide-react';
 import ConfirmationDialog from '../../modals/ConfirmationDialog';
 
 const PackagesSection = ({
@@ -8,6 +8,8 @@ const PackagesSection = ({
   packagesError,
   onRefreshPackages,
   onOpenCreatePackage,
+  onEditPackage,
+  onViewPackagePurchases,
   onTogglePackageActive,
   onDeletePackage,
   currencyFormatter,
@@ -60,6 +62,23 @@ const PackagesSection = ({
     setPendingPackageAction(null);
   };
 
+  const formatPurchaseDate = (value) => {
+    if (!value) {
+      return 'Never';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Never';
+    }
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(date);
+  };
+
   return (
     <section className="mt-6 space-y-6">
       <div className="rounded-2xl bg-white p-4 shadow-sm">
@@ -81,7 +100,7 @@ const PackagesSection = ({
         </div>
 
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Purchased packages are locked. Coaches can only archive or restore them through edit.
+          Packages without purchases can be edited fully. Once purchased, only archive or restore is allowed.
         </div>
 
         <div className="mt-6 space-y-4">
@@ -136,6 +155,7 @@ const PackagesSection = ({
               const isArchiving = isPending && pendingPackageAction?.type === 'archive';
               const isRestoring = isPending && pendingPackageAction?.type === 'restore';
               const isDeleting = isPending && pendingPackageAction?.type === 'delete';
+              const isPurchased = lessonPackage.hasPurchaseHistory;
 
               return (
                 <div
@@ -159,6 +179,19 @@ const PackagesSection = ({
                           {lessonPackage.description}
                         </p>
                       )}
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+                        <span className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600">
+                          {lessonPackage.purchaseCount} purchases
+                        </span>
+                        <span className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600">
+                          Last purchased {formatPurchaseDate(lessonPackage.lastPurchasedAt)}
+                        </span>
+                        {isPurchased && (
+                          <span className="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">
+                            Locked after purchase
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-col gap-3 md:items-end">
                       <div className="flex flex-wrap gap-2 md:justify-end">
@@ -178,6 +211,26 @@ const PackagesSection = ({
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">
+                        {!isPurchased && (
+                          <button
+                            type="button"
+                            onClick={() => onEditPackage(lessonPackage)}
+                            disabled={isPending}
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onViewPackagePurchases(lessonPackage)}
+                          disabled={isPending}
+                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Users className="h-4 w-4" />
+                          <span>View Buyers</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleTogglePackage(lessonPackage)}

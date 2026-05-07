@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiRequest } from '../../api/apiRequest';
+import {
+  createCoachPackage,
+  updateCoachPackage
+} from '../../api/CoachApi/packages';
 import Modal, { ModalBody, ModalFooter, ModalHeader } from './Modal';
 
 const LESSON_TYPE_OPTIONS = [
@@ -8,32 +11,68 @@ const LESSON_TYPE_OPTIONS = [
   { id: 'group', label: 'Group Classes' }
 ];
 
-const buildInitialFormState = () => ({
-  name: '',
-  description: '',
-  lessonCount: '',
-  totalPrice: '',
-  validityMonths: '',
-  lessonTypesAllowed: ['private']
+const resolvePackageFromPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  return payload.package || payload.data?.package || payload.data || payload.result || payload.item || payload;
+};
+
+const getApiErrorMessage = (errorBody, fallbackMessage) =>
+  errorBody?.message ||
+  errorBody?.error ||
+  errorBody?.errors?.[0] ||
+  fallbackMessage;
+
+const buildInitialFormState = (lessonPackage) => ({
+  name: lessonPackage?.name || '',
+  description: lessonPackage?.description || '',
+  lessonCount:
+    lessonPackage?.lessonCount === null || lessonPackage?.lessonCount === undefined
+      ? ''
+      : String(lessonPackage.lessonCount),
+  totalPrice:
+    lessonPackage?.totalPrice === null || lessonPackage?.totalPrice === undefined
+      ? ''
+      : String(lessonPackage.totalPrice),
+  validityMonths:
+    lessonPackage?.validityMonths === null
+      ? '0'
+      : lessonPackage?.validityMonths === undefined
+      ? ''
+      : String(lessonPackage.validityMonths),
+  lessonTypesAllowed:
+    Array.isArray(lessonPackage?.lessonTypes) && lessonPackage.lessonTypes.length > 0
+      ? lessonPackage.lessonTypes
+      : ['private'],
+  isActive: lessonPackage?.isActive ?? true
 });
 
-const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
-  const [formValues, setFormValues] = useState(buildInitialFormState);
+const CreatePackageModal = ({
+  isOpen,
+  onClose,
+  onCreated = () => {},
+  onUpdated = () => {},
+  packageToEdit = null
+}) => {
+  const isEditMode = Boolean(packageToEdit?.id);
+  const isLockedAfterPurchase = Boolean(packageToEdit?.hasPurchaseHistory);
+  const [formValues, setFormValues] = useState(buildInitialFormState(packageToEdit));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const lessonTypesSelected = useMemo(() => new Set(formValues.lessonTypesAllowed), [formValues.lessonTypesAllowed]);
-
-  const resetForm = () => {
-    setFormValues(buildInitialFormState());
-    setError('');
-  };
+  const lessonTypesSelected = useMemo(
+    () => new Set(formValues.lessonTypesAllowed),
+    [formValues.lessonTypesAllowed]
+  );
 
   useEffect(() => {
     if (isOpen) {
-      resetForm();
+      setFormValues(buildInitialFormState(packageToEdit));
+      setError('');
     }
-  }, [isOpen]);
+  }, [isOpen, packageToEdit]);
 
   const handleInputChange = (field) => (event) => {
     const { value } = event.target;
@@ -44,6 +83,10 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
   };
 
   const toggleLessonType = (type) => {
+    if (isLockedAfterPurchase) {
+      return;
+    }
+
     setFormValues((previous) => {
       const nextSelection = new Set(previous.lessonTypesAllowed);
 
@@ -80,6 +123,10 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
       return false;
     }
 
+    if (formValues.lessonTypesAllowed.length === 0) {
+      return false;
+    }
+
     return true;
   }, [formValues]);
 
@@ -98,15 +145,18 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
       totalPrice: Number(formValues.totalPrice),
       validityMonths:
         formValues.validityMonths === '0' ? null : Number(formValues.validityMonths),
-      lessonTypesAllowed: formValues.lessonTypesAllowed
+      lessonTypesAllowed: formValues.lessonTypesAllowed,
+      isActive: Boolean(formValues.isActive)
     };
 
+    const requestPayload = isLockedAfterPurchase
+      ? { isActive: payload.isActive }
+      : payload;
+
     try {
-      const response = await apiRequest('/coach/packages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const response = isEditMode
+        ? await updateCoachPackage(packageToEdit.id, requestPayload)
+        : await createCoachPackage(payload);
 
       if (!response) {
         setError('Your session has expired. Please sign in again.');
@@ -114,16 +164,14 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
       }
 
       if (!response.ok) {
-        let message = 'Failed to create package. Please try again.';
+        let message = isEditMode
+          ? 'Failed to update package. Please try again.'
+          : 'Failed to create package. Please try again.';
 
         try {
           const errorBody = await response.json();
-          message =
-            errorBody?.message ||
-            errorBody?.error ||
-            errorBody?.errors?.[0] ||
-            message;
-        } catch (parseError) {
+          message = getApiErrorMessage(errorBody, message);
+        } catch {
           // Ignore JSON parse errors and keep the default message.
         }
 
@@ -131,13 +179,19 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
         return;
       }
 
-      const createdPackage = await response.json().catch(() => null);
-      onCreated(createdPackage);
-      resetForm();
+      const responseBody = await response.json().catch(() => null);
+      const resolvedPackage = resolvePackageFromPayload(responseBody);
+
+      if (isEditMode) {
+        onUpdated(resolvedPackage, packageToEdit.id, requestPayload);
+      } else {
+        onCreated(resolvedPackage);
+      }
+
       onClose();
     } catch (requestError) {
       setError('An unexpected error occurred. Please try again.');
-      console.error('Failed to create package', requestError);
+      console.error('Failed to submit package', requestError);
     } finally {
       setIsSubmitting(false);
     }
@@ -145,57 +199,70 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} panelClassName="max-w-md">
-      <ModalHeader title="Create Lesson Package" onClose={onClose} />
+      <ModalHeader
+        title={isEditMode ? 'Edit Lesson Package' : 'Create Lesson Package'}
+        description={
+          isLockedAfterPurchase
+            ? 'This package has purchase history. Only archive or restore is allowed.'
+            : undefined
+        }
+        onClose={onClose}
+      />
       <ModalBody className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Package Name *</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Package Name *</label>
           <input
             type="text"
             placeholder="e.g., 10 Lesson Bundle"
             value={formValues.name}
             onChange={handleInputChange('name')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            disabled={isLockedAfterPurchase}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:bg-gray-100"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
           <textarea
             placeholder="Brief description of the package..."
             value={formValues.description}
             onChange={handleInputChange('description')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 h-20"
+            disabled={isLockedAfterPurchase}
+            className="h-20 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:bg-gray-100"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Number of Lessons *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Number of Lessons *</label>
             <input
               type="number"
               min="1"
               placeholder="10"
               value={formValues.lessonCount}
               onChange={handleInputChange('lessonCount')}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              disabled={isLockedAfterPurchase}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:bg-gray-100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Total Price ($) *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Total Price ($) *</label>
             <input
               type="number"
               min="0"
               placeholder="850"
               value={formValues.totalPrice}
               onChange={handleInputChange('totalPrice')}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              disabled={isLockedAfterPurchase}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:bg-gray-100"
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Validity Period *</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Validity Period *</label>
           <select
             value={formValues.validityMonths}
             onChange={handleInputChange('validityMonths')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            disabled={isLockedAfterPurchase}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:bg-gray-100"
           >
             <option value="">Select validity</option>
             <option value="1">1 month</option>
@@ -206,7 +273,7 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Lesson Types Allowed</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Lesson Types Allowed</label>
           <div className="space-y-2">
             {LESSON_TYPE_OPTIONS.map(({ id, label }) => (
               <label key={id} className="flex items-center">
@@ -215,12 +282,32 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
                   className="rounded text-purple-600"
                   checked={lessonTypesSelected.has(id)}
                   onChange={() => toggleLessonType(id)}
+                  disabled={isLockedAfterPurchase}
                 />
                 <span className="ml-2 text-sm">{label}</span>
               </label>
             ))}
           </div>
         </div>
+        {isEditMode && (
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Status</label>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                className="rounded text-purple-600"
+                checked={Boolean(formValues.isActive)}
+                onChange={(event) =>
+                  setFormValues((previous) => ({
+                    ...previous,
+                    isActive: event.target.checked
+                  }))
+                }
+              />
+              <span className="ml-2 text-sm text-gray-700">Package is active</span>
+            </label>
+          </div>
+        )}
         {error && (
           <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
             {error}
@@ -245,7 +332,13 @@ const CreatePackageModal = ({ isOpen, onClose, onCreated = () => {} }) => {
               : 'cursor-not-allowed bg-purple-300'
           }`}
         >
-          {isSubmitting ? 'Creating…' : 'Create Package'}
+          {isSubmitting
+            ? isEditMode
+              ? 'Saving...'
+              : 'Creating...'
+            : isEditMode
+              ? 'Save Changes'
+              : 'Create Package'}
         </button>
       </ModalFooter>
     </Modal>
