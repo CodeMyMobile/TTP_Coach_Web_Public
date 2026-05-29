@@ -815,24 +815,26 @@ function App() {
       || String(lessonEditData?.lesson_type_name || lessonEditData?.lessonType || lessonEditData?.type || '').toLowerCase().includes('open');
 
     const buildLessonUpdatePayload = (payload) => {
+      const { player_summary: _playerSummary, ...payloadWithoutPlayerSummary } = payload || {};
+
       if (!isGroupLesson) {
-        return payload;
+        return payloadWithoutPlayerSummary;
       }
 
       const nextMetadata = {
-        ...(payload?.metadata || {}),
-        title: payload?.title || payload?.lesson_title || payload?.metadata?.title || '',
-        description: payload?.metadata?.description || payload?.description || '',
-        level: payload?.metadata?.level || payload?.level || ''
+        ...(payloadWithoutPlayerSummary?.metadata || {}),
+        title: payloadWithoutPlayerSummary?.title || payloadWithoutPlayerSummary?.lesson_title || payloadWithoutPlayerSummary?.metadata?.title || '',
+        description: payloadWithoutPlayerSummary?.metadata?.description || payloadWithoutPlayerSummary?.description || '',
+        level: payloadWithoutPlayerSummary?.metadata?.level || payloadWithoutPlayerSummary?.level || ''
       };
 
-      const rawLimit = payload?.player_limit ?? payload?.max_participants ?? payload?.maxParticipants;
+      const rawLimit = payloadWithoutPlayerSummary?.player_limit ?? payloadWithoutPlayerSummary?.max_participants ?? payloadWithoutPlayerSummary?.maxParticipants;
       const numericLimit = Number(rawLimit);
-      const selectedGroupIds = Array.isArray(payload?.groupIds)
-        ? payload.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      const selectedGroupIds = Array.isArray(payloadWithoutPlayerSummary?.groupIds)
+        ? payloadWithoutPlayerSummary.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
         : [];
-      const selectedPlayerIds = Array.isArray(payload?.playerIds)
-        ? payload.playerIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      const selectedPlayerIds = Array.isArray(payloadWithoutPlayerSummary?.playerIds)
+        ? payloadWithoutPlayerSummary.playerIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
         : [];
 
       return {

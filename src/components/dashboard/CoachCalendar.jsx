@@ -171,22 +171,6 @@ const uniqueBy = (items, keyBuilder) => {
   return Array.from(map.values());
 };
 
-const buildPlayersDescription = (lesson) => {
-  const names = uniqueBy(
-    getLessonGroupPlayers(lesson)
-      .map((player) => getPlayerDisplayName(player))
-      .filter(Boolean),
-    (name) => name.toLowerCase()
-  );
-
-  if (names.length > 0) {
-    return names.join(', ');
-  }
-
-  const fallbackName = getPlayerDisplayName(lesson);
-  return fallbackName || '';
-};
-
 const buildLessonEvents = (lessons) => {
   const groupedSemiPrivate = new Map();
   const directEvents = [];
@@ -219,16 +203,7 @@ const buildLessonEvents = (lessons) => {
       end = new Date(start.getTime() + durationSlots * 30 * 60000);
     }
 
-    const playerDescription = buildPlayersDescription(lesson);
-    const resource = playerDescription
-      ? {
-          ...lesson,
-          metadata: {
-            ...(lesson.metadata || {})
-          },
-          // player_summary: playerDescription
-        }
-      : lesson;
+    const resource = lesson;
 
     const event = {
       start,
@@ -267,10 +242,8 @@ const buildLessonEvents = (lessons) => {
       }
     );
 
-    const mergedDescription = uniqueBy(
-      [existing.resource?.player_summary, playerDescription].filter(Boolean),
-      (value) => String(value).toLowerCase()
-    ).join(', ');
+    const { player_summary: _existingPlayerSummary, ...existingResourceWithoutPlayerSummary } = existing.resource || {};
+    const { player_summary: _resourcePlayerSummary, ...resourceWithoutPlayerSummary } = resource || {};
 
     groupedSemiPrivate.set(groupKey, {
       ...existing,
@@ -282,14 +255,13 @@ const buildLessonEvents = (lessons) => {
           : existing.status,
       cancelledBy: existing.cancelledBy || event.cancelledBy,
       resource: {
-        ...existing.resource,
-        ...resource,
+        ...existingResourceWithoutPlayerSummary,
+        ...resourceWithoutPlayerSummary,
         group_players: mergedPlayers,
         metadata: {
           ...(existing.resource?.metadata || {}),
           ...(resource.metadata || {})
-        },
-        player_summary: mergedDescription
+        }
       }
     });
   });
@@ -787,7 +759,6 @@ const CoachCalendar = ({
                             : 'private';
                     const title = lesson.resource?.metadata?.title || lesson.title || 'Lesson';
                     const subtitle =
-                      lesson.resource?.player_summary ||
                       lesson.resource?.metadata?.description ||
                       lesson.resource?.location ||
                       lesson.resource?.metadata?.subtitle ||
