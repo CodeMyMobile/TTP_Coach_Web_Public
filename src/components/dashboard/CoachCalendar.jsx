@@ -224,9 +224,9 @@ const buildLessonEvents = (lessons) => {
       ? {
           ...lesson,
           metadata: {
-            ...(lesson.metadata || {}),
-            description: playerDescription
-          }
+            ...(lesson.metadata || {})
+          },
+          // player_summary: playerDescription
         }
       : lesson;
 
@@ -268,7 +268,7 @@ const buildLessonEvents = (lessons) => {
     );
 
     const mergedDescription = uniqueBy(
-      [existing.resource?.metadata?.description, playerDescription].filter(Boolean),
+      [existing.resource?.player_summary, playerDescription].filter(Boolean),
       (value) => String(value).toLowerCase()
     ).join(', ');
 
@@ -287,9 +287,9 @@ const buildLessonEvents = (lessons) => {
         group_players: mergedPlayers,
         metadata: {
           ...(existing.resource?.metadata || {}),
-          ...(resource.metadata || {}),
-          description: mergedDescription
-        }
+          ...(resource.metadata || {})
+        },
+        player_summary: mergedDescription
       }
     });
   });
@@ -787,6 +787,7 @@ const CoachCalendar = ({
                             : 'private';
                     const title = lesson.resource?.metadata?.title || lesson.title || 'Lesson';
                     const subtitle =
+                      lesson.resource?.player_summary ||
                       lesson.resource?.metadata?.description ||
                       lesson.resource?.location ||
                       lesson.resource?.metadata?.subtitle ||
