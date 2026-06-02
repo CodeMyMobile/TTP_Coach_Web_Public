@@ -1845,7 +1845,10 @@ function App() {
       ) : isGoogleCalendarRoute || isGoogleRedirectRoute ? (
         <GoogleCalendarSyncPage onBack={() => navigate('/settings')} />
       ) : isNotificationsRoute ? (
-        <NotificationsPage onBack={() => navigate('/dashboard')} />
+        <NotificationsPage
+          onBack={() => navigate('/dashboard')}
+          onOpenLesson={(lessonId) => navigate(`/dashboard/lesson/${encodeURIComponent(lessonId)}`)}
+        />
       ) : isUpcomingLessonsRoute ? (
         <UpcomingLessonsPage onBack={() => navigate('/dashboard')} />
       ) : isTransactionsHistoryRoute ? (
