@@ -36,6 +36,7 @@ import {
   createCoachPlayerGroup,
   deleteCoachPlayerGroup,
   getCoachLessonById,
+  getCoachPlayerById,
   getCoachPlayerGroupById,
   getCoachPlayerPreviousLessons,
   getCoachPlayerGroups,
@@ -88,6 +89,27 @@ const getApiErrorMessage = (errorBody, fallbackMessage) =>
   fallbackMessage;
 
 const defaultProfile = createDefaultProfile();
+
+const normalizeStudentForDetail = (student) => {
+  const source = student && typeof student === 'object' ? student : {};
+  const playerId = source.playerId ?? source.player_id ?? source.id ?? source.user_id ?? source.userId ?? null;
+  const statusValue = source.status ?? null;
+  const createdBy = source.created_by ?? source.createdBy ?? null;
+  const isConfirmed = statusValue === 1 || statusValue === '1' || statusValue === 'CONFIRMED';
+  const isPlayerRequest = createdBy !== null && playerId !== null && String(createdBy) === String(playerId);
+
+  return {
+    ...source,
+    id: source.id ?? playerId,
+    name: source.name || source.full_name || source.player_name || source.student_name || '',
+    email: source.email || '',
+    phone: source.phone || source.phone_number || source.phoneNumber || '',
+    status: statusValue,
+    isConfirmed,
+    isPlayerRequest,
+    playerId
+  };
+};
 
 const formatDuration = (duration) => {
   const hours = Math.floor(duration / 2);
@@ -228,6 +250,11 @@ function App() {
   const lessonRouteLessonId = lessonDetailRouteMatch?.[1]
     ? decodeURIComponent(lessonDetailRouteMatch[1])
     : '';
+  const playerDetailRouteMatch = currentPath.match(/^\/dashboard\/players\/([^/]+)\/?$/);
+  const isPlayerDetailRoute = Boolean(playerDetailRouteMatch);
+  const playerRoutePlayerId = playerDetailRouteMatch?.[1]
+    ? decodeURIComponent(playerDetailRouteMatch[1])
+    : '';
   const shouldShowOnboarding = (!isProfileComplete || isEditingProfile) && isAuthenticated;
 
   useEffect(() => {
@@ -338,6 +365,7 @@ function App() {
       !isNotificationsRoute &&
       !isUpcomingLessonsRoute &&
       !isLessonDetailRoute &&
+      !isPlayerDetailRoute &&
       !isGoogleCalendarRoute &&
       !isGoogleRedirectRoute &&
       !isTransactionsHistoryRoute &&
@@ -354,6 +382,7 @@ function App() {
     isNotificationsRoute,
     isUpcomingLessonsRoute,
     isLessonDetailRoute,
+    isPlayerDetailRoute,
     isGoogleCalendarRoute,
     isGoogleRedirectRoute,
     isTransactionsHistoryRoute,
@@ -491,6 +520,81 @@ function App() {
     },
     [resolvePreviousLessons]
   );
+
+  useEffect(() => {
+    if (
+      !isPlayerDetailRoute ||
+      authInitialising ||
+      !isAuthenticated ||
+      shouldShowOnboarding
+    ) {
+      return undefined;
+    }
+
+    if (!playerRoutePlayerId || playerRoutePlayerId === ':id') {
+      navigate('/dashboard', { replace: true });
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    setShowStudentDetailModal(false);
+    setSelectedStudent(null);
+    setStudentLessons([]);
+    setStudentLessonsPage(1);
+    setStudentLessonsHasMore(true);
+    setStudentLessonsError(null);
+
+    const fetchPlayerDetail = async () => {
+      try {
+        const payload = await getCoachPlayerById({ playerId: playerRoutePlayerId });
+        const player = payload?.player || payload?.data?.player || payload?.data || payload;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!player || typeof player !== 'object') {
+          throw new Error('Player detail response was empty.');
+        }
+
+        const student = normalizeStudentForDetail({
+          ...player,
+          playerId: player.playerId ?? player.player_id ?? player.id ?? playerRoutePlayerId
+        });
+
+        if (!student.playerId) {
+          throw new Error('Player detail response did not include a player id.');
+        }
+
+        setSelectedStudent(student);
+        setShowStudentDetailModal(true);
+        fetchStudentPreviousLessons({ playerId: student.playerId, page: 1, replace: true });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('Failed to load player from route', error);
+        window.alert('Unable to load this player.');
+        navigate('/dashboard', { replace: true });
+      }
+    };
+
+    fetchPlayerDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authInitialising,
+    fetchStudentPreviousLessons,
+    isAuthenticated,
+    isPlayerDetailRoute,
+    navigate,
+    playerRoutePlayerId,
+    shouldShowOnboarding
+  ]);
 
   const {
     lessons,
@@ -936,16 +1040,18 @@ function App() {
   };
 
   const handleStudentSelect = (student) => {
-    if (!student?.playerId) {
+    const normalizedStudent = normalizeStudentForDetail(student);
+
+    if (!normalizedStudent.playerId) {
       return;
     }
 
-    setSelectedStudent(student);
+    setSelectedStudent(normalizedStudent);
     setShowStudentDetailModal(true);
     setStudentLessons([]);
     setStudentLessonsPage(1);
     setStudentLessonsHasMore(true);
-    fetchStudentPreviousLessons({ playerId: student.playerId, page: 1, replace: true });
+    fetchStudentPreviousLessons({ playerId: normalizedStudent.playerId, page: 1, replace: true });
   };
 
   const handleAvailabilitySlotSelect = (availability) => {
@@ -1034,6 +1140,10 @@ function App() {
     setShowStudentDetailModal(false);
     setSelectedStudent(null);
     setStudentLessonsError(null);
+
+    if (isPlayerDetailRoute) {
+      navigate('/dashboard', { replace: true });
+    }
   };
 
   const handleLoadMoreStudentLessons = () => {
