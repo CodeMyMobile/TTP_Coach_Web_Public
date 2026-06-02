@@ -79,7 +79,21 @@ const resolveLessonId = (lesson, item) =>
   item?.entityId ??
   null;
 
-const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
+const resolvePlayerId = (relation, item) =>
+  relation?.player_id ??
+  relation?.playerId ??
+  relation?.player?.id ??
+  relation?.player?.player_id ??
+  relation?.id ??
+  item?.player_id ??
+  item?.playerId ??
+  item?.actor_id ??
+  item?.actorId ??
+  item?.entity_id ??
+  item?.entityId ??
+  null;
+
+const NotificationsPage = ({ onBack, onOpenLesson = () => {}, onOpenPlayer = () => {} }) => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [page, setPage] = useState(1);
@@ -316,6 +330,7 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
               const lesson = item.lesson || item.lesson_details;
               const lessonId = resolveLessonId(lesson, item);
               const relation = item.cp_relation || item.relation;
+              const playerId = resolvePlayerId(relation, item);
               const startMoment = formatLessonTime(lesson?.start_date_time);
               const endMoment = formatLessonTime(lesson?.end_date_time);
               const timeRange =
@@ -331,6 +346,11 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                 RELATION_TYPES.RELATION_CREATED_BY_PLAYER,
                 RELATION_TYPES.RELATION_DECLINED_BY_COACH
               ].includes(notificationType) && relation?.status === 0;
+              const showPlayerView = [
+                RELATION_TYPES.RELATION_CREATED_BY_PLAYER,
+                RELATION_TYPES.RELATION_CREATED_BY_COACH,
+                RELATION_TYPES.RELATION_DECLINED_BY_COACH
+              ].includes(notificationType) && playerId;
 
               const title =
                 lesson?.full_name ||
@@ -381,7 +401,7 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                         </div>
                       )}
 
-                      {(showLessonView || showLessonActions || showRelationActions) && (
+                      {(showLessonView || showPlayerView || showLessonActions || showRelationActions) && (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {showLessonView && (
                             <button
@@ -392,6 +412,15 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                               View lesson
                             </button>
                           )}
+                          {showPlayerView && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenPlayer(playerId)}
+                              className="rounded-lg border border-purple-200 px-3 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-50"
+                            >
+                              View player
+                            </button>
+                          )}
                           {(showLessonActions || showRelationActions) && (
                             <>
                               <button
@@ -399,7 +428,7 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                                 onClick={() =>
                                   showLessonActions
                                     ? handleConfirmLesson(lessonId)
-                                    : handleConfirmRelation(item.actor_id)
+                                    : handleConfirmRelation(playerId)
                                 }
                                 disabled={actionLoading !== null}
                                 className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-300"
@@ -407,7 +436,7 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                                 {actionLoading &&
                                 (showLessonActions
                                   ? actionLoading === `lesson-confirm-${lessonId}`
-                                  : actionLoading === `relation-confirm-${item.actor_id}`)
+                                  : actionLoading === `relation-confirm-${playerId}`)
                                   ? 'Confirming...'
                                   : 'Confirm'}
                               </button>
@@ -416,7 +445,7 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                                 onClick={() =>
                                   showLessonActions
                                     ? handleDeclineLesson(lessonId)
-                                    : handleDeclineRelation(item.actor_id)
+                                    : handleDeclineRelation(playerId)
                                 }
                                 disabled={actionLoading !== null}
                                 className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
@@ -424,7 +453,7 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
                                 {actionLoading &&
                                 (showLessonActions
                                   ? actionLoading === `lesson-decline-${lessonId}`
-                                  : actionLoading === `relation-decline-${item.actor_id}`)
+                                  : actionLoading === `relation-decline-${playerId}`)
                                   ? 'Declining...'
                                   : 'Decline'}
                               </button>
