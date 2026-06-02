@@ -1958,6 +1958,7 @@ function App() {
         <NotificationsPage
           onBack={() => navigate('/dashboard')}
           onOpenLesson={(lessonId) => navigate(`/dashboard/lesson/${encodeURIComponent(lessonId)}`)}
+          onOpenPlayer={(playerId) => navigate(`/dashboard/players/${encodeURIComponent(playerId)}`)}
         />
       ) : isUpcomingLessonsRoute ? (
         <UpcomingLessonsPage onBack={() => navigate('/dashboard')} />
