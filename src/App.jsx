@@ -35,6 +35,7 @@ import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet
 import {
   createCoachPlayerGroup,
   deleteCoachPlayerGroup,
+  getCoachLessonById,
   getCoachPlayerGroupById,
   getCoachPlayerPreviousLessons,
   getCoachPlayerGroups,
@@ -222,6 +223,12 @@ function App() {
   const isGoogleRedirectRoute = currentPath === '/redirect';
   const isTransactionsHistoryRoute = currentPath === '/earnings/transactions';
   const isPayoutHistoryRoute = currentPath === '/earnings/payouts';
+  const lessonDetailRouteMatch = currentPath.match(/^\/dashboard\/lesson\/([^/]+)\/?$/);
+  const isLessonDetailRoute = Boolean(lessonDetailRouteMatch);
+  const lessonRouteLessonId = lessonDetailRouteMatch?.[1]
+    ? decodeURIComponent(lessonDetailRouteMatch[1])
+    : '';
+  const shouldShowOnboarding = (!isProfileComplete || isEditingProfile) && isAuthenticated;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -330,6 +337,7 @@ function App() {
       !isSettingsRoute &&
       !isNotificationsRoute &&
       !isUpcomingLessonsRoute &&
+      !isLessonDetailRoute &&
       !isGoogleCalendarRoute &&
       !isGoogleRedirectRoute &&
       !isTransactionsHistoryRoute &&
@@ -345,11 +353,73 @@ function App() {
     isSettingsRoute,
     isNotificationsRoute,
     isUpcomingLessonsRoute,
+    isLessonDetailRoute,
     isGoogleCalendarRoute,
     isGoogleRedirectRoute,
     isTransactionsHistoryRoute,
     isPayoutHistoryRoute,
     navigate
+  ]);
+
+  useEffect(() => {
+    if (
+      !isLessonDetailRoute ||
+      authInitialising ||
+      !isAuthenticated ||
+      shouldShowOnboarding
+    ) {
+      return undefined;
+    }
+
+    if (!lessonRouteLessonId || lessonRouteLessonId === ':id') {
+      navigate('/dashboard', { replace: true });
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    setIsEditingLesson(false);
+    setLessonEditData(null);
+    setShowLessonDetailModal(false);
+
+    const fetchLessonDetail = async () => {
+      try {
+        const payload = await getCoachLessonById({ lessonId: lessonRouteLessonId });
+        const lesson = payload?.lesson || payload?.data?.lesson || payload?.data || payload;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!lesson || typeof lesson !== 'object') {
+          throw new Error('Lesson detail response was empty.');
+        }
+
+        setSelectedLessonDetail(lesson);
+        setShowLessonDetailModal(true);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('Failed to load lesson from route', error);
+        window.alert('Unable to load this lesson.');
+        navigate('/dashboard', { replace: true });
+      }
+    };
+
+    fetchLessonDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authInitialising,
+    isAuthenticated,
+    isLessonDetailRoute,
+    lessonRouteLessonId,
+    navigate,
+    shouldShowOnboarding
   ]);
 
   const {
@@ -1570,6 +1640,10 @@ function App() {
     setShowLessonDetailModal(false);
     setIsEditingLesson(false);
     setLessonEditData(null);
+
+    if (isLessonDetailRoute) {
+      navigate('/dashboard', { replace: true });
+    }
   };
 
   const selectedLessonStatus = useMemo(() => {
@@ -1717,8 +1791,6 @@ function App() {
   const resolvedStudents = useMemo(() => (
     Array.isArray(students) ? students : students?.students || []
   ), [students]);
-
-  const shouldShowOnboarding = (!isProfileComplete || isEditingProfile) && isAuthenticated;
 
   if (authInitialising) {
     return (
