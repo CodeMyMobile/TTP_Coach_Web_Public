@@ -66,7 +66,20 @@ const isCoachActionableLessonRequest = (lesson, notificationType) => {
   return isLessonPending && isPlayerCreatedLesson;
 };
 
-const NotificationsPage = ({ onBack }) => {
+const isLessonNotification = (notificationType) =>
+  Object.values(LESSON_TYPES).includes(notificationType);
+
+const resolveLessonId = (lesson, item) =>
+  lesson?.id ??
+  lesson?.lesson_id ??
+  lesson?.lessonId ??
+  item?.lesson_id ??
+  item?.lessonId ??
+  item?.entity_id ??
+  item?.entityId ??
+  null;
+
+const NotificationsPage = ({ onBack, onOpenLesson = () => {} }) => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [page, setPage] = useState(1);
@@ -301,6 +314,7 @@ const NotificationsPage = ({ onBack }) => {
               const notificationType = getNotificationType(item.entity, item.action);
               const createdAt = item?.created_at ? moment(item.created_at).fromNow() : '';
               const lesson = item.lesson || item.lesson_details;
+              const lessonId = resolveLessonId(lesson, item);
               const relation = item.cp_relation || item.relation;
               const startMoment = formatLessonTime(lesson?.start_date_time);
               const endMoment = formatLessonTime(lesson?.end_date_time);
@@ -312,6 +326,7 @@ const NotificationsPage = ({ onBack }) => {
                 : lesson?.location || '';
 
               const showLessonActions = isCoachActionableLessonRequest(lesson, notificationType);
+              const showLessonView = isLessonNotification(notificationType) && lessonId;
               const showRelationActions = [
                 RELATION_TYPES.RELATION_CREATED_BY_PLAYER,
                 RELATION_TYPES.RELATION_DECLINED_BY_COACH
@@ -366,42 +381,55 @@ const NotificationsPage = ({ onBack }) => {
                         </div>
                       )}
 
-                      {(showLessonActions || showRelationActions) && (
+                      {(showLessonView || showLessonActions || showRelationActions) && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              showLessonActions
-                                ? handleConfirmLesson(lesson?.id)
-                                : handleConfirmRelation(item.actor_id)
-                            }
-                            disabled={actionLoading !== null}
-                            className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-300"
-                          >
-                            {actionLoading &&
-                            (showLessonActions
-                              ? actionLoading === `lesson-confirm-${lesson?.id}`
-                              : actionLoading === `relation-confirm-${item.actor_id}`)
-                              ? 'Confirming...'
-                              : 'Confirm'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              showLessonActions
-                                ? handleDeclineLesson(lesson?.id)
-                                : handleDeclineRelation(item.actor_id)
-                            }
-                            disabled={actionLoading !== null}
-                            className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
-                          >
-                            {actionLoading &&
-                            (showLessonActions
-                              ? actionLoading === `lesson-decline-${lesson?.id}`
-                              : actionLoading === `relation-decline-${item.actor_id}`)
-                              ? 'Declining...'
-                              : 'Decline'}
-                          </button>
+                          {showLessonView && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenLesson(lessonId)}
+                              className="rounded-lg border border-purple-200 px-3 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-50"
+                            >
+                              View lesson
+                            </button>
+                          )}
+                          {(showLessonActions || showRelationActions) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  showLessonActions
+                                    ? handleConfirmLesson(lessonId)
+                                    : handleConfirmRelation(item.actor_id)
+                                }
+                                disabled={actionLoading !== null}
+                                className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-300"
+                              >
+                                {actionLoading &&
+                                (showLessonActions
+                                  ? actionLoading === `lesson-confirm-${lessonId}`
+                                  : actionLoading === `relation-confirm-${item.actor_id}`)
+                                  ? 'Confirming...'
+                                  : 'Confirm'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  showLessonActions
+                                    ? handleDeclineLesson(lessonId)
+                                    : handleDeclineRelation(item.actor_id)
+                                }
+                                disabled={actionLoading !== null}
+                                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                              >
+                                {actionLoading &&
+                                (showLessonActions
+                                  ? actionLoading === `lesson-decline-${lessonId}`
+                                  : actionLoading === `relation-decline-${item.actor_id}`)
+                                  ? 'Declining...'
+                                  : 'Decline'}
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
