@@ -1,38 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { coachSignup, forgotPassword, logIn } from '../api/auth';
-import { AS_USER_KEY } from '../constants/urls';
 import { USER_TYPES } from '../constants';
 import { removeTokens, storeTokens } from '../utils/tokenHelper';
 import { resolveCompletionValue } from '../utils/profileCompletion';
+import { readStoredUser, writeStoredUser } from './authStorage';
 
 const AuthContext = createContext(null);
-
-const readStoredUser = () => {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(AS_USER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    console.error('Failed to parse stored auth state', error);
-    return null;
-  }
-};
-
-const writeStoredUser = (payload) => {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return;
-  }
-
-  if (!payload) {
-    window.localStorage.removeItem(AS_USER_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(AS_USER_KEY, JSON.stringify(payload));
-};
 
 const normaliseUserPayload = (data) => {
   const onboardingComplete = resolveCompletionValue(data?.onboarding_complete, data?.is_complete);
