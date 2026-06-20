@@ -1474,7 +1474,7 @@ const DashboardPage = ({
           </div>
         </div>
 
-        {actionItems.length > 0 && !dismissedActionBar && (
+        {actionItems.length > 0 && !dismissedActionBar && dashboardTab !== 'today' && (
           <div className="requests-alert-shell">
             <div className="notif-banner desktop-notif-banner">
               <div className="notif-header">
@@ -1660,6 +1660,7 @@ const DashboardPage = ({
           <TodayPage
             lessons={todayLessons}
             cancelledLessons={cancelledLessons}
+            requests={actionItems}
             onLessonSelect={onLessonSelect}
             coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
             onViewFullCalendar={() => onDashboardTabChange('calendar')}

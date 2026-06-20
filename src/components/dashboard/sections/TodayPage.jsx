@@ -253,9 +253,48 @@ const SuppliesCard = () => (
   </button>
 );
 
+const RequestRow = ({ item }) => {
+  const processing = Boolean(item.activeAction);
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <button type="button" onClick={item.onDetails} className="block w-full text-left">
+        <p className="text-sm text-gray-900">
+          <span className="font-semibold">{item.name}</span> {item.detail}
+        </p>
+        {item.info && <p className="mt-0.5 text-xs text-gray-500">{item.info}</p>}
+      </button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {item.acceptLabel !== '' && (
+          <button
+            type="button"
+            onClick={item.onAccept || undefined}
+            disabled={!item.onAccept || processing}
+            className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60"
+          >
+            {item.activeAction === 'confirm' || item.activeAction === 'approve'
+              ? 'Processing…'
+              : item.acceptLabel}
+          </button>
+        )}
+        {!item.hideDecline && (
+          <button
+            type="button"
+            onClick={item.onDecline || undefined}
+            disabled={!item.onDecline || processing}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-60"
+          >
+            {item.activeAction === 'decline' ? 'Processing…' : item.declineLabel || 'Decline'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const TodayPage = ({
   lessons = [],
   cancelledLessons = [],
+  requests = [],
   onLessonSelect,
   coachName = '',
   onViewFullCalendar = () => {}
@@ -283,6 +322,28 @@ const TodayPage = ({
       </header>
 
       <SuppliesCard />
+
+      {(requests.length > 0 || cancelledLessons.length > 0) && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Needs action
+          </h3>
+          {requests.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {requests.map((item) => (
+                <RequestRow key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+          {cancelledLessons.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cancelledLessons.map((lesson) => (
+                <CancelledLessonCard key={lesson.id} lesson={lesson} onLessonSelect={onLessonSelect} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
@@ -312,19 +373,6 @@ const TodayPage = ({
           <ChevronRight className="h-4 w-4 text-gray-400" />
         </button>
       </section>
-
-      {cancelledLessons.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Cancelled — players to notify
-          </h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {cancelledLessons.map((lesson) => (
-              <CancelledLessonCard key={lesson.id} lesson={lesson} onLessonSelect={onLessonSelect} />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 };
