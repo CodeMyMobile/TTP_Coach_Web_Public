@@ -185,7 +185,7 @@ function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
   const [onboardingAvailabilityDay, setOnboardingAvailabilityDay] = useState('');
-  const [dashboardTab, setDashboardTab] = useState('calendar');
+  const [dashboardTab, setDashboardTab] = useState('today');
   const [calendarView, setCalendarView] = useState('week');
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [visibleCalendarDates, setVisibleCalendarDates] = useState([]);

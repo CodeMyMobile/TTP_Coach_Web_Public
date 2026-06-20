@@ -22,7 +22,9 @@ import {
   updateCoachRequest
 } from '../../services/coach';
 import StatsSummary from './sections/StatsSummary';
+import TodayPage from './sections/TodayPage';
 import CalendarSection from './sections/CalendarSection';
+import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
 import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
@@ -523,6 +525,33 @@ const DashboardPage = ({
     pendingRequests:
       statsData?.pendingRequests ?? upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
   };
+
+  const todayKey = moment().format('YYYY-MM-DD');
+  const mergedLessons = (() => {
+    const byId = new Map();
+    [...bookedLessons, ...upcomingLessons].forEach((lesson) => {
+      const id = lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId;
+      if (id == null || byId.has(id)) {
+        return;
+      }
+      byId.set(id, lesson);
+    });
+    return [...byId.values()];
+  })();
+
+  const sortByStart = (a, b) => {
+    const startA = getLessonMoments(a).start;
+    const startB = getLessonMoments(b).start;
+    return (startA?.valueOf() ?? 0) - (startB?.valueOf() ?? 0);
+  };
+
+  const todayLessons = mergedLessons
+    .filter((lesson) => getLessonDateKey(lesson) === todayKey && getLessonStatus(lesson) !== 'cancelled')
+    .sort(sortByStart);
+
+  const cancelledLessons = mergedLessons
+    .filter((lesson) => getLessonStatus(lesson) === 'cancelled' && (getLessonDateKey(lesson) || '') >= todayKey)
+    .sort(sortByStart);
 
   const handleAvailabilitySelect = (availability) => {
     if (!availability) {
@@ -1288,12 +1317,17 @@ const DashboardPage = ({
         />
       )}
 
-      <StatsSummary stats={stats} onOpenUpcomingLessons={onOpenUpcomingLessons} />
+      <StatsSummary
+        stats={{ ...stats, requestsCount: requestsCount || actionItems.length }}
+        onOpenUpcomingLessons={onOpenUpcomingLessons}
+        onOpenRequests={onOpenNotifications}
+      />
 
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
           <div className="hidden w-full flex-wrap gap-2 dashboard-tabs sm:flex">
             {[
+              { key: 'today', label: 'Today', icon: CalendarPlus },
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
               { key: 'earnings', label: 'Earnings', icon: DollarSign },
@@ -1512,6 +1546,14 @@ const DashboardPage = ({
           </div>
         )}
 
+        {dashboardTab === 'today' && (
+          <TodayPage
+            lessons={todayLessons}
+            cancelledLessons={cancelledLessons}
+            onLessonSelect={onLessonSelect}
+          />
+        )}
+
         {dashboardTab === 'calendar' && (
           <CalendarSection
             calendarView={calendarView}
@@ -1686,6 +1728,7 @@ const DashboardPage = ({
 
       <nav className="dashboard-bottom-nav">
         {[
+          { key: 'today', label: 'Today', icon: '☀️' },
           { key: 'calendar', label: 'Calendar', icon: '📅' },
           { key: 'students', label: 'Students', icon: '👥' },
           { key: 'earnings', label: 'Earnings', icon: '💵' },

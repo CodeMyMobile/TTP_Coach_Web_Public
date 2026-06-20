@@ -1,10 +1,10 @@
 import React from 'react';
-import { Calendar, DollarSign, TrendingUp, Users } from 'lucide-react';
+import { Bell, Calendar, DollarSign, TrendingUp, Users } from 'lucide-react';
 
-const StatsSummary = ({ stats, onOpenUpcomingLessons }) => (
+const StatsSummary = ({ stats, onOpenUpcomingLessons, onOpenRequests }) => (
   <div className="border-b bg-white stats-summary">
     <div className="mx-auto max-w-7xl px-4 py-4 stats-summary-desktop">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
         <div className="flex items-center rounded-lg bg-gray-50 p-3">
           <div className="rounded-lg bg-blue-50 p-2">
             <Calendar className="h-4 w-4 text-blue-600 md:h-5 md:w-5" />
@@ -45,6 +45,19 @@ const StatsSummary = ({ stats, onOpenUpcomingLessons }) => (
             <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.upcomingLessons}</p>
           </div>
         </button>
+        <button
+          type="button"
+          onClick={onOpenRequests}
+          className="flex items-center rounded-lg bg-gray-50 p-3 text-left transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+        >
+          <div className="rounded-lg bg-rose-50 p-2">
+            <Bell className="h-4 w-4 text-rose-600 md:h-5 md:w-5" />
+          </div>
+          <div className="ml-3">
+            <p className="text-xs text-gray-500">Requests</p>
+            <p className="text-base font-semibold text-gray-900 md:text-lg">{stats.requestsCount ?? 0}</p>
+          </div>
+        </button>
       </div>
     </div>
     <div className="stats-summary-mobile">
@@ -68,6 +81,11 @@ const StatsSummary = ({ stats, onOpenUpcomingLessons }) => (
           <span className="stats-summary-mobile-value">{stats.upcomingLessons}</span>
           <span className="stats-summary-mobile-label">Upcoming</span>
         </div>
+        <div className="stats-summary-mobile-divider" />
+        <button type="button" className="stats-summary-mobile-item" onClick={onOpenRequests}>
+          <span className="stats-summary-mobile-value">{stats.requestsCount ?? 0}</span>
+          <span className="stats-summary-mobile-label">Requests</span>
+        </button>
       </div>
     </div>
   </div>
