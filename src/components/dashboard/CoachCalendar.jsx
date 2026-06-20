@@ -3,6 +3,7 @@ import moment from 'moment';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './CoachCalendar.css';
+import { normalizeGoogleEvent } from '../../utils/lessonDisplay';
 
 const localizer = momentLocalizer(moment);
 
@@ -388,30 +389,20 @@ const CoachCalendar = ({
     () =>
       (Array.isArray(googleEvents) ? googleEvents : [])
         .map((event) => {
-          const startValue =
-            event.start_datetime ||
-            event.start?.dateTime ||
-            event.start?.date ||
-            event.raw_payload?.start?.dateTime ||
-            event.raw_payload?.start?.date;
-          const endValue =
-            event.end_datetime ||
-            event.end?.dateTime ||
-            event.end?.date ||
-            event.raw_payload?.end?.dateTime ||
-            event.raw_payload?.end?.date;
-          const start = startValue ? new Date(startValue) : null;
-          const end = endValue ? new Date(endValue) : null;
+          const normalized = normalizeGoogleEvent(event);
+          if (!normalized) {
+            return null;
+          }
           return {
-            start,
-            end,
-            allDay: Boolean(event.all_day) || Boolean(event.start?.date && !event.start?.dateTime),
-            title: event.summary || event.raw_payload?.summary || 'Busy',
+            start: normalized.start.toDate(),
+            end: normalized.end ? normalized.end.toDate() : null,
+            allDay: normalized.allDay,
+            title: normalized.title,
             resource: event,
             type: 'busy'
           };
         })
-        .filter((event) => event.start && event.end),
+        .filter((event) => event && event.start && event.end),
     [googleEvents]
   );
 

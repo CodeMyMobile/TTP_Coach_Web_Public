@@ -311,6 +311,23 @@ const normaliseStats = (payload) => {
   return payload;
 };
 
+// Convert a 'YYYY-MM-DD' local date into the ISO instant for the start or end of
+// that day in the coach's LOCAL timezone (new Date(y, m, d, ...) is local-time).
+const localDayBoundaryISO = (dateStr, edge) => {
+  if (!dateStr) {
+    return null;
+  }
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const date =
+    edge === 'end'
+      ? new Date(year, month - 1, day, 23, 59, 59, 999)
+      : new Date(year, month - 1, day, 0, 0, 0, 0);
+  return date.toISOString();
+};
+
 const formatLocalDate = (value) => {
   if (!value) {
     return null;
@@ -358,8 +375,10 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
           ? resolvedDates.map((value) => getCoachLessons({ date: value }))
           : [resolvedDate ? getCoachLessons({ date: resolvedDate }) : getCoachLessons({ perPage: 100, page: 1 })];
       const rangeDates = resolvedDates.length > 0 ? [...resolvedDates].sort() : (resolvedDate ? [resolvedDate] : []);
-      const rangeMin = rangeDates.length > 0 ? `${rangeDates[0]}T00:00:00.000Z` : null;
-      const rangeMax = rangeDates.length > 0 ? `${rangeDates[rangeDates.length - 1]}T23:59:59.999Z` : null;
+      // Build the range from LOCAL day boundaries so events near midnight land on
+      // the correct day (a bare `T00:00:00Z` would shift the window by the tz offset).
+      const rangeMin = rangeDates.length > 0 ? localDayBoundaryISO(rangeDates[0], 'start') : null;
+      const rangeMax = rangeDates.length > 0 ? localDayBoundaryISO(rangeDates[rangeDates.length - 1], 'end') : null;
       const [lessonsResult, upcomingLessonsResult, availabilityResult, statsResult, googleResult] = await Promise.allSettled([
         Promise.allSettled(lessonPromises),
         fetchAllCoachLessons({ perPage: 100 }),

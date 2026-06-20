@@ -55,6 +55,47 @@ export const getLessonMoments = (lesson) => {
   return { start, end };
 };
 
+// Normalise a synced Google Calendar event into a display shape. Mirrors the
+// field-mapping used by CoachCalendar.jsx so both render from one source of truth.
+// Returns moments (local-tz friendly) plus an `allDay` flag and a title.
+export const normalizeGoogleEvent = (event) => {
+  if (!event) {
+    return null;
+  }
+
+  const startValue =
+    event.start_datetime ||
+    event.start?.dateTime ||
+    event.start?.date ||
+    event.raw_payload?.start?.dateTime ||
+    event.raw_payload?.start?.date;
+  const endValue =
+    event.end_datetime ||
+    event.end?.dateTime ||
+    event.end?.date ||
+    event.raw_payload?.end?.dateTime ||
+    event.raw_payload?.end?.date;
+
+  const start = startValue ? moment(startValue) : null;
+  if (!start || !start.isValid()) {
+    return null;
+  }
+  const end = endValue ? moment(endValue) : null;
+
+  const allDay =
+    Boolean(event.all_day) ||
+    Boolean(event.start?.date && !event.start?.dateTime) ||
+    Boolean(event.raw_payload?.start?.date && !event.raw_payload?.start?.dateTime);
+
+  return {
+    start,
+    end: end && end.isValid() ? end : null,
+    allDay,
+    title: event.summary || event.raw_payload?.summary || 'Busy',
+    raw: event
+  };
+};
+
 // 'YYYY-MM-DD' for the lesson's local day, falling back to the normalised `date` field.
 export const getLessonDateKey = (lesson) => {
   const { start } = getLessonMoments(lesson);

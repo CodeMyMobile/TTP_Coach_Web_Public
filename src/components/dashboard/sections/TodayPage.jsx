@@ -18,7 +18,8 @@ import {
   getLessonMoments,
   getLessonParticipants,
   getLessonType,
-  isGroupLesson
+  isGroupLesson,
+  normalizeGoogleEvent
 } from '../../../utils/lessonDisplay';
 import { openSmsComposer, textAllParticipants } from '../../../utils/messaging';
 
@@ -261,6 +262,18 @@ const SuppliesCard = () => (
   </button>
 );
 
+const BusyBlock = ({ event }) => (
+  <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+    <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+    <span className="font-medium text-gray-600">
+      {event.start.format('h:mm A')}
+      {event.end ? ` – ${event.end.format('h:mm A')}` : ''}
+    </span>
+    <span className="truncate">· {event.title}</span>
+    <span className="ml-auto shrink-0 text-xs uppercase tracking-wide text-gray-400">Busy</span>
+  </div>
+);
+
 const RequestRow = ({ item }) => {
   const processing = Boolean(item.activeAction);
   return (
@@ -303,11 +316,14 @@ const TodayPage = ({
   lessons = [],
   cancelledLessons = [],
   requests = [],
+  googleEvents = [],
+  calendarConnected = null,
   onLessonSelect,
   coachName = '',
   onViewFullCalendar = () => {}
 }) => {
   const todayLabel = useMemo(() => moment().format('dddd, MMMM D'), []);
+  const todayKey = useMemo(() => moment().format('YYYY-MM-DD'), []);
   const greeting = useMemo(() => {
     const hour = moment().hour();
     if (hour < 12) return 'Good morning';
@@ -318,6 +334,40 @@ const TodayPage = ({
   const firstName = String(coachName || '').trim().split(' ')[0];
   const lessonCount = lessons.length;
   const subline = `${todayLabel} · ${lessonCount} ${lessonCount === 1 ? 'lesson' : 'lessons'} today`;
+
+  // Only surface busy blocks when the calendar is definitively connected.
+  const busyEvents = useMemo(() => {
+    if (calendarConnected !== true || !Array.isArray(googleEvents)) {
+      return [];
+    }
+    return googleEvents
+      .map(normalizeGoogleEvent)
+      .filter(Boolean)
+      .filter((event) => event.start.format('YYYY-MM-DD') === todayKey);
+  }, [calendarConnected, googleEvents, todayKey]);
+
+  const allDayBusy = useMemo(() => busyEvents.filter((event) => event.allDay), [busyEvents]);
+
+  // Timed lessons + timed busy blocks, interleaved by start time (same tz as cards).
+  const timedItems = useMemo(() => {
+    const items = [
+      ...lessons.map((lesson) => ({
+        kind: 'lesson',
+        key: `lesson-${lesson.id}`,
+        start: getLessonMoments(lesson).start,
+        data: lesson
+      })),
+      ...busyEvents
+        .filter((event) => !event.allDay)
+        .map((event, index) => ({
+          kind: 'busy',
+          key: `busy-${index}`,
+          start: event.start,
+          data: event
+        }))
+    ];
+    return items.sort((a, b) => (a.start?.valueOf() ?? 0) - (b.start?.valueOf() ?? 0));
+  }, [lessons, busyEvents]);
 
   return (
     <div className="space-y-6">
@@ -357,17 +407,36 @@ const TodayPage = ({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           Today&apos;s lessons
         </h3>
-        {lessons.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            No lessons scheduled for today.
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {lessons.map((lesson) => (
-              <LessonCard key={lesson.id} lesson={lesson} onLessonSelect={onLessonSelect} />
+
+        {allDayBusy.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {allDayBusy.map((event, index) => (
+              <span
+                key={`allday-${index}`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500"
+              >
+                <span className="font-semibold uppercase tracking-wide text-gray-400">All day</span>
+                <span className="max-w-[12rem] truncate">{event.title}</span>
+              </span>
             ))}
           </div>
         )}
+
+        {timedItems.length === 0 && allDayBusy.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+            No lessons scheduled for today.
+          </div>
+        ) : timedItems.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {timedItems.map((item) =>
+              item.kind === 'lesson' ? (
+                <LessonCard key={item.key} lesson={item.data} onLessonSelect={onLessonSelect} />
+              ) : (
+                <BusyBlock key={item.key} event={item.data} />
+              )
+            )}
+          </div>
+        ) : null}
 
         <button
           type="button"

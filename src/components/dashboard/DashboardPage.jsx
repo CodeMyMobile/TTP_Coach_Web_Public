@@ -1661,6 +1661,8 @@ const DashboardPage = ({
             lessons={todayLessons}
             cancelledLessons={cancelledLessons}
             requests={actionItems}
+            googleEvents={googleEvents}
+            calendarConnected={calendarConnected}
             onLessonSelect={onLessonSelect}
             coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
             onViewFullCalendar={() => onDashboardTabChange('calendar')}
