@@ -1,17 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import moment from 'moment';
 import {
   AlertTriangle,
   CalendarDays,
   ChevronRight,
   Clock,
-  ExternalLink,
   MapPin,
   MessageCircle,
   ShoppingBag,
   Users
 } from 'lucide-react';
-import { COACH_SUPPLIES_URL } from '../../../constants/urls';
+import SuppliesSelectorModal from '../../modals/SuppliesSelectorModal';
 import {
   formatLessonDuration,
   getGroupCapacity,
@@ -245,10 +244,10 @@ const CancelledLessonCard = ({ lesson, onLessonSelect }) => {
   );
 };
 
-const SuppliesCard = () => (
+const SuppliesCard = ({ onOpen }) => (
   <button
     type="button"
-    onClick={() => window.open(COACH_SUPPLIES_URL, '_blank', 'noopener,noreferrer')}
+    onClick={onOpen}
     className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-200 hover:shadow"
   >
     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
@@ -258,7 +257,7 @@ const SuppliesCard = () => (
       <span className="block text-sm font-semibold text-gray-900">Coach supplies</span>
       <span className="block truncate text-xs text-gray-500">Gear &amp; essentials for your sessions</span>
     </span>
-    <ExternalLink className="h-4 w-4 shrink-0 text-gray-400" />
+    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
   </button>
 );
 
@@ -322,6 +321,7 @@ const TodayPage = ({
   coachName = '',
   onViewFullCalendar = () => {}
 }) => {
+  const [suppliesOpen, setSuppliesOpen] = useState(false);
   const todayLabel = useMemo(() => moment().format('dddd, MMMM D'), []);
   const todayKey = useMemo(() => moment().format('YYYY-MM-DD'), []);
   const greeting = useMemo(() => {
@@ -379,7 +379,8 @@ const TodayPage = ({
         <p className="text-sm text-gray-500">{subline}</p>
       </header>
 
-      <SuppliesCard />
+      <SuppliesCard onOpen={() => setSuppliesOpen(true)} />
+      <SuppliesSelectorModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
 
       {(requests.length > 0 || cancelledLessons.length > 0) && (
         <section className="space-y-3">
