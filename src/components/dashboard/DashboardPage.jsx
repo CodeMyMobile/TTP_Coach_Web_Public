@@ -26,6 +26,8 @@ import {
 import StatsSummary from './sections/StatsSummary';
 import TodayPage from './sections/TodayPage';
 import CalendarSection from './sections/CalendarSection';
+import AvailabilityReminderSheet from '../modals/AvailabilityReminderSheet';
+import { hasReviewedRecently, markAvailabilityReviewed } from '../../utils/availabilityReview';
 import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
 import { COACH_SUPPLIES_URL } from '../../constants/urls';
 import StudentsSection from './sections/StudentsSection';
@@ -588,6 +590,7 @@ const DashboardPage = ({
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showAvailabilityReminder, setShowAvailabilityReminder] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const [requestItems, setRequestItems] = useState([]);
@@ -613,6 +616,7 @@ const DashboardPage = ({
   const quickActionsRef = useRef(null);
   const settingsMenuRef = useRef(null);
   const addMenuRef = useRef(null);
+  const availabilityReminderShownRef = useRef(false);
 
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
@@ -813,6 +817,18 @@ const DashboardPage = ({
         };
 
         onLessonRequestConfirmed?.(lessonForConfirmation);
+      }
+
+      // After a successful confirm/approve (never decline), nudge the coach to
+      // re-check availability — throttled to once per session and ~14 days, and
+      // strictly after the confirm so it never blocks/delays it.
+      if (
+        (action === 'confirm' || action === 'approve') &&
+        !availabilityReminderShownRef.current &&
+        !hasReviewedRecently()
+      ) {
+        availabilityReminderShownRef.current = true;
+        setShowAvailabilityReminder(true);
       }
 
       return true;
@@ -1925,6 +1941,21 @@ const DashboardPage = ({
           onClick={() => setShowAddMenu(false)}
         />
       )}
+
+      <AvailabilityReminderSheet
+        isOpen={showAvailabilityReminder}
+        availability={availabilityData}
+        onLooksGood={() => {
+          markAvailabilityReviewed();
+          setShowAvailabilityReminder(false);
+        }}
+        onUpdate={() => {
+          markAvailabilityReviewed();
+          setShowAvailabilityReminder(false);
+          onOpenAddAvailability?.();
+        }}
+        onClose={() => setShowAvailabilityReminder(false)}
+      />
     </div>
   );
 };
