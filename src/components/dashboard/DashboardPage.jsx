@@ -11,7 +11,9 @@ import {
   Plus,
   Settings,
   Shield,
+  ShoppingBag,
   Edit,
+  User,
   Users,
   MapPin,
   TrendingUp
@@ -25,6 +27,7 @@ import StatsSummary from './sections/StatsSummary';
 import TodayPage from './sections/TodayPage';
 import CalendarSection from './sections/CalendarSection';
 import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
+import { COACH_SUPPLIES_URL } from '../../constants/urls';
 import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
@@ -1338,8 +1341,63 @@ const DashboardPage = ({
                         onOpenSettings?.();
                       }}
                     >
+                      <User className="h-4 w-4" />
+                      <span>View profile</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onDashboardTabChange('packages');
+                      }}
+                    >
+                      <Package className="h-4 w-4" />
+                      <span>Packages</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onDashboardTabChange('groups');
+                      }}
+                    >
+                      <Users className="h-4 w-4" />
+                      <span>Groups</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onDashboardTabChange('locations');
+                      }}
+                    >
+                      <MapPin className="h-4 w-4" />
+                      <span>Locations</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onOpenSettings?.();
+                      }}
+                    >
                       <Settings className="h-4 w-4" />
                       <span>Settings</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        window.open(COACH_SUPPLIES_URL, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      <span>Coach supplies</span>
                     </button>
                     <button
                       type="button"
@@ -1350,7 +1408,7 @@ const DashboardPage = ({
                       }}
                     >
                       <LogOut className="h-4 w-4" />
-                      <span>Log out</span>
+                      <span>Sign out</span>
                     </button>
                   </div>
                 )}
