@@ -34,6 +34,15 @@ const typeLabels = {
   group: 'Group'
 };
 
+// Day-group header: Today / Tomorrow / "Wed 25 Jun".
+const dayLabel = (dateKey) => {
+  const day = moment(dateKey, 'YYYY-MM-DD').startOf('day');
+  const diff = day.diff(moment().startOf('day'), 'days');
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return day.format('ddd D MMM');
+};
+
 const durationLabel = (lesson) => {
   const fromSlots = formatLessonDuration(lesson?.duration);
   if (fromSlots) {
@@ -312,7 +321,8 @@ const RequestRow = ({ item }) => {
 };
 
 const TodayPage = ({
-  lessons = [],
+  upcomingLessons = [],
+  todayLessonCount = 0,
   cancelledLessons = [],
   requests = [],
   googleEvents = [],
@@ -332,10 +342,9 @@ const TodayPage = ({
   }, []);
 
   const firstName = String(coachName || '').trim().split(' ')[0];
-  const lessonCount = lessons.length;
-  const subline = `${todayLabel} · ${lessonCount} ${lessonCount === 1 ? 'lesson' : 'lessons'} today`;
+  const subline = `${todayLabel} · ${todayLessonCount} ${todayLessonCount === 1 ? 'lesson' : 'lessons'} today`;
 
-  // Only surface busy blocks when the calendar is definitively connected.
+  // Only surface busy blocks when the calendar is definitively connected (today only).
   const busyEvents = useMemo(() => {
     if (calendarConnected !== true || !Array.isArray(googleEvents)) {
       return [];
@@ -347,27 +356,47 @@ const TodayPage = ({
   }, [calendarConnected, googleEvents, todayKey]);
 
   const allDayBusy = useMemo(() => busyEvents.filter((event) => event.allDay), [busyEvents]);
+  const timedBusy = useMemo(() => busyEvents.filter((event) => !event.allDay), [busyEvents]);
 
-  // Timed lessons + timed busy blocks, interleaved by start time (same tz as cards).
-  const timedItems = useMemo(() => {
+  // Group the rolling upcoming lessons by local day (lessons arrive pre-sorted).
+  // Synthesize a Today group if today has busy blocks but no lessons.
+  const dayGroups = useMemo(() => {
+    const map = new Map();
+    upcomingLessons.forEach((lesson) => {
+      const key = getLessonDateKey(lesson) || todayKey;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(lesson);
+    });
+    if (!map.has(todayKey) && (allDayBusy.length > 0 || timedBusy.length > 0)) {
+      map.set(todayKey, []);
+    }
+    return [...map.entries()]
+      .map(([key, lessons]) => ({ key, lessons }))
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  }, [upcomingLessons, todayKey, allDayBusy.length, timedBusy.length]);
+
+  // Today group only: today's lessons + timed busy, interleaved by start time.
+  const todayTimedItems = useMemo(() => {
     const items = [
-      ...lessons.map((lesson) => ({
-        kind: 'lesson',
-        key: `lesson-${lesson.id}`,
-        start: getLessonMoments(lesson).start,
-        data: lesson
-      })),
-      ...busyEvents
-        .filter((event) => !event.allDay)
-        .map((event, index) => ({
-          kind: 'busy',
-          key: `busy-${index}`,
-          start: event.start,
-          data: event
-        }))
+      ...upcomingLessons
+        .filter((lesson) => (getLessonDateKey(lesson) || '') === todayKey)
+        .map((lesson) => ({
+          kind: 'lesson',
+          key: `lesson-${lesson.id}`,
+          start: getLessonMoments(lesson).start,
+          data: lesson
+        })),
+      ...timedBusy.map((event, index) => ({
+        kind: 'busy',
+        key: `busy-${index}`,
+        start: event.start,
+        data: event
+      }))
     ];
     return items.sort((a, b) => (a.start?.valueOf() ?? 0) - (b.start?.valueOf() ?? 0));
-  }, [lessons, busyEvents]);
+  }, [upcomingLessons, timedBusy, todayKey]);
 
   return (
     <div className="space-y-6">
@@ -404,40 +433,59 @@ const TodayPage = ({
         </section>
       )}
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Today&apos;s lessons
+          Upcoming
         </h3>
 
-        {allDayBusy.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {allDayBusy.map((event, index) => (
-              <span
-                key={`allday-${index}`}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500"
-              >
-                <span className="font-semibold uppercase tracking-wide text-gray-400">All day</span>
-                <span className="max-w-[12rem] truncate">{event.title}</span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {timedItems.length === 0 && allDayBusy.length === 0 ? (
+        {dayGroups.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            No lessons scheduled for today.
+            No upcoming lessons
           </div>
-        ) : timedItems.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {timedItems.map((item) =>
-              item.kind === 'lesson' ? (
-                <LessonCard key={item.key} lesson={item.data} onLessonSelect={onLessonSelect} />
+        ) : (
+          dayGroups.map((group) => (
+            <div key={group.key} className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {dayLabel(group.key)}
+              </h4>
+
+              {group.key === todayKey ? (
+                <>
+                  {allDayBusy.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {allDayBusy.map((event, index) => (
+                        <span
+                          key={`allday-${index}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500"
+                        >
+                          <span className="font-semibold uppercase tracking-wide text-gray-400">All day</span>
+                          <span className="max-w-[12rem] truncate">{event.title}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {todayTimedItems.length > 0 && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {todayTimedItems.map((item) =>
+                        item.kind === 'lesson' ? (
+                          <LessonCard key={item.key} lesson={item.data} onLessonSelect={onLessonSelect} />
+                        ) : (
+                          <BusyBlock key={item.key} event={item.data} />
+                        )
+                      )}
+                    </div>
+                  )}
+                </>
               ) : (
-                <BusyBlock key={item.key} event={item.data} />
-              )
-            )}
-          </div>
-        ) : null}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {group.lessons.map((lesson) => (
+                    <LessonCard key={lesson.id} lesson={lesson} onLessonSelect={onLessonSelect} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
 
         <button
           type="button"

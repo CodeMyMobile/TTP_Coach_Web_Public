@@ -549,6 +549,12 @@ const DashboardPage = ({
     .filter((lesson) => getLessonStatus(lesson) === 'cancelled' && (getLessonDateKey(lesson) || '') >= todayKey)
     .sort(sortByStart);
 
+  // Rolling list: the next ~10 upcoming (today onward), non-cancelled, time-ordered.
+  const upcomingForList = mergedLessons
+    .filter((lesson) => getLessonStatus(lesson) !== 'cancelled' && (getLessonDateKey(lesson) || '') >= todayKey)
+    .sort(sortByStart)
+    .slice(0, 10);
+
   const coachDisplayName = profile?.name || profile?.full_name || profile?.first_name || '';
   const coachAvatarUrl = profile?.profile_picture || profile?.profilePicture || profile?.avatar || '';
   const coachInitials = getInitials(coachDisplayName) || 'C';
@@ -1652,7 +1658,8 @@ const DashboardPage = ({
 
         {dashboardTab === 'today' && (
           <TodayPage
-            lessons={todayLessons}
+            upcomingLessons={upcomingForList}
+            todayLessonCount={todayLessons.length}
             cancelledLessons={cancelledLessons}
             requests={actionItems}
             googleEvents={googleEvents}
