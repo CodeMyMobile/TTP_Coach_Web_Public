@@ -597,6 +597,12 @@
     border-radius: 8px;
   }
 
+  /* The add (+) action lives in the bottom nav on mobile; hide the header one
+     so there aren't two add buttons. It stays visible on desktop (no bottom nav). */
+  .dashboard-header-add {
+    display: none;
+  }
+
   .dashboard-logout-btn {
     display: none;
   }

@@ -10,7 +10,6 @@ import {
   Package,
   Plus,
   Settings,
-  Shield,
   ShoppingBag,
   Edit,
   User,
@@ -23,7 +22,6 @@ import {
   updateCoachPlayer,
   updateCoachRequest
 } from '../../services/coach';
-import StatsSummary from './sections/StatsSummary';
 import TodayPage from './sections/TodayPage';
 import CalendarSection from './sections/CalendarSection';
 import AvailabilityReminderSheet from '../modals/AvailabilityReminderSheet';
@@ -523,15 +521,6 @@ const DashboardPage = ({
         return a.isActive ? -1 : 1;
       });
   }, [profile]);
-
-  const stats = {
-    todayLessons: statsData?.todayLessons ?? 0,
-    weekRevenue: statsData?.weekRevenue ?? 0,
-    activeStudents: statsData?.activeStudents ?? (Array.isArray(studentsData) ? studentsData.length : studentsData?.students?.length ?? 0),
-    upcomingLessons: statsData?.upcomingLessons ?? upcomingLessons.length,
-    pendingRequests:
-      statsData?.pendingRequests ?? upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
-  };
 
   const todayKey = moment().format('YYYY-MM-DD');
   const mergedLessons = (() => {
@@ -1163,7 +1152,7 @@ const DashboardPage = ({
                   <span className="hidden md:inline">Calendar synced</span>
                 </span>
               )}
-              <div className="relative" ref={quickActionsRef}>
+              <div className="relative dashboard-header-add" ref={quickActionsRef}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1443,12 +1432,6 @@ const DashboardPage = ({
         />
       )}
 
-      <StatsSummary
-        stats={{ ...stats, requestsCount: requestsCount || actionItems.length }}
-        onOpenUpcomingLessons={onOpenUpcomingLessons}
-        onOpenRequests={onOpenNotifications}
-      />
-
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
           <div className="hidden w-full flex-wrap gap-2 dashboard-tabs sm:flex">
@@ -1482,11 +1465,6 @@ const DashboardPage = ({
                 <span>{tab.label}</span>
               </button>
             ))}
-          </div>
-
-          <div className="flex w-full items-center gap-2 text-xs text-gray-500 sm:w-auto sm:text-sm dashboard-secure-note">
-            <Shield className="h-4 w-4 text-green-500" />
-            <span className="whitespace-nowrap">Secure portal • Last synced moments ago</span>
           </div>
         </div>
 
