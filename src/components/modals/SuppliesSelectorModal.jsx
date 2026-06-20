@@ -11,7 +11,7 @@ const formatPrice = (amount) => `$${amount}`;
 // items and 302s to the store's standard checkout — NOT the cart page, NOT
 // shop.app — so Shop Pay stays an accelerated *option* rather than the forced flow.
 // (The id/qty pairs are positional, so they're appended in order.)
-export const buildSuppliesCartPermalink = (rows) => {
+const buildSuppliesCartPermalink = (rows) => {
   const selected = rows.filter((row) => row.qty > 0 && row.variantId);
   if (selected.length === 0) {
     return null;

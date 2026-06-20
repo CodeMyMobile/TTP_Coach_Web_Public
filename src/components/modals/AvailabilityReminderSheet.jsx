@@ -14,7 +14,7 @@ const DAY_BY_ABBR = {
 
 // Compact, scannable per-day summary from availability.weekly
 // ({ [DayName]: ['7:00 - 9:00', ...] }). Returns [] when there's nothing to show.
-export const formatWeeklySummary = (weekly) => {
+const formatWeeklySummary = (weekly) => {
   if (!weekly || typeof weekly !== 'object') {
     return [];
   }
