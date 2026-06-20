@@ -8,6 +8,7 @@ import PackagePurchasesModal from './components/modals/PackagePurchasesModal';
 import LessonDetailModal from './components/modals/LessonDetailModal';
 import LoginPage from './components/auth/LoginPage';
 import { useCoachSchedule } from './hooks/useCoachSchedule';
+import useGoogleCalendarSync from './hooks/useGoogleCalendarSync';
 import { useCoachStudents } from './hooks/useCoachStudents';
 import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
@@ -614,6 +615,49 @@ function App() {
     date: currentDate,
     dates: visibleCalendarDates
   });
+
+  // Derive Google Calendar connection state ONCE for the header sync pill.
+  // Only a definitive 404 ("not connected") flips to false; any transient failure
+  // (network/timeout/non-404) leaves the last-known/optimistic state so a blip never
+  // nags a genuinely-synced coach. null = unknown ⇒ treated as synced (optimistic).
+  const { getSyncedEvents } = useGoogleCalendarSync();
+  const [calendarConnected, setCalendarConnected] = useState(null);
+  const calendarConnectionCheckedRef = useRef(false);
+
+  useEffect(() => {
+    const token = user?.session?.access_token;
+    if (!isAuthenticated || !isProfileComplete || !token) {
+      return undefined;
+    }
+    if (calendarConnectionCheckedRef.current) {
+      return undefined;
+    }
+    calendarConnectionCheckedRef.current = true;
+
+    let cancelled = false;
+    const now = new Date();
+    const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+    const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+    (async () => {
+      try {
+        await getSyncedEvents({ token, timeMin, timeMax });
+        if (!cancelled) {
+          setCalendarConnected(true);
+        }
+      } catch (error) {
+        // Definitive "not connected" only. Anything else: keep optimistic/last-known.
+        if (!cancelled && error?.status === 404) {
+          setCalendarConnected(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isProfileComplete, user?.session?.access_token, getSyncedEvents]);
+
   const handleCalendarRangeChange = useCallback((range) => {
     if (!range) {
       setVisibleCalendarDates([]);
@@ -1970,6 +2014,8 @@ function App() {
         <DashboardPage
           profile={profileData}
           isMobile={isMobile}
+          calendarConnected={calendarConnected}
+          onOpenGoogleCalendar={() => navigate('/google-calendar')}
           dashboardTab={dashboardTab}
           onDashboardTabChange={setDashboardTab}
           calendarView={calendarView}

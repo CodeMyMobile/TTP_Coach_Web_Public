@@ -380,6 +380,8 @@ const buildRequestLessonDetails = (lesson = {}, player = {}) => {
 
 const DashboardPage = ({
   profile,
+  calendarConnected = null,
+  onOpenGoogleCalendar = () => {},
   dashboardTab,
   onDashboardTabChange,
   calendarView,
@@ -552,6 +554,10 @@ const DashboardPage = ({
   const cancelledLessons = mergedLessons
     .filter((lesson) => getLessonStatus(lesson) === 'cancelled' && (getLessonDateKey(lesson) || '') >= todayKey)
     .sort(sortByStart);
+
+  const coachDisplayName = profile?.name || profile?.full_name || profile?.first_name || '';
+  const coachAvatarUrl = profile?.profile_picture || profile?.profilePicture || profile?.avatar || '';
+  const coachInitials = getInitials(coachDisplayName) || 'C';
 
   const handleAvailabilitySelect = (availability) => {
     if (!availability) {
@@ -1102,10 +1108,22 @@ const DashboardPage = ({
               </div>
             </div>
             <div className="flex items-center space-x-2 dashboard-header-actions">
-              <div className="hidden items-center gap-2 text-xs text-emerald-600 md:flex">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Synced just now
-              </div>
+              {calendarConnected === false ? (
+                <button
+                  type="button"
+                  onClick={onOpenGoogleCalendar}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                >
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  <span className="hidden md:inline">Calendar not synced</span>
+                  <span className="font-semibold underline">Sync</span>
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="hidden md:inline">Calendar synced</span>
+                </span>
+              )}
               <div className="relative" ref={quickActionsRef}>
                 <button
                   type="button"
@@ -1269,12 +1287,24 @@ const DashboardPage = ({
                     setShowQuickActions(false);
                     setShowNotificationsDropdown(false);
                   }}
-                  className={`dashboard-header-btn ${showSettingsMenu ? 'dashboard-settings-btn-active' : ''}`}
+                  className={`rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300 ${
+                    showSettingsMenu ? 'ring-2 ring-purple-300' : ''
+                  }`}
                   aria-expanded={showSettingsMenu}
                   aria-haspopup="menu"
                 >
-                  <Settings className="h-5 w-5" />
-                  <span className="sr-only">Open settings menu</span>
+                  {coachAvatarUrl ? (
+                    <img
+                      src={coachAvatarUrl}
+                      alt={coachDisplayName || 'Coach'}
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-sm font-semibold text-purple-700">
+                      {coachInitials}
+                    </span>
+                  )}
+                  <span className="sr-only">Open profile menu</span>
                 </button>
                 {showSettingsMenu && (
                   <div className="dashboard-settings-menu" role="menu">
