@@ -2,12 +2,14 @@ import React, { useMemo } from 'react';
 import moment from 'moment';
 import {
   AlertTriangle,
-  CalendarDays,
   Clock,
+  ExternalLink,
   MapPin,
   MessageCircle,
+  ShoppingBag,
   Users
 } from 'lucide-react';
+import { COACH_SUPPLIES_URL } from '../../../constants/urls';
 import {
   formatLessonDuration,
   getGroupCapacity,
@@ -232,18 +234,47 @@ const CancelledLessonCard = ({ lesson, onLessonSelect }) => {
   );
 };
 
-const TodayPage = ({ lessons = [], cancelledLessons = [], onLessonSelect }) => {
+const SuppliesCard = () => (
+  <button
+    type="button"
+    onClick={() => window.open(COACH_SUPPLIES_URL, '_blank', 'noopener,noreferrer')}
+    className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-200 hover:shadow"
+  >
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+      <ShoppingBag className="h-5 w-5" />
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block text-sm font-semibold text-gray-900">Coach supplies</span>
+      <span className="block truncate text-xs text-gray-500">Gear &amp; essentials for your sessions</span>
+    </span>
+    <ExternalLink className="h-4 w-4 shrink-0 text-gray-400" />
+  </button>
+);
+
+const TodayPage = ({ lessons = [], cancelledLessons = [], onLessonSelect, coachName = '' }) => {
   const todayLabel = useMemo(() => moment().format('dddd, MMMM D'), []);
+  const greeting = useMemo(() => {
+    const hour = moment().hour();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
+  const firstName = String(coachName || '').trim().split(' ')[0];
+  const lessonCount = lessons.length;
+  const subline = `${todayLabel} · ${lessonCount} ${lessonCount === 1 ? 'lesson' : 'lessons'} today`;
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center gap-2">
-        <CalendarDays className="h-5 w-5 text-purple-600" />
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Today</h2>
-          <p className="text-sm text-gray-500">{todayLabel}</p>
-        </div>
+      <header>
+        <h2 className="text-xl font-semibold text-gray-900">
+          {greeting}
+          {firstName ? `, ${firstName}` : ''}
+        </h2>
+        <p className="text-sm text-gray-500">{subline}</p>
       </header>
+
+      <SuppliesCard />
 
       <section className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">

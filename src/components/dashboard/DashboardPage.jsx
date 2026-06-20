@@ -1551,6 +1551,7 @@ const DashboardPage = ({
             lessons={todayLessons}
             cancelledLessons={cancelledLessons}
             onLessonSelect={onLessonSelect}
+            coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
           />
         )}
 
