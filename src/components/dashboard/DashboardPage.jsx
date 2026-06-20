@@ -584,6 +584,7 @@ const DashboardPage = ({
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const [requestItems, setRequestItems] = useState([]);
@@ -608,6 +609,7 @@ const DashboardPage = ({
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const addMenuRef = useRef(null);
 
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
@@ -949,6 +951,21 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showSettingsMenu]);
 
+  useEffect(() => {
+    if (!showAddMenu) {
+      return;
+    }
+
+    const handleClickOutside = (event) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target)) {
+        setShowAddMenu(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [showAddMenu]);
+
   const actionableItems = requestItems.map((requestItem, index) => {
     const isLessonRequest = requestItem.request_type === 'lesson_request';
     const lesson = requestItem.lesson;
@@ -1043,6 +1060,9 @@ const DashboardPage = ({
     }
 
     setShowNotificationsDropdown((prev) => !prev);
+    setShowQuickActions(false);
+    setShowSettingsMenu(false);
+    setShowAddMenu(false);
   }, [onOpenNotifications]);
 
   useEffect(() => {
@@ -1130,6 +1150,7 @@ const DashboardPage = ({
                   onClick={() => {
                     setShowQuickActions((prev) => !prev);
                     setShowNotificationsDropdown(false);
+                    setShowAddMenu(false);
                   }}
                   className={`dashboard-header-btn dashboard-quick-action-btn ${
                     showQuickActions ? 'dashboard-quick-action-active' : ''
@@ -1286,6 +1307,7 @@ const DashboardPage = ({
                     setShowSettingsMenu((prev) => !prev);
                     setShowQuickActions(false);
                     setShowNotificationsDropdown(false);
+                    setShowAddMenu(false);
                   }}
                   className={`rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300 ${
                     showSettingsMenu ? 'ring-2 ring-purple-300' : ''
@@ -1582,6 +1604,7 @@ const DashboardPage = ({
             cancelledLessons={cancelledLessons}
             onLessonSelect={onLessonSelect}
             coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
+            onViewFullCalendar={() => onDashboardTabChange('calendar')}
           />
         )}
 
@@ -1759,13 +1782,67 @@ const DashboardPage = ({
 
       <nav className="dashboard-bottom-nav">
         {[
-          { key: 'today', label: 'Today', icon: '☀️' },
-          { key: 'calendar', label: 'Calendar', icon: '📅' },
+          { key: 'today', label: 'Home', icon: '🏠' },
+          { key: 'calendar', label: 'Calendar', icon: '📅' }
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onDashboardTabChange(tab.key)}
+            className={`dashboard-bottom-nav-item ${dashboardTab === tab.key ? 'active' : ''}`}
+          >
+            <span className="dashboard-bottom-nav-icon">{tab.icon}</span>
+            <span className="dashboard-bottom-nav-label">{tab.label}</span>
+          </button>
+        ))}
+
+        <div className="dashboard-bottom-nav-fab-slot" ref={addMenuRef}>
+          <button
+            type="button"
+            className={`dashboard-bottom-nav-fab ${showAddMenu ? 'active' : ''}`}
+            onClick={() => {
+              setShowAddMenu((prev) => !prev);
+              setShowSettingsMenu(false);
+              setShowQuickActions(false);
+              setShowNotificationsDropdown(false);
+            }}
+            aria-expanded={showAddMenu}
+            aria-haspopup="menu"
+          >
+            <Plus className="h-6 w-6" />
+            <span className="sr-only">Add</span>
+          </button>
+          {showAddMenu && (
+            <div className="dashboard-add-menu" role="menu">
+              <button
+                type="button"
+                className="dashboard-add-menu-item"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  onOpenCreateLesson?.();
+                }}
+              >
+                <CalendarPlus className="h-4 w-4" />
+                <span>Add lesson</span>
+              </button>
+              <button
+                type="button"
+                className="dashboard-add-menu-item"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  onOpenAddAvailability?.();
+                }}
+              >
+                <Edit className="h-4 w-4" />
+                <span>Set availability</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {[
           { key: 'students', label: 'Students', icon: '👥' },
-          { key: 'earnings', label: 'Earnings', icon: '💵' },
-          { key: 'packages', label: 'Packages', icon: '📦' },
-          { key: 'locations', label: 'Locations', icon: '📍' },
-          { key: 'groups', label: 'Groups', icon: '🧩' }
+          { key: 'earnings', label: 'Earnings', icon: '💵' }
         ].map((tab) => (
           <button
             key={tab.key}
@@ -1778,6 +1855,15 @@ const DashboardPage = ({
           </button>
         ))}
       </nav>
+
+      {showAddMenu && (
+        <button
+          type="button"
+          aria-label="Close add menu"
+          className="dashboard-quick-actions-overlay"
+          onClick={() => setShowAddMenu(false)}
+        />
+      )}
     </div>
   );
 };

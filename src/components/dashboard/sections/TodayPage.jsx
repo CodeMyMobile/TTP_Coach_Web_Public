@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import moment from 'moment';
 import {
   AlertTriangle,
+  CalendarDays,
+  ChevronRight,
   Clock,
   ExternalLink,
   MapPin,
@@ -251,7 +253,13 @@ const SuppliesCard = () => (
   </button>
 );
 
-const TodayPage = ({ lessons = [], cancelledLessons = [], onLessonSelect, coachName = '' }) => {
+const TodayPage = ({
+  lessons = [],
+  cancelledLessons = [],
+  onLessonSelect,
+  coachName = '',
+  onViewFullCalendar = () => {}
+}) => {
   const todayLabel = useMemo(() => moment().format('dddd, MMMM D'), []);
   const greeting = useMemo(() => {
     const hour = moment().hour();
@@ -291,6 +299,18 @@ const TodayPage = ({ lessons = [], cancelledLessons = [], onLessonSelect, coachN
             ))}
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={onViewFullCalendar}
+          className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition hover:border-purple-200 hover:shadow-sm"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <CalendarDays className="h-4 w-4 text-purple-600" />
+            View full calendar
+          </span>
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+        </button>
       </section>
 
       {cancelledLessons.length > 0 && (
