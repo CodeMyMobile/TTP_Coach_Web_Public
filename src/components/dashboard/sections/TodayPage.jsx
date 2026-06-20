@@ -149,7 +149,13 @@ const LessonCard = ({ lesson, onLessonSelect }) => {
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={
+          group
+            ? 'flex flex-col gap-3 md:flex-row md:items-center md:justify-between'
+            : 'flex flex-wrap items-center justify-between gap-3'
+        }
+      >
         <div className="flex items-center gap-3">
           <ParticipantAvatars participants={participants} />
           <div className="text-xs text-gray-600">
@@ -178,7 +184,9 @@ const LessonCard = ({ lesson, onLessonSelect }) => {
               handleMessage(event);
             }
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 px-3 py-1.5 text-xs font-semibold text-purple-700 transition hover:bg-purple-50"
+          className={`inline-flex items-center justify-center gap-1.5 rounded-lg border border-purple-200 px-3 py-1.5 text-xs font-semibold text-purple-700 transition hover:bg-purple-50 ${
+            group ? 'w-full md:w-auto' : ''
+          }`}
         >
           <MessageCircle className="h-3.5 w-3.5" />
           {group ? 'Message all' : 'Message'}
