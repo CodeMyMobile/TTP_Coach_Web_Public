@@ -89,32 +89,31 @@ const getLessonsCollection = (payload) => {
   return [];
 };
 
-const fetchAllCoachLessons = async ({ perPage = 100, maxPages = 100 } = {}) => {
-  const allLessons = [];
+const UPCOMING_WINDOW_DAYS = 14;
 
-  for (let page = 1; page <= maxPages; page += 1) {
-    const payload = await getCoachLessons({ perPage, page });
-    const lessonsPage = getLessonsCollection(payload);
-
-    if (lessonsPage.length === 0) {
-      break;
-    }
-
-    allLessons.push(...lessonsPage);
-
-    const pagination = payload?.pagination || payload?.meta || payload?.pageInfo || {};
-    const totalPages = Number(pagination.totalPages || pagination.total_pages || pagination.pages);
-
-    if (Number.isFinite(totalPages) && page >= totalPages) {
-      break;
-    }
-
-    if (lessonsPage.length < perPage) {
-      break;
+// The backend only exposes lessons per date (/coach/lessons/{date}), so build the
+// rolling "upcoming" list with a bounded forward fetch: the next N local days,
+// fetched in parallel and merged. (No date-range/upcoming endpoint exists.)
+const fetchUpcomingByDate = async ({ days = UPCOMING_WINDOW_DAYS } = {}) => {
+  const base = new Date();
+  const dates = [];
+  for (let i = 0; i < days; i += 1) {
+    const day = new Date(base);
+    day.setDate(base.getDate() + i);
+    const formatted = formatLocalDate(day);
+    if (formatted) {
+      dates.push(formatted);
     }
   }
 
-  return allLessons;
+  const results = await Promise.allSettled(dates.map((date) => getCoachLessons({ date })));
+  const lessons = [];
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      lessons.push(...getLessonsCollection(result.value));
+    }
+  });
+  return lessons;
 };
 
 const addWeeklySlot = (acc, day, start, end, location) => {
@@ -381,7 +380,7 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
       const rangeMax = rangeDates.length > 0 ? localDayBoundaryISO(rangeDates[rangeDates.length - 1], 'end') : null;
       const [lessonsResult, upcomingLessonsResult, availabilityResult, statsResult, googleResult] = await Promise.allSettled([
         Promise.allSettled(lessonPromises),
-        fetchAllCoachLessons({ perPage: 100 }),
+        fetchUpcomingByDate({ days: UPCOMING_WINDOW_DAYS }),
         getCoachAvailability(),
         getCoachStats(),
         rangeMin && rangeMax

@@ -14,6 +14,7 @@ import SuppliesSelectorModal from '../../modals/SuppliesSelectorModal';
 import {
   formatLessonDuration,
   getGroupCapacity,
+  getLessonDateKey,
   getLessonMoments,
   getLessonParticipants,
   getLessonType,
