@@ -1138,14 +1138,19 @@ const DashboardPage = ({
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
-              <div className="flex items-center dashboard-brand">
+              <button
+                type="button"
+                onClick={() => onDashboardTabChange('today')}
+                aria-label="Go to home"
+                className="flex items-center rounded-lg dashboard-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
+              >
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 text-lg">
                   🎾
                 </div>
                 <div className="ml-3 text-lg font-semibold text-gray-900 dashboard-brand-text">
                   The Tennis <span className="text-purple-600">Plan</span>
                 </div>
-              </div>
+              </button>
             </div>
             <div className="flex items-center space-x-2 dashboard-header-actions">
               {calendarConnected === false ? (
