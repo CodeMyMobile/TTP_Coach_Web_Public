@@ -278,14 +278,23 @@ const SuppliesCard = ({ onOpen }) => (
   </button>
 );
 
+// Compact busy time range: show the meridiem once when start and end share it
+// ("3:30 – 5:30 PM"); keep both when they differ ("11:30 AM – 1:00 PM").
+const formatBusyTimeRange = (start, end) => {
+  if (!end) {
+    return start.format('h:mm A');
+  }
+  const startLabel = start.format('A') === end.format('A') ? start.format('h:mm') : start.format('h:mm A');
+  return `${startLabel} – ${end.format('h:mm A')}`;
+};
+
 const BusyBlock = ({ event }) => (
   <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
     <Clock className="h-4 w-4 shrink-0 text-gray-400" />
-    <span className="font-medium text-gray-600">
-      {event.start.format('h:mm A')}
-      {event.end ? ` – ${event.end.format('h:mm A')}` : ''}
+    <span className="shrink-0 whitespace-nowrap font-medium text-gray-600">
+      {formatBusyTimeRange(event.start, event.end)}
     </span>
-    <span className="truncate">· {event.title}</span>
+    <span className="min-w-0 flex-1 truncate">· {event.title}</span>
     <span className="ml-auto shrink-0 text-xs uppercase tracking-wide text-gray-400">Busy</span>
   </div>
 );
