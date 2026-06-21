@@ -976,8 +976,14 @@ const DashboardPage = ({
       }
     };
 
+    // The add-menu is an anchored popover (no full-screen overlay), so dismiss on an
+    // outside tap directly — listen for touch too, for reliable mobile dismissal.
     window.addEventListener('mousedown', handleClickOutside);
-    return () => window.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [showAddMenu]);
 
   const actionableItems = requestItems.map((requestItem, index) => {
@@ -1917,15 +1923,6 @@ const DashboardPage = ({
           </button>
         ))}
       </nav>
-
-      {showAddMenu && (
-        <button
-          type="button"
-          aria-label="Close add menu"
-          className="dashboard-quick-actions-overlay"
-          onClick={() => setShowAddMenu(false)}
-        />
-      )}
 
       <AvailabilityReminderSheet
         isOpen={showAvailabilityReminder}

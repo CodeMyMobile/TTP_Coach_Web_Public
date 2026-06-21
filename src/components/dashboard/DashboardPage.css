@@ -805,8 +805,9 @@
   }
 
   /* Elevated centre "+" — sits above the bar and clears the home indicator.
-     The slot keeps a higher z-index so the FAB and its menu stay above the
-     dismiss overlay (which shares the nav's z-index). */
+     The slot keeps a higher z-index so the FAB and its anchored menu sit above the
+     sibling nav items within the nav's own stacking context. (The add-menu is an
+     anchored popover dismissed via outside-tap, not a full-screen overlay.) */
   .dashboard-bottom-nav-fab-slot {
     flex: 1;
     position: relative;
