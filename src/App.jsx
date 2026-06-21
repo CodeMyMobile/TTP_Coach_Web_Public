@@ -646,8 +646,15 @@ function App() {
           setCalendarConnected(true);
         }
       } catch (error) {
-        // Definitive "not connected" only. Anything else: keep optimistic/last-known.
-        if (!cancelled && error?.status === 404) {
+        // Definitive "not connected" signals only (mirrors GoogleCalendarSyncPage):
+        // a 404 or a not-connected/reconnect error code. Anything else (network/5xx/
+        // transient) keeps the last-known/optimistic state so a blip never nags a
+        // genuinely-connected coach.
+        const status = error?.status;
+        const code = error?.code || error?.data?.code;
+        const notConnected =
+          status === 404 || code === 'google_reconnect_required' || code === 'google_not_connected';
+        if (!cancelled && notConnected) {
           setCalendarConnected(false);
         }
       }
