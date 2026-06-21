@@ -1152,6 +1152,7 @@ const DashboardPage = ({
                 <button
                   type="button"
                   onClick={onOpenGoogleCalendar}
+                  aria-label="Google Calendar not synced — connect"
                   className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
                 >
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
@@ -1160,11 +1161,16 @@ const DashboardPage = ({
                   <span className="font-semibold underline">Sync</span>
                 </button>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                <button
+                  type="button"
+                  onClick={() => onDashboardTabChange('calendar')}
+                  aria-label="Google Calendar synced — view calendar"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                >
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   <Calendar className="h-3.5 w-3.5" />
                   <span>Synced</span>
-                </span>
+                </button>
               )}
               <div className="relative dashboard-header-add" ref={quickActionsRef}>
                 <button
