@@ -352,11 +352,13 @@ const TodayPage = ({
   const firstName = String(coachName || '').trim().split(' ')[0];
   const subline = `${todayLabel} · ${todayLessonCount} ${todayLessonCount === 1 ? 'lesson' : 'lessons'} today`;
 
-  // Busy blocks (only when the calendar is definitively connected), grouped by local
-  // day → { allDay, timed }. Covers the whole synced window, not just today.
+  // Busy blocks grouped by local day → { allDay, timed }. Covers the whole synced
+  // window, not just today. Suppress only when the calendar is *definitively* not
+  // connected; event presence already implies sync (they come from synced-events), and
+  // this matches both the green pill and the Calendar tab (which renders ungated).
   const busyByDay = useMemo(() => {
     const map = new Map();
-    if (calendarConnected !== true || !Array.isArray(googleEvents)) {
+    if (calendarConnected === false || !Array.isArray(googleEvents)) {
       return map;
     }
     googleEvents
