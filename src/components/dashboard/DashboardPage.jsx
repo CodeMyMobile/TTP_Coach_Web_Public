@@ -1168,8 +1168,8 @@ const DashboardPage = ({
               ) : (
                 <button
                   type="button"
-                  onClick={() => onDashboardTabChange('calendar')}
-                  aria-label="Google Calendar synced — view calendar"
+                  onClick={onOpenGoogleCalendar}
+                  aria-label="Google Calendar synced — manage sync"
                   className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                 >
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
