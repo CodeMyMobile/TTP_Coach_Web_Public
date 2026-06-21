@@ -289,13 +289,13 @@ const formatBusyTimeRange = (start, end) => {
 };
 
 const BusyBlock = ({ event }) => (
-  <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+  <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
     <Clock className="h-4 w-4 shrink-0 text-gray-400" />
     <span className="shrink-0 whitespace-nowrap font-medium text-gray-600">
       {formatBusyTimeRange(event.start, event.end)}
     </span>
     <span className="min-w-0 flex-1 truncate">· {event.title}</span>
-    <span className="ml-auto shrink-0 text-xs uppercase tracking-wide text-gray-400">Busy</span>
+    <span className="shrink-0 text-xs uppercase tracking-wide text-gray-400">Busy</span>
   </div>
 );
 
