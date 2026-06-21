@@ -1155,13 +1155,15 @@ const DashboardPage = ({
                   className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
                 >
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  <span className="hidden md:inline">Calendar not synced</span>
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>Not synced</span>
                   <span className="font-semibold underline">Sync</span>
                 </button>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="hidden md:inline">Calendar synced</span>
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>Synced</span>
                 </span>
               )}
               <div className="relative dashboard-header-add" ref={quickActionsRef}>
