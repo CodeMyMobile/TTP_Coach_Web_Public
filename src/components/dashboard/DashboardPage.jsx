@@ -10,8 +10,9 @@ import {
   Package,
   Plus,
   Settings,
-  Shield,
+  ShoppingBag,
   Edit,
+  User,
   Users,
   MapPin,
   TrendingUp
@@ -21,8 +22,12 @@ import {
   updateCoachPlayer,
   updateCoachRequest
 } from '../../services/coach';
-import StatsSummary from './sections/StatsSummary';
+import TodayPage from './sections/TodayPage';
 import CalendarSection from './sections/CalendarSection';
+import AvailabilityReminderSheet from '../modals/AvailabilityReminderSheet';
+import { hasReviewedRecently, markAvailabilityReviewed } from '../../utils/availabilityReview';
+import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
+import { COACH_SUPPLIES_URL } from '../../constants/urls';
 import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
@@ -378,6 +383,8 @@ const buildRequestLessonDetails = (lesson = {}, player = {}) => {
 
 const DashboardPage = ({
   profile,
+  calendarConnected = null,
+  onOpenGoogleCalendar = () => {},
   dashboardTab,
   onDashboardTabChange,
   calendarView,
@@ -515,14 +522,42 @@ const DashboardPage = ({
       });
   }, [profile]);
 
-  const stats = {
-    todayLessons: statsData?.todayLessons ?? 0,
-    weekRevenue: statsData?.weekRevenue ?? 0,
-    activeStudents: statsData?.activeStudents ?? (Array.isArray(studentsData) ? studentsData.length : studentsData?.students?.length ?? 0),
-    upcomingLessons: statsData?.upcomingLessons ?? upcomingLessons.length,
-    pendingRequests:
-      statsData?.pendingRequests ?? upcomingLessons.filter((lesson) => lesson.lessonStatus === 'pending').length
+  const todayKey = moment().format('YYYY-MM-DD');
+  const mergedLessons = (() => {
+    const byId = new Map();
+    [...bookedLessons, ...upcomingLessons].forEach((lesson) => {
+      const id = lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId;
+      if (id == null || byId.has(id)) {
+        return;
+      }
+      byId.set(id, lesson);
+    });
+    return [...byId.values()];
+  })();
+
+  const sortByStart = (a, b) => {
+    const startA = getLessonMoments(a).start;
+    const startB = getLessonMoments(b).start;
+    return (startA?.valueOf() ?? 0) - (startB?.valueOf() ?? 0);
   };
+
+  const todayLessons = mergedLessons
+    .filter((lesson) => getLessonDateKey(lesson) === todayKey && getLessonStatus(lesson) !== 'cancelled')
+    .sort(sortByStart);
+
+  const cancelledLessons = mergedLessons
+    .filter((lesson) => getLessonStatus(lesson) === 'cancelled' && (getLessonDateKey(lesson) || '') >= todayKey)
+    .sort(sortByStart);
+
+  // Rolling list: the next ~10 upcoming (today onward), non-cancelled, time-ordered.
+  const upcomingForList = mergedLessons
+    .filter((lesson) => getLessonStatus(lesson) !== 'cancelled' && (getLessonDateKey(lesson) || '') >= todayKey)
+    .sort(sortByStart)
+    .slice(0, 10);
+
+  const coachDisplayName = profile?.name || profile?.full_name || profile?.first_name || '';
+  const coachAvatarUrl = profile?.profile_picture || profile?.profilePicture || profile?.avatar || '';
+  const coachInitials = getInitials(coachDisplayName) || 'C';
 
   const handleAvailabilitySelect = (availability) => {
     if (!availability) {
@@ -549,6 +584,8 @@ const DashboardPage = ({
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showAvailabilityReminder, setShowAvailabilityReminder] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const [requestItems, setRequestItems] = useState([]);
@@ -573,6 +610,8 @@ const DashboardPage = ({
   const notificationRef = useRef(null);
   const quickActionsRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const addMenuRef = useRef(null);
+  const availabilityReminderShownRef = useRef(false);
 
   const resolvedStudents = Array.isArray(studentsData)
     ? studentsData
@@ -775,6 +814,18 @@ const DashboardPage = ({
         onLessonRequestConfirmed?.(lessonForConfirmation);
       }
 
+      // After a successful confirm/approve (never decline), nudge the coach to
+      // re-check availability — throttled to once per session and ~14 days, and
+      // strictly after the confirm so it never blocks/delays it.
+      if (
+        (action === 'confirm' || action === 'approve') &&
+        !availabilityReminderShownRef.current &&
+        !hasReviewedRecently()
+      ) {
+        availabilityReminderShownRef.current = true;
+        setShowAvailabilityReminder(true);
+      }
+
       return true;
     } catch (error) {
       const status = Number(error?.status);
@@ -914,6 +965,27 @@ const DashboardPage = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [showSettingsMenu]);
 
+  useEffect(() => {
+    if (!showAddMenu) {
+      return;
+    }
+
+    const handleClickOutside = (event) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target)) {
+        setShowAddMenu(false);
+      }
+    };
+
+    // The add-menu is an anchored popover (no full-screen overlay), so dismiss on an
+    // outside tap directly — listen for touch too, for reliable mobile dismissal.
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showAddMenu]);
+
   const actionableItems = requestItems.map((requestItem, index) => {
     const isLessonRequest = requestItem.request_type === 'lesson_request';
     const lesson = requestItem.lesson;
@@ -1008,6 +1080,9 @@ const DashboardPage = ({
     }
 
     setShowNotificationsDropdown((prev) => !prev);
+    setShowQuickActions(false);
+    setShowSettingsMenu(false);
+    setShowAddMenu(false);
   }, [onOpenNotifications]);
 
   useEffect(() => {
@@ -1063,26 +1138,52 @@ const DashboardPage = ({
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
-              <div className="flex items-center dashboard-brand">
+              <button
+                type="button"
+                onClick={() => onDashboardTabChange('today')}
+                aria-label="Go to home"
+                className="flex items-center rounded-lg dashboard-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
+              >
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 text-lg">
                   🎾
                 </div>
                 <div className="ml-3 text-lg font-semibold text-gray-900 dashboard-brand-text">
                   The Tennis <span className="text-purple-600">Plan</span>
                 </div>
-              </div>
+              </button>
             </div>
             <div className="flex items-center space-x-2 dashboard-header-actions">
-              <div className="hidden items-center gap-2 text-xs text-emerald-600 md:flex">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Synced just now
-              </div>
-              <div className="relative" ref={quickActionsRef}>
+              {calendarConnected === false ? (
+                <button
+                  type="button"
+                  onClick={onOpenGoogleCalendar}
+                  aria-label="Google Calendar not synced — connect"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                >
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>Not synced</span>
+                  <span className="font-semibold underline">Sync</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenGoogleCalendar}
+                  aria-label="Google Calendar synced — manage sync"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                >
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>Synced</span>
+                </button>
+              )}
+              <div className="relative dashboard-header-add" ref={quickActionsRef}>
                 <button
                   type="button"
                   onClick={() => {
                     setShowQuickActions((prev) => !prev);
                     setShowNotificationsDropdown(false);
+                    setShowAddMenu(false);
                   }}
                   className={`dashboard-header-btn dashboard-quick-action-btn ${
                     showQuickActions ? 'dashboard-quick-action-active' : ''
@@ -1239,16 +1340,73 @@ const DashboardPage = ({
                     setShowSettingsMenu((prev) => !prev);
                     setShowQuickActions(false);
                     setShowNotificationsDropdown(false);
+                    setShowAddMenu(false);
                   }}
-                  className={`dashboard-header-btn ${showSettingsMenu ? 'dashboard-settings-btn-active' : ''}`}
+                  className={`rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300 ${
+                    showSettingsMenu ? 'ring-2 ring-purple-300' : ''
+                  }`}
                   aria-expanded={showSettingsMenu}
                   aria-haspopup="menu"
                 >
-                  <Settings className="h-5 w-5" />
-                  <span className="sr-only">Open settings menu</span>
+                  {coachAvatarUrl ? (
+                    <img
+                      src={coachAvatarUrl}
+                      alt={coachDisplayName || 'Coach'}
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-sm font-semibold text-purple-700">
+                      {coachInitials}
+                    </span>
+                  )}
+                  <span className="sr-only">Open profile menu</span>
                 </button>
                 {showSettingsMenu && (
                   <div className="dashboard-settings-menu" role="menu">
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onOpenSettings?.();
+                      }}
+                    >
+                      <User className="h-4 w-4" />
+                      <span>View profile</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onDashboardTabChange('packages');
+                      }}
+                    >
+                      <Package className="h-4 w-4" />
+                      <span>Packages</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onDashboardTabChange('groups');
+                      }}
+                    >
+                      <Users className="h-4 w-4" />
+                      <span>Groups</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        onDashboardTabChange('locations');
+                      }}
+                    >
+                      <MapPin className="h-4 w-4" />
+                      <span>Locations</span>
+                    </button>
                     <button
                       type="button"
                       className="dashboard-settings-menu-item"
@@ -1262,6 +1420,17 @@ const DashboardPage = ({
                     </button>
                     <button
                       type="button"
+                      className="dashboard-settings-menu-item"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        window.open(COACH_SUPPLIES_URL, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      <span>Coach supplies</span>
+                    </button>
+                    <button
+                      type="button"
                       className="dashboard-settings-menu-item dashboard-settings-menu-item-danger"
                       onClick={() => {
                         setShowSettingsMenu(false);
@@ -1269,7 +1438,7 @@ const DashboardPage = ({
                       }}
                     >
                       <LogOut className="h-4 w-4" />
-                      <span>Log out</span>
+                      <span>Sign out</span>
                     </button>
                   </div>
                 )}
@@ -1288,12 +1457,11 @@ const DashboardPage = ({
         />
       )}
 
-      <StatsSummary stats={stats} onOpenUpcomingLessons={onOpenUpcomingLessons} />
-
       <main className="mx-auto max-w-7xl px-4 py-6 dashboard-main">
         <div className="flex flex-wrap items-center justify-between gap-3 dashboard-tabs-row">
           <div className="hidden w-full flex-wrap gap-2 dashboard-tabs sm:flex">
             {[
+              { key: 'today', label: 'Today', icon: CalendarPlus },
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
               { key: 'earnings', label: 'Earnings', icon: DollarSign },
@@ -1323,14 +1491,9 @@ const DashboardPage = ({
               </button>
             ))}
           </div>
-
-          <div className="flex w-full items-center gap-2 text-xs text-gray-500 sm:w-auto sm:text-sm dashboard-secure-note">
-            <Shield className="h-4 w-4 text-green-500" />
-            <span className="whitespace-nowrap">Secure portal • Last synced moments ago</span>
-          </div>
         </div>
 
-        {actionItems.length > 0 && !dismissedActionBar && (
+        {actionItems.length > 0 && !dismissedActionBar && dashboardTab !== 'today' && (
           <div className="requests-alert-shell">
             <div className="notif-banner desktop-notif-banner">
               <div className="notif-header">
@@ -1512,6 +1675,20 @@ const DashboardPage = ({
           </div>
         )}
 
+        {dashboardTab === 'today' && (
+          <TodayPage
+            upcomingLessons={upcomingForList}
+            todayLessonCount={todayLessons.length}
+            cancelledLessons={cancelledLessons}
+            requests={actionItems}
+            googleEvents={googleEvents}
+            calendarConnected={calendarConnected}
+            onLessonSelect={onLessonSelect}
+            coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
+            onViewFullCalendar={() => onDashboardTabChange('calendar')}
+          />
+        )}
+
         {dashboardTab === 'calendar' && (
           <CalendarSection
             calendarView={calendarView}
@@ -1686,12 +1863,67 @@ const DashboardPage = ({
 
       <nav className="dashboard-bottom-nav">
         {[
-          { key: 'calendar', label: 'Calendar', icon: '📅' },
+          { key: 'today', label: 'Home', icon: '🏠' },
+          { key: 'calendar', label: 'Calendar', icon: '📅' }
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onDashboardTabChange(tab.key)}
+            className={`dashboard-bottom-nav-item ${dashboardTab === tab.key ? 'active' : ''}`}
+          >
+            <span className="dashboard-bottom-nav-icon">{tab.icon}</span>
+            <span className="dashboard-bottom-nav-label">{tab.label}</span>
+          </button>
+        ))}
+
+        <div className="dashboard-bottom-nav-fab-slot" ref={addMenuRef}>
+          <button
+            type="button"
+            className={`dashboard-bottom-nav-fab ${showAddMenu ? 'active' : ''}`}
+            onClick={() => {
+              setShowAddMenu((prev) => !prev);
+              setShowSettingsMenu(false);
+              setShowQuickActions(false);
+              setShowNotificationsDropdown(false);
+            }}
+            aria-expanded={showAddMenu}
+            aria-haspopup="menu"
+          >
+            <Plus className="h-6 w-6" />
+            <span className="sr-only">Add</span>
+          </button>
+          {showAddMenu && (
+            <div className="dashboard-add-menu" role="menu">
+              <button
+                type="button"
+                className="dashboard-add-menu-item"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  onOpenCreateLesson?.();
+                }}
+              >
+                <CalendarPlus className="h-4 w-4" />
+                <span>Add lesson</span>
+              </button>
+              <button
+                type="button"
+                className="dashboard-add-menu-item"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  onOpenAddAvailability?.();
+                }}
+              >
+                <Edit className="h-4 w-4" />
+                <span>Set availability</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {[
           { key: 'students', label: 'Students', icon: '👥' },
-          { key: 'earnings', label: 'Earnings', icon: '💵' },
-          { key: 'packages', label: 'Packages', icon: '📦' },
-          { key: 'locations', label: 'Locations', icon: '📍' },
-          { key: 'groups', label: 'Groups', icon: '🧩' }
+          { key: 'earnings', label: 'Earnings', icon: '💵' }
         ].map((tab) => (
           <button
             key={tab.key}
@@ -1704,6 +1936,21 @@ const DashboardPage = ({
           </button>
         ))}
       </nav>
+
+      <AvailabilityReminderSheet
+        isOpen={showAvailabilityReminder}
+        availability={availabilityData}
+        onLooksGood={() => {
+          markAvailabilityReviewed();
+          setShowAvailabilityReminder(false);
+        }}
+        onUpdate={() => {
+          markAvailabilityReviewed();
+          setShowAvailabilityReminder(false);
+          onOpenAddAvailability?.();
+        }}
+        onClose={() => setShowAvailabilityReminder(false)}
+      />
     </div>
   );
 };

@@ -89,32 +89,36 @@ const getLessonsCollection = (payload) => {
   return [];
 };
 
-const fetchAllCoachLessons = async ({ perPage = 100, maxPages = 100 } = {}) => {
-  const allLessons = [];
+const UPCOMING_WINDOW_DAYS = 14;
 
-  for (let page = 1; page <= maxPages; page += 1) {
-    const payload = await getCoachLessons({ perPage, page });
-    const lessonsPage = getLessonsCollection(payload);
-
-    if (lessonsPage.length === 0) {
-      break;
-    }
-
-    allLessons.push(...lessonsPage);
-
-    const pagination = payload?.pagination || payload?.meta || payload?.pageInfo || {};
-    const totalPages = Number(pagination.totalPages || pagination.total_pages || pagination.pages);
-
-    if (Number.isFinite(totalPages) && page >= totalPages) {
-      break;
-    }
-
-    if (lessonsPage.length < perPage) {
-      break;
+// Local 'YYYY-MM-DD' strings for the next N days starting today (today … today+N-1).
+const forwardWindowDates = (days = UPCOMING_WINDOW_DAYS) => {
+  const base = new Date();
+  const dates = [];
+  for (let i = 0; i < days; i += 1) {
+    const day = new Date(base);
+    day.setDate(base.getDate() + i);
+    const formatted = formatLocalDate(day);
+    if (formatted) {
+      dates.push(formatted);
     }
   }
+  return dates;
+};
 
-  return allLessons;
+// The backend only exposes lessons per date (/coach/lessons/{date}), so build the
+// rolling "upcoming" list with a bounded forward fetch: the next N local days,
+// fetched in parallel and merged. (No date-range/upcoming endpoint exists.)
+const fetchUpcomingByDate = async ({ days = UPCOMING_WINDOW_DAYS } = {}) => {
+  const dates = forwardWindowDates(days);
+  const results = await Promise.allSettled(dates.map((date) => getCoachLessons({ date })));
+  const lessons = [];
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      lessons.push(...getLessonsCollection(result.value));
+    }
+  });
+  return lessons;
 };
 
 const addWeeklySlot = (acc, day, start, end, location) => {
@@ -311,6 +315,23 @@ const normaliseStats = (payload) => {
   return payload;
 };
 
+// Convert a 'YYYY-MM-DD' local date into the ISO instant for the start or end of
+// that day in the coach's LOCAL timezone (new Date(y, m, d, ...) is local-time).
+const localDayBoundaryISO = (dateStr, edge) => {
+  if (!dateStr) {
+    return null;
+  }
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const date =
+    edge === 'end'
+      ? new Date(year, month - 1, day, 23, 59, 59, 999)
+      : new Date(year, month - 1, day, 0, 0, 0, 0);
+  return date.toISOString();
+};
+
 const formatLocalDate = (value) => {
   if (!value) {
     return null;
@@ -357,12 +378,20 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
         resolvedDates.length > 0
           ? resolvedDates.map((value) => getCoachLessons({ date: value }))
           : [resolvedDate ? getCoachLessons({ date: resolvedDate }) : getCoachLessons({ perPage: 100, page: 1 })];
-      const rangeDates = resolvedDates.length > 0 ? [...resolvedDates].sort() : (resolvedDate ? [resolvedDate] : []);
-      const rangeMin = rangeDates.length > 0 ? `${rangeDates[0]}T00:00:00.000Z` : null;
-      const rangeMax = rangeDates.length > 0 ? `${rangeDates[rangeDates.length - 1]}T23:59:59.999Z` : null;
+      // Google sync range: on the calendar tab use the visible dates; on Home (no
+      // visible dates) cover the same forward window as the upcoming lessons so busy
+      // blocks show across the upcoming feed, not just today.
+      const googleRangeDates =
+        resolvedDates.length > 0
+          ? [...resolvedDates].sort()
+          : forwardWindowDates(UPCOMING_WINDOW_DAYS);
+      // Build the range from LOCAL day boundaries so events near midnight land on
+      // the correct day (a bare `T00:00:00Z` would shift the window by the tz offset).
+      const rangeMin = googleRangeDates.length > 0 ? localDayBoundaryISO(googleRangeDates[0], 'start') : null;
+      const rangeMax = googleRangeDates.length > 0 ? localDayBoundaryISO(googleRangeDates[googleRangeDates.length - 1], 'end') : null;
       const [lessonsResult, upcomingLessonsResult, availabilityResult, statsResult, googleResult] = await Promise.allSettled([
         Promise.allSettled(lessonPromises),
-        fetchAllCoachLessons({ perPage: 100 }),
+        fetchUpcomingByDate({ days: UPCOMING_WINDOW_DAYS }),
         getCoachAvailability(),
         getCoachStats(),
         rangeMin && rangeMax
