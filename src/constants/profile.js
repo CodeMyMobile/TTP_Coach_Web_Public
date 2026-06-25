@@ -14,6 +14,7 @@ export const createDefaultProfile = () => ({
   name: '',
   email: '',
   phone: '',
+  smsConsentGranted: false,
   bio: '',
   experience_years: '',
   certifications: '',

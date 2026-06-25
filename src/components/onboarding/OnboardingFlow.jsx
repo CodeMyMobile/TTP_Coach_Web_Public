@@ -583,6 +583,9 @@ const OnboardingFlow = ({
         if (!formData.bio.trim()) newErrors.bio = 'Bio is required';
         if (formData.bio.trim() && formData.bio.length < 100) newErrors.bio = 'Bio should be at least 100 characters';
         if (!String(formData.experience_years || '').trim()) newErrors.experience_years = 'Years of experience is required';
+        if (formData.phone?.trim() && !formData.smsConsentGranted) {
+          newErrors.smsConsentGranted = 'SMS consent is required for this phone number';
+        }
         break;
       }
       case 1: {
@@ -1339,6 +1342,23 @@ const OnboardingFlow = ({
                     placeholder="(555) 123-4567"
                   />
                 </div>
+
+                {formData.phone?.trim() && (
+                  <label className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm text-gray-700 ${
+                    errors.smsConsentGranted ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 accent-green-600"
+                      checked={Boolean(formData.smsConsentGranted)}
+                      onChange={(event) => setFormData({ ...formData, smsConsentGranted: event.target.checked })}
+                    />
+                    <span>
+                      I agree to receive SMS messages from The Tennis Plan. Msg &amp; data rates may apply. Reply STOP to opt out.
+                      {errors.smsConsentGranted && <span className="mt-1 block text-xs text-red-500">{errors.smsConsentGranted}</span>}
+                    </span>
+                  </label>
+                )}
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">Years of Experience *</label>

@@ -1,4 +1,5 @@
 import { API_URL } from '../constants/urls';
+import { withSmsConsent } from '../utils/smsConsent';
 
 const parseJson = async (response) => {
   try {
@@ -31,12 +32,19 @@ export const logIn = async (email, password) => {
 };
 
 export const coachSignup = async (payload = {}) => {
+  const requestPayload = withSmsConsent(
+    { ...payload },
+    Boolean(payload.phone || payload.phone_number) && payload.smsConsentGranted === true,
+    'coach_signup'
+  );
+  delete requestPayload.smsConsentGranted;
+
   const response = await fetch(`${API_URL}/coach/signup/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json;charset=UTF-8'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(requestPayload)
   });
 
   const data = await parseJson(response);
