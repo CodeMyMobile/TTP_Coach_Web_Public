@@ -12,7 +12,8 @@ const signupInitialState = {
   lastName: '',
   phone: '',
   email: '',
-  password: ''
+  password: '',
+  smsConsentGranted: false
 };
 
 const GoogleIcon = () => (
@@ -90,6 +91,10 @@ const LoginPage = () => {
       return 'Please enter your contact number.';
     }
 
+    if (!signupState.smsConsentGranted) {
+      return 'Please agree to receive SMS messages before creating your account.';
+    }
+
     if (!signupState.password || signupState.password.length < 8) {
       return 'Please create a password with at least 8 characters.';
     }
@@ -135,7 +140,8 @@ const LoginPage = () => {
       phone: signupState.phone.trim(),
       phone_number: signupState.phone.trim(),
       password: signupState.password,
-      confirm_password: signupState.password
+      confirm_password: signupState.password,
+      smsConsentGranted: signupState.smsConsentGranted
     };
 
     const result = await signup(payload);
@@ -348,6 +354,22 @@ const LoginPage = () => {
                   Forgot password?
                 </button>
               </div>
+            )}
+
+            {mode === 'signup' && (
+              <label className="flex items-start gap-3 rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-violet-500"
+                  checked={signupState.smsConsentGranted}
+                  onChange={(event) => updateField('smsConsentGranted', event.target.checked)}
+                  disabled={authLoading}
+                  required
+                />
+                <span>
+                  I agree to receive SMS messages from The Tennis Plan. Msg &amp; data rates may apply. Reply STOP to opt out.
+                </span>
+              </label>
             )}
 
             {(formError || authError) && (
