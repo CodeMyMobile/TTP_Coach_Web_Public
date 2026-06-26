@@ -1,6 +1,8 @@
+import { clearStoredUser } from '../hooks/authStorage.js';
 import { removeTokens } from './tokenHelper.js';
 
 export const redirectToSignIn = async () => {
+  clearStoredUser();
   await removeTokens();
 
   if (typeof window === 'undefined' || !window.location) {
@@ -20,7 +22,7 @@ export const redirectToSignIn = async () => {
 };
 
 export const redirectToSignInOnForbidden = async (response) => {
-  if (response?.status === 403) {
+  if (response?.status === 401 || response?.status === 403) {
     await redirectToSignIn();
   }
 };
