@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DashboardPage from './components/dashboard/DashboardPage';
 import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import AvailabilityModal from './components/modals/AvailabilityModal';
@@ -13,6 +13,7 @@ import { useCoachStudents } from './hooks/useCoachStudents';
 import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
 import { createDefaultProfile } from './constants/profile';
+import { resolveAuthRedirectPath } from './utils/authRoutes';
 import {
   deleteCoachPackage,
   listCoachPackages,
@@ -349,45 +350,38 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [normalizePath]);
 
-  useEffect(() => {
-    if (authInitialising) {
-      return;
+  useLayoutEffect(() => {
+    const allowedAuthenticatedRoutes = new Set([
+      '/dashboard',
+      '/settings',
+      '/notifications',
+      '/upcoming-lessons',
+      '/google-calendar',
+      '/redirect',
+      '/earnings/transactions',
+      '/earnings/payouts'
+    ]);
+
+    if (isLessonDetailRoute || isPlayerDetailRoute) {
+      allowedAuthenticatedRoutes.add(currentPath);
     }
 
-    if (!isAuthenticated && !isLoginRoute) {
-      navigate('/', { replace: true });
-      return;
-    }
+    const redirectPath = resolveAuthRedirectPath({
+      authInitialising,
+      isAuthenticated,
+      currentPath,
+      allowedAuthenticatedRoutes
+    });
 
-    if (
-      isAuthenticated &&
-      !isDashboardRoute &&
-      !isSettingsRoute &&
-      !isNotificationsRoute &&
-      !isUpcomingLessonsRoute &&
-      !isLessonDetailRoute &&
-      !isPlayerDetailRoute &&
-      !isGoogleCalendarRoute &&
-      !isGoogleRedirectRoute &&
-      !isTransactionsHistoryRoute &&
-      !isPayoutHistoryRoute
-    ) {
-      navigate('/dashboard', { replace: true });
+    if (redirectPath) {
+      navigate(redirectPath, { replace: true });
     }
   }, [
     authInitialising,
     isAuthenticated,
-    isLoginRoute,
-    isDashboardRoute,
-    isSettingsRoute,
-    isNotificationsRoute,
-    isUpcomingLessonsRoute,
+    currentPath,
     isLessonDetailRoute,
     isPlayerDetailRoute,
-    isGoogleCalendarRoute,
-    isGoogleRedirectRoute,
-    isTransactionsHistoryRoute,
-    isPayoutHistoryRoute,
     navigate
   ]);
 
