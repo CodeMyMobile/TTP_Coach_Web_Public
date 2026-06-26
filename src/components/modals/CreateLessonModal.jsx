@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import Modal, { ModalBody, ModalFooter, ModalHeader } from './Modal';
 import { LESSON_LEVELS } from '../../constants/lessonLevels';
+import {
+  LESSON_DESCRIPTION_MAX_LENGTH,
+  LESSON_TITLE_MAX_LENGTH,
+  getLessonMetadataLimitState
+} from '../../utils/lessonEdit';
 import GroupPicker from '../groups/GroupPicker';
 
 const CreateLessonModal = ({
@@ -206,6 +211,10 @@ const CreateLessonModal = ({
   const durationPresets = ['30', '60', '90', '120'];
   const normalizedDurationValue = String(resolvedForm.metadata?.duration || durationMinutes || '60');
   const durationSelectValue = durationPresets.includes(normalizedDurationValue) ? normalizedDurationValue : '60';
+  const titleLimit = getLessonMetadataLimitState('title', resolvedForm.metadata?.title || '');
+  const descriptionLimit = getLessonMetadataLimitState('description', resolvedForm.metadata?.description || '');
+  const counterClass = (state) =>
+    `text-xs font-medium ${state.isAtLimit ? 'text-red-600' : 'text-gray-500'}`;
 
   const timeOptions = [];
   for (let hour = 6; hour <= 22; hour += 1) {
@@ -755,9 +764,13 @@ const CreateLessonModal = ({
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title (Optional)</label>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <label className="block text-sm font-medium text-gray-700">Title (Optional)</label>
+            <span className={counterClass(titleLimit)}>{titleLimit.label}</span>
+          </div>
           <input
             type="text"
+            maxLength={LESSON_TITLE_MAX_LENGTH}
             value={resolvedForm.metadata?.title || ''}
             onChange={(event) => handleMetadataChange('title', event.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -795,9 +808,13 @@ const CreateLessonModal = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <span className={counterClass(descriptionLimit)}>{descriptionLimit.label}</span>
+              </div>
               <textarea
                 rows={3}
+                maxLength={LESSON_DESCRIPTION_MAX_LENGTH}
                 value={resolvedForm.metadata?.description || ''}
                 onChange={(event) => handleMetadataChange('description', event.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"

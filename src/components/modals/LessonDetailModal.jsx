@@ -16,6 +16,11 @@ import Modal from './Modal';
 import LessonInvitePanel from './LessonInvitePanel';
 import { LESSON_LEVELS } from '../../constants/lessonLevels';
 import GroupPicker from '../groups/GroupPicker';
+import {
+  LESSON_DESCRIPTION_MAX_LENGTH,
+  LESSON_TITLE_MAX_LENGTH,
+  getLessonMetadataLimitState
+} from '../../utils/lessonEdit';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -666,6 +671,12 @@ const LessonDetailModal = ({
   })();
 
   const selectedEditPlayers = editablePlayers.filter((player) => selectedEditPlayerIds.includes(String(player.id)));
+  const editTitleValue = editData?.metadata?.title || editData?.title || editData?.lesson_title || '';
+  const editDescriptionValue = editData?.metadata?.description || editData?.description || '';
+  const editTitleLimit = getLessonMetadataLimitState('title', editTitleValue);
+  const editDescriptionLimit = getLessonMetadataLimitState('description', editDescriptionValue);
+  const editCounterClass = (state) =>
+    `text-xs font-medium ${state.isAtLimit ? 'text-red-600' : 'text-slate-500'}`;
 
   const actionButtons = () => {
     if (isGroupLesson) {
@@ -1222,10 +1233,14 @@ const LessonDetailModal = ({
             {isGroupLesson ? (
               <>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">Lesson Title</label>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label className="block text-sm font-semibold text-slate-800">Lesson Title</label>
+                    <span className={editCounterClass(editTitleLimit)}>{editTitleLimit.label}</span>
+                  </div>
                   <input
                     type="text"
-                    value={editData?.metadata?.title || editData?.title || editData?.lesson_title || ''}
+                    maxLength={LESSON_TITLE_MAX_LENGTH}
+                    value={editTitleValue}
                     onChange={(event) => handleMetadataFieldChange('title', event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
@@ -1251,14 +1266,34 @@ const LessonDetailModal = ({
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Max Participants</label>
-                  <input
-                    type="number"
-                    min={filledSpots}
-                    value={editData?.player_limit || editData?.max_participants || editData?.maxParticipants || groupCapacity}
-                    onChange={(event) => handleFieldChange('player_limit', event.target.value)}
-                    className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-center text-base font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <p className="mt-2 text-xs text-slate-500">{filledSpots} already booked</p>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={filledSpots}
+                        step="1"
+                        value={editData?.player_limit ?? editData?.max_participants ?? editData?.maxParticipants ?? groupCapacity}
+                        onChange={(event) => handleFieldChange('player_limit', event.target.value)}
+                        onBlur={(event) => {
+                          const parsed = Number(event.target.value);
+                          if (!Number.isFinite(parsed) || parsed < filledSpots) {
+                            handleFieldChange('player_limit', String(filledSpots));
+                            return;
+                          }
+                          handleFieldChange('player_limit', String(Math.round(parsed)));
+                        }}
+                        className="h-11 w-24 rounded-lg border border-slate-300 bg-slate-50 px-3 text-center text-lg font-semibold text-slate-900 focus:border-purple-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      />
+                      <div className="min-w-0 flex-1">
+                        {/* <p className="text-sm font-medium text-slate-800">Player capacity</p> */}
+                        {/* <p className="text-xs text-slate-500">Cannot be below current bookings.</p> */}
+                      </div>
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        {filledSpots} booked
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">Skill Level</label>
@@ -1273,9 +1308,13 @@ const LessonDetailModal = ({
                   </select>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">Description</label>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label className="block text-sm font-semibold text-slate-800">Description</label>
+                    <span className={editCounterClass(editDescriptionLimit)}>{editDescriptionLimit.label}</span>
+                  </div>
                   <textarea
-                    value={editData?.metadata?.description || editData?.description || ''}
+                    maxLength={LESSON_DESCRIPTION_MAX_LENGTH}
+                    value={editDescriptionValue}
                     onChange={(event) => handleMetadataFieldChange('description', event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     rows={4}

@@ -45,6 +45,7 @@ import {
   updateCoachPlayerGroup
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
+import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -1029,47 +1030,12 @@ function App() {
       return;
     }
 
-    const isGroupLesson = Number(lessonEditData?.lessontype_id ?? lessonEditData?.lesson_type_id) === 3
-      || String(lessonEditData?.lesson_type_name || lessonEditData?.lessonType || lessonEditData?.type || '').toLowerCase().includes('group')
-      || String(lessonEditData?.lesson_type_name || lessonEditData?.lessonType || lessonEditData?.type || '').toLowerCase().includes('open');
-
-    const buildLessonUpdatePayload = (payload) => {
-      const { player_summary: _playerSummary, ...payloadWithoutPlayerSummary } = payload || {};
-
-      if (!isGroupLesson) {
-        return payloadWithoutPlayerSummary;
-      }
-
-      const nextMetadata = {
-        ...(payloadWithoutPlayerSummary?.metadata || {}),
-        title: payloadWithoutPlayerSummary?.title || payloadWithoutPlayerSummary?.lesson_title || payloadWithoutPlayerSummary?.metadata?.title || '',
-        description: payloadWithoutPlayerSummary?.metadata?.description || payloadWithoutPlayerSummary?.description || '',
-        level: payloadWithoutPlayerSummary?.metadata?.level || payloadWithoutPlayerSummary?.level || ''
-      };
-
-      const rawLimit = payloadWithoutPlayerSummary?.player_limit ?? payloadWithoutPlayerSummary?.max_participants ?? payloadWithoutPlayerSummary?.maxParticipants;
-      const numericLimit = Number(rawLimit);
-      const selectedGroupIds = Array.isArray(payloadWithoutPlayerSummary?.groupIds)
-        ? payloadWithoutPlayerSummary.groupIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
-        : [];
-      const selectedPlayerIds = Array.isArray(payloadWithoutPlayerSummary?.playerIds)
-        ? payloadWithoutPlayerSummary.playerIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
-        : [];
-
-      return {
-        metadata: nextMetadata,
-        ...(Number.isFinite(numericLimit) ? { player_limit: numericLimit } : {}),
-        ...(selectedGroupIds.length > 0 ? { group_ids: selectedGroupIds } : {}),
-        ...(selectedPlayerIds.length > 0
-          ? { player_ids_arr: selectedPlayerIds.map((playerId) => ({ player_id: playerId })) }
-          : {})
-      };
-    };
-
     try {
       const savePayload = buildLessonUpdatePayload(lessonEditData);
       const updatedLesson = await persistLesson(lessonEditData.id, savePayload);
-      setSelectedLessonDetail(updatedLesson || { ...lessonEditData, ...savePayload });
+      setSelectedLessonDetail((previousLesson) =>
+        mergeSavedLessonDetail(previousLesson, lessonEditData, savePayload, updatedLesson)
+      );
       setIsEditingLesson(false);
     } catch (error) {
       console.error('Failed to save lesson', error);
