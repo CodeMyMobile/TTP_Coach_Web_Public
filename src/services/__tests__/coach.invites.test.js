@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { removeTokens, storeTokens } from '../../utils/tokenHelper.js';
+import { getAccessToken, removeTokens, storeTokens } from '../../utils/tokenHelper.js';
 
 process.env.VITE_API_BASE_URL = 'https://api.example.com';
 
@@ -65,5 +65,35 @@ test('createLessonShareLink posts payload with token auth header', async () => {
   assert.equal(calledOptions?.headers?.['Content-Type'], 'application/json');
   assert.deepEqual(JSON.parse(calledOptions?.body), payload);
 
+  await removeTokens();
+});
+
+test('coach service redirects to sign in and clears tokens on forbidden response', async () => {
+  await storeTokens('coach-token', 'refresh-token');
+
+  let assignedPath = '';
+  global.window = {
+    location: {
+      pathname: '/dashboard',
+      assign: (path) => {
+        assignedPath = path;
+      }
+    }
+  };
+
+  global.fetch = async () => ({
+    ok: false,
+    status: 403,
+    statusText: 'Forbidden',
+    text: async () => JSON.stringify({ error: 'forbidden' })
+  });
+
+  const { getCoachStudents } = await import('../coach.js');
+
+  await assert.rejects(() => getCoachStudents(), /forbidden/i);
+  assert.equal(assignedPath, '/');
+  assert.equal(await getAccessToken(), null);
+
+  delete global.window;
   await removeTokens();
 });

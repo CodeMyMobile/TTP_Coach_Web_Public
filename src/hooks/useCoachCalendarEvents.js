@@ -1,3 +1,5 @@
+import { redirectToSignInOnForbidden } from '../utils/authRedirect.js';
+
 const resolveBaseUrl = () => {
   const meta = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
   const candidate = meta.VITE_API_BASE_URL || meta.VITE_API_URL || meta.API_BASE_URL || '';
@@ -44,6 +46,7 @@ const request = async (path, token) => {
   });
 
   const data = await parseJsonSafely(response);
+  await redirectToSignInOnForbidden(response);
   if (!response.ok) {
     const message =
       data?.message || data?.error || response.statusText || 'Request failed.';

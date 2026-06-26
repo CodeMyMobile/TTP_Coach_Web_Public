@@ -1,5 +1,6 @@
-import { API_URL } from '../../constants/urls';
-import { getAccessToken } from '../../utils/tokenHelper';
+import { API_URL } from '../../constants/urls.js';
+import { redirectToSignInOnForbidden } from '../../utils/authRedirect.js';
+import { getAccessToken } from '../../utils/tokenHelper.js';
 
 const authorisedStripeRequest = async (path, { method = 'GET', body } = {}) => {
   const accessToken = await getAccessToken();
@@ -11,11 +12,14 @@ const authorisedStripeRequest = async (path, { method = 'GET', body } = {}) => {
     headers.Authorization = `token ${accessToken}`;
   }
 
-  return fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${API_URL}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
   });
+
+  await redirectToSignInOnForbidden(response);
+  return response;
 };
 
 export const createStripeOnboardingLink = async () =>

@@ -46,6 +46,7 @@ const parseJsonSafely = async (response) => {
 };
 
 import { getAccessToken } from '../utils/tokenHelper.js';
+import { redirectToSignInOnForbidden } from '../utils/authRedirect.js';
 
 const normalizeScheduleTime = (value) => {
   if (!value) {
@@ -116,6 +117,8 @@ const request = async (path, options = {}) => {
     headers: resolvedHeaders,
     ...rest
   });
+
+  await redirectToSignInOnForbidden(response);
 
   if (!response.ok) {
     const errorBody = await parseJsonSafely(response);

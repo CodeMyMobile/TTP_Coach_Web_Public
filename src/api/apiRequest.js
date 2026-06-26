@@ -1,5 +1,6 @@
-import { API_URL } from '../constants/urls';
-import { storeTokens, getAccessToken, getRefreshToken, removeTokens } from '../utils/tokenHelper';
+import { API_URL } from '../constants/urls.js';
+import { redirectToSignInOnForbidden } from '../utils/authRedirect.js';
+import { storeTokens, getAccessToken, getRefreshToken, removeTokens } from '../utils/tokenHelper.js';
 
 export const apiRequest = async (url, options = {}) => {
   let accessToken = await getAccessToken();
@@ -14,6 +15,8 @@ export const apiRequest = async (url, options = {}) => {
   const endpoint = url.startsWith('/') ? `${API_URL}${url}` : `${API_URL}/${url}`;
 
   let response = await fetch(endpoint, config);
+
+  await redirectToSignInOnForbidden(response);
 
   if (response.status === 401) {
     const newTokens = await refreshAccessToken();
@@ -32,6 +35,7 @@ export const apiRequest = async (url, options = {}) => {
     }
 
     response = await fetch(endpoint, config);
+    await redirectToSignInOnForbidden(response);
   }
 
   return response;
