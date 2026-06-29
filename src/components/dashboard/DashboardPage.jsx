@@ -1730,7 +1730,7 @@ const DashboardPage = ({
 
         {dashboardTab === 'earnings' && (
           <EarningsSection
-            stats={stats}
+            stats={statsData}
             onOpenTransactionsHistory={onOpenTransactionsHistory}
             onOpenPayoutHistory={onOpenPayoutHistory}
           />
