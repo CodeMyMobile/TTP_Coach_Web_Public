@@ -1042,6 +1042,54 @@ function App() {
     }
   };
 
+  const handleRemoveLessonParticipant = async (participant) => {
+    const lessonId = selectedLessonDetail?.id;
+    const playerId = Number(participant?.playerId ?? participant?.player_id);
+
+    if (!lessonId || !Number.isFinite(playerId) || playerId <= 0) {
+      return;
+    }
+
+    const playerName = participant?.name || 'this player';
+    const confirmed = window.confirm(`Remove ${playerName} from this group lesson?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await persistLesson(lessonId, {
+        playerObj: {
+          player_id: playerId,
+          status: participant?.rawStatus ?? participant?.status
+        }
+      });
+
+      setSelectedLessonDetail((previousLesson) => {
+        if (!previousLesson) {
+          return previousLesson;
+        }
+
+        const removeFromList = (players = []) =>
+          players.filter((player) => Number(player?.player_id ?? player?.playerId ?? player?.id) !== playerId);
+
+        return {
+          ...previousLesson,
+          group_players: Array.isArray(previousLesson.group_players)
+            ? removeFromList(previousLesson.group_players)
+            : previousLesson.group_players,
+          groupPlayers: Array.isArray(previousLesson.groupPlayers)
+            ? removeFromList(previousLesson.groupPlayers)
+            : previousLesson.groupPlayers
+        };
+      });
+
+      await refreshSchedule();
+    } catch (error) {
+      console.error('Failed to remove lesson participant', error);
+      window.alert('Unable to remove this player from the lesson.');
+    }
+  };
+
 
   const handleLessonSelect = (lesson) => {
     setSelectedLessonDetail(lesson);
@@ -2089,6 +2137,7 @@ function App() {
         onAcceptRequest={handleAcceptRequest}
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
+        onRemoveParticipant={handleRemoveLessonParticipant}
         groups={coachGroups}
       />
 

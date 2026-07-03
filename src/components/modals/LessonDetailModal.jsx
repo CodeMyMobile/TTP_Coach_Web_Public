@@ -126,6 +126,7 @@ const LessonDetailModal = ({
   onAcceptRequest,
   onDeclineRequest,
   onCreateLesson,
+  onRemoveParticipant,
   coachHourlyRate = null,
   groups = []
 }) => {
@@ -136,6 +137,7 @@ const LessonDetailModal = ({
   const [creditUsage, setCreditUsage] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [editPlayerSearch, setEditPlayerSearch] = useState('');
+  const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState(null);
 
   const resolvedLesson = useMemo(() => {
     if (!lesson) {
@@ -506,6 +508,7 @@ const LessonDetailModal = ({
     level: participant.level || 'Intermediate',
     lessonsCompleted: participant.lessonsCompleted || 0,
     phone: participant.phone || '',
+    rawStatus: participant.status,
     status: resolveParticipantStatus(participant.status)
   }));
 
@@ -645,6 +648,18 @@ const LessonDetailModal = ({
   };
 
   const handleTextAll = () => textAllParticipants(participantList);
+  const handleRemoveParticipant = async (participant) => {
+    if (!onRemoveParticipant || !participant?.playerId) {
+      return;
+    }
+
+    setPendingRemovePlayerId(participant.playerId);
+    try {
+      await onRemoveParticipant(participant);
+    } finally {
+      setPendingRemovePlayerId(null);
+    }
+  };
 
   const editablePlayers = (Array.isArray(students) ? students : [])
     .map((student) => ({
@@ -962,6 +977,18 @@ const LessonDetailModal = ({
                           >
                             <Phone className="h-4 w-4" />
                           </button>
+                          {onRemoveParticipant && !String(participant.status).toLowerCase().includes('cancel') && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveParticipant(participant)}
+                              disabled={pendingRemovePlayerId === participant.playerId}
+                              title={`Remove ${participant.name}`}
+                              aria-label={`Remove ${participant.name}`}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600 transition hover:bg-rose-100 disabled:cursor-wait disabled:bg-rose-100 disabled:text-rose-300"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
