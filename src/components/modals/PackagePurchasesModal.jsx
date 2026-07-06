@@ -56,8 +56,53 @@ const formatDateTime = (value) => {
   }).format(date);
 };
 
+const formatMoney = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(amount);
+};
+
+const getPurchasePaymentState = (purchase) => {
+  const status = String(purchase.status || purchase.purchase_status || '').toLowerCase();
+  const paid = purchase.paid ?? purchase.is_paid ?? purchase.payment_status;
+
+  if (status === 'reserved' || paid === false || paid === 'false' || paid === 'unpaid') {
+    return {
+      label: 'Reserved',
+      detail: 'No charge yet',
+      className: 'bg-amber-100 text-amber-800'
+    };
+  }
+
+  if (paid === true || paid === 'true' || status === 'active' || status === 'succeeded') {
+    return {
+      label: 'Paid',
+      detail: 'Credits active',
+      className: 'bg-emerald-100 text-emerald-700'
+    };
+  }
+
+  return {
+    label: status ? status.replaceAll('_', ' ') : 'Unknown',
+    detail: 'Payment status unknown',
+    className: 'bg-slate-100 text-slate-600'
+  };
+};
+
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
+  { value: 'reserved', label: 'Reserved' },
+  { value: 'active', label: 'Active' },
   { value: 'pending', label: 'Pending' },
   { value: 'succeeded', label: 'Succeeded' },
   { value: 'partially_used', label: 'Partially used' },
@@ -175,15 +220,19 @@ const PackagePurchasesModal = ({ isOpen, onClose, lessonPackage }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} panelClassName="max-w-4xl">
       <ModalHeader
-        title="Package Buyers"
+        title="Package Reservations"
         description={
           packageSummary?.name
-            ? `${packageSummary.name} • ${packageSummary.purchaseCount ?? packageSummary.purchase_count ?? 0} purchases`
-            : 'View students who bought this package'
+            ? `${packageSummary.name} • ${packageSummary.purchaseCount ?? packageSummary.purchase_count ?? 0} reservations`
+            : 'View students who reserved or bought this package'
         }
         onClose={onClose}
       />
       <ModalBody className="space-y-4">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Reserved packages are not paid yet. Player is charged only when the first lesson is confirmed.
+        </div>
+
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto]">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -222,7 +271,7 @@ const PackagePurchasesModal = ({ isOpen, onClose, lessonPackage }) => {
               }}
               className="rounded text-purple-600"
             />
-            Include pending
+            Include pending/reserved
           </label>
         </div>
 
@@ -248,12 +297,12 @@ const PackagePurchasesModal = ({ isOpen, onClose, lessonPackage }) => {
 
         {!loading && !error && purchases.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-gray-200">
-            <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_120px_120px_160px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_140px_120px_160px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
               <span>Player</span>
               <span>Contact</span>
-              <span>Status</span>
+              <span>Payment</span>
               <span>Remaining</span>
-              <span>Purchased</span>
+              <span>Reserved</span>
             </div>
             {purchases.map((purchase, index) => {
               const rowKey = purchase.id ?? purchase.purchase_id ?? `${purchase.player_email}-${index}`;
@@ -263,23 +312,32 @@ const PackagePurchasesModal = ({ isOpen, onClose, lessonPackage }) => {
                 purchase.full_name ||
                 'Player';
               const contact = purchase.player_email || purchase.player_phone || 'N/A';
-              const purchaseStatus = purchase.status || purchase.purchase_status || 'unknown';
+              const paymentState = getPurchasePaymentState(purchase);
               const creditsRemaining =
                 purchase.credits_remaining ??
                 purchase.creditsRemaining ??
                 purchase.remaining_credits ??
                 'N/A';
-              const amountPaid = purchase.amount_paid ?? purchase.amountPaid;
+              const chargedAt =
+                purchase.charged_at ||
+                purchase.paid_at ||
+                purchase.first_charged_at ||
+                purchase.updated_at;
+              const amountPaid = formatMoney(
+                purchase.amount_paid ?? purchase.amountPaid ?? purchase.package_price ?? purchase.amount
+              );
 
               return (
                 <div
                   key={rowKey}
-                  className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_120px_120px_160px] gap-3 border-b border-gray-100 px-4 py-4 text-sm last:border-b-0"
+                  className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_140px_120px_160px] gap-3 border-b border-gray-100 px-4 py-4 text-sm last:border-b-0"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium text-gray-900">{name}</p>
-                    {amountPaid !== null && amountPaid !== undefined && (
-                      <p className="text-xs text-gray-500">Paid ${amountPaid}</p>
+                    {amountPaid && (
+                      <p className="text-xs text-gray-500">
+                        {paymentState.label === 'Paid' ? 'Charged' : 'Package price'} {amountPaid}
+                      </p>
                     )}
                   </div>
                   <div className="min-w-0">
@@ -288,9 +346,18 @@ const PackagePurchasesModal = ({ isOpen, onClose, lessonPackage }) => {
                       <p className="truncate text-xs text-gray-500">{purchase.player_phone}</p>
                     )}
                   </div>
-                  <div className="text-gray-700">{purchaseStatus}</div>
+                  <div>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${paymentState.className}`}>
+                      {paymentState.label}
+                    </span>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {paymentState.label === 'Paid' ? `Charged ${formatDateTime(chargedAt)}` : paymentState.detail}
+                    </p>
+                  </div>
                   <div className="text-gray-700">{creditsRemaining}</div>
-                  <div className="text-gray-700">{formatDateTime(purchase.purchased_at)}</div>
+                  <div className="text-gray-700">
+                    {formatDateTime(purchase.reserved_at || purchase.purchased_at || purchase.created_at)}
+                  </div>
                 </div>
               );
             })}

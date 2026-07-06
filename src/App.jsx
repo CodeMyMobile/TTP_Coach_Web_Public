@@ -91,6 +91,15 @@ const getApiErrorMessage = (errorBody, fallbackMessage) =>
   errorBody?.errors?.[0] ||
   fallbackMessage;
 
+const getLessonConfirmErrorMessage = (errorBody, fallbackMessage) => {
+  const code = errorBody?.code || errorBody?.error;
+  if (code === 'package_charge_failed' || errorBody?.requires_action) {
+    return 'Package charge failed. Lesson was not confirmed. Ask the player to update their card or complete payment authentication, then confirm again.';
+  }
+
+  return getApiErrorMessage(errorBody, fallbackMessage);
+};
+
 const defaultProfile = createDefaultProfile();
 
 const normalizeStudentForDetail = (student) => {
@@ -1909,16 +1918,16 @@ function App() {
         lessonId: selectedLessonDetail.id
       });
 
-      await refreshSchedule();
-
       if (response?.status === 200 || response?.status === 201) {
+        await refreshSchedule();
         openLessonConfirmedSheet(selectedLessonDetail);
       } else {
-        window.alert('Something went wrong!!');
+        const errorBody = await response?.json?.().catch(() => null);
+        window.alert(getLessonConfirmErrorMessage(errorBody, 'Unable to confirm lesson.'));
       }
     } catch (error) {
       console.error('Failed to accept lesson request', error);
-      window.alert('Something went wrong!!');
+      window.alert('Unable to confirm lesson.');
     } finally {
       setShowLessonDetailModal(false);
     }

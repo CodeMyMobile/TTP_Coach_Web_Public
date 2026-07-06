@@ -573,6 +573,21 @@ const LessonDetailModal = ({
       : creditUsageStatus === 'restored'
         ? 'bg-slate-200 text-slate-700'
         : 'bg-emerald-100 text-emerald-700';
+  const creditPurchaseStatus = String(
+    creditUsage?.purchase?.status ??
+      creditUsage?.purchase_status ??
+      creditUsage?.purchaseStatus ??
+      ''
+  ).toLowerCase();
+  const creditPurchasePaid =
+    creditUsage?.purchase?.paid ??
+    creditUsage?.paid ??
+    creditUsage?.is_paid ??
+    null;
+  const isReservedPackageCredit =
+    creditPurchaseStatus === 'reserved' ||
+    creditPurchasePaid === false ||
+    creditPurchasePaid === 'false';
 
   const creditsUsed =
     parseNumber(creditUsage?.credits_used) ??
@@ -1015,6 +1030,11 @@ const LessonDetailModal = ({
                         <p className="text-xs text-yellow-800">
                           {resolvedLesson.isCoachCreatedLesson ? `Created ${resolvedLesson.requestedAt || 'recently'}` : `Requested ${resolvedLesson.requestedAt || 'recently'}`}
                         </p>
+                        {!isAwaitingPlayerConfirmation && (
+                          <p className="text-xs text-yellow-900">
+                            If this request uses a reserved package, confirming charges the full package now.
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1243,6 +1263,11 @@ const LessonDetailModal = ({
                           <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${creditStatusClasses}`}>
                             {creditUsageStatus}
                           </span>
+                          {isReservedPackageCredit && (
+                            <p className="mt-1 text-xs font-medium text-amber-700">
+                              Reserved package: charge happens when confirmed.
+                            </p>
+                          )}
                         </div>
                       </div>
                     ) : (
