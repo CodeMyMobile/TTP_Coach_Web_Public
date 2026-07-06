@@ -100,7 +100,7 @@ const PackagesSection = ({
         </div>
 
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Packages without purchases can be edited fully. Once purchased, only archive or restore is allowed.
+          Students reserve packages first, then get charged when their first private lesson is confirmed. Packages with reservation history can only be archived or restored.
         </div>
 
         <div className="mt-6 space-y-4">
@@ -181,14 +181,14 @@ const PackagesSection = ({
                       )}
                       <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
                         <span className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600">
-                          {lessonPackage.purchaseCount} purchases
+                          {lessonPackage.purchaseCount} reservations
                         </span>
                         <span className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600">
-                          Last purchased {formatPurchaseDate(lessonPackage.lastPurchasedAt)}
+                          Last reserved {formatPurchaseDate(lessonPackage.lastPurchasedAt)}
                         </span>
                         {isPurchased && (
                           <span className="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">
-                            Locked after purchase
+                            Locked after reservation
                           </span>
                         )}
                       </div>
@@ -229,7 +229,7 @@ const PackagesSection = ({
                           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <Users className="h-4 w-4" />
-                          <span>View Buyers</span>
+                          <span>View Reservations</span>
                         </button>
                         <button
                           type="button"

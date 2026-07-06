@@ -351,7 +351,7 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
               <p>
                 <strong>💰</strong>{' '}
                 {detail.isCreditLesson
-                  ? 'This lesson is covered by player credits, so no payout will be deposited for this booking.'
+                  ? 'This lesson is covered by package credits. If this was the first confirmed lesson from a reserved package, the package charge and transfer happen now; later package lessons do not create a new charge.'
                   : detail.lessonFee !== null
                     ? <><strong>${detail.lessonFee} will be deposited</strong> to your connected account after the lesson is completed.</>
                     : 'Funds will be deposited to your connected account after the lesson is completed.'}
