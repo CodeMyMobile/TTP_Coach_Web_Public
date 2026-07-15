@@ -197,6 +197,12 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     resolvedProfile.stripe_account_id = profileCandidate.stripe_account_id;
   }
 
+  if (profileCandidate?.allow_pay_on_court !== undefined || profileCandidate?.allowPayOnCourt !== undefined) {
+    resolvedProfile.allow_pay_on_court = Boolean(
+      pickDefined(profileCandidate?.allow_pay_on_court, profileCandidate?.allowPayOnCourt)
+    );
+  }
+
   if (profileCandidate?.charges_enabled !== undefined) {
     resolvedProfile.charges_enabled = Boolean(profileCandidate.charges_enabled);
   }

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { holdsLessonSpot, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 import './LessonDetailCard.css';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -62,13 +63,22 @@ const resolveStatus = (lesson, statusLabel, currentUserId) => {
     })
     : undefined;
 
-  const derivedStatus = playerRecord ? (playerRecord.payment_status ?? playerRecord.status) : lessonRecord.status;
-  const numericStatus = typeof derivedStatus === 'number' ? derivedStatus : Number(derivedStatus);
+  if (playerRecord) {
+    const state = resolveBookingPaymentState({
+      status: playerRecord.status,
+      paymentStatus: playerRecord.payment_status ?? playerRecord.paymentStatus,
+      paymentMethod: playerRecord.payment_method ?? playerRecord.paymentMethod
+    });
+    return { label: state.label, tone: state.tone };
+  }
 
-  if (typeof numericStatus === 'number') {
-    if (numericStatus === 0) return { label: 'Pending', tone: 'pending' };
-    if (numericStatus === 1) return { label: 'Confirmed', tone: 'success' };
-    if (numericStatus === 2) return { label: 'Cancelled', tone: 'danger' };
+  const lessonState = resolveBookingPaymentState({
+    status: lessonRecord.status,
+    paymentStatus: lessonRecord.payment_status ?? lessonRecord.paymentStatus,
+    paymentMethod: lessonRecord.payment_method ?? lessonRecord.paymentMethod
+  });
+  if (lessonState.key !== 'pending') {
+    return { label: lessonState.label, tone: lessonState.tone };
   }
 
   if (isGroupLesson && lessonTypeName.includes('open group')) {
@@ -92,11 +102,12 @@ const parseMoney = (value) => {
 };
 
 const resolvePlayerStatus = (player) => {
-  const raw = player.payment_status ?? player.status;
-  const parsed = typeof raw === 'number' ? raw : Number(raw);
-  if (parsed === 1) return { label: 'Confirmed', tone: 'success' };
-  if (parsed === 2) return { label: 'Cancelled', tone: 'danger' };
-  return { label: 'Pending', tone: 'pending' };
+  const state = resolveBookingPaymentState({
+    status: player.status,
+    paymentStatus: player.payment_status ?? player.paymentStatus,
+    paymentMethod: player.payment_method ?? player.paymentMethod
+  });
+  return { label: state.label, tone: state.tone };
 };
 
 const resolveSessionPrep = (lesson) => {
@@ -165,9 +176,16 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
       ? record.group_players
       : [];
 
-  const confirmedCount = groupPlayers.filter((player) => (player || {}).status === 1 || (player || {}).payment_status === 1).length;
-  const pendingCount = groupPlayers.filter((player) => (player || {}).status === 0 || (player || {}).payment_status === 0).length;
-  const cancelledCount = groupPlayers.filter((player) => (player || {}).status === 2 || (player || {}).payment_status === 2).length;
+  const confirmedCount = groupPlayers.filter((player) => {
+    const playerRecord = player || {};
+    return holdsLessonSpot({
+      status: playerRecord.status,
+      paymentStatus: playerRecord.payment_status ?? playerRecord.paymentStatus,
+      paymentMethod: playerRecord.payment_method ?? playerRecord.paymentMethod
+    });
+  }).length;
+  const pendingCount = groupPlayers.filter((player) => resolvePlayerStatus(player || {}).tone === 'pending').length;
+  const cancelledCount = groupPlayers.filter((player) => resolvePlayerStatus(player || {}).tone === 'danger').length;
   const showStatusCounts = isGroupLesson && groupPlayers.length > 0;
 
   const privateName = record.full_name || lesson.coach_name;
@@ -197,7 +215,11 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
       if (!Number.isFinite(limit) || limit <= 0) return null;
       const confirmed = groupPlayers.filter((player) => {
         const playerRecord = player || {};
-        return playerRecord.status === 1 || playerRecord.payment_status === 1;
+        return holdsLessonSpot({
+          status: playerRecord.status,
+          paymentStatus: playerRecord.payment_status ?? playerRecord.paymentStatus,
+          paymentMethod: playerRecord.payment_method ?? playerRecord.paymentMethod
+        });
       }).length;
       const available = Math.max(limit - confirmed, 0);
       return {

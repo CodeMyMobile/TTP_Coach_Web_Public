@@ -32,6 +32,7 @@ export const createDefaultProfile = () => ({
   availabilityLocations: createEmptySchedule(() => ({})),
   groupClasses: [],
   stripe_account_id: null,
+  allow_pay_on_court: false,
   charges_enabled: false,
   charges_disabled_reason: ''
 });

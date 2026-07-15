@@ -1,6 +1,6 @@
-import { apiRequest } from '../apiRequest';
-import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile';
-import { withSmsConsent } from '../../utils/smsConsent';
+import { apiRequest } from '../apiRequest.js';
+import { DAYS_OF_WEEK, createDefaultProfile } from '../../constants/profile.js';
+import { withSmsConsent } from '../../utils/smsConsent.js';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -224,7 +224,8 @@ export const buildOnboardingPayload = (formData = {}) => {
     availabilityLocations,
     groupClasses: normaliseGroupClasses(formData.groupClasses),
     packages: Array.isArray(formData.packages) ? formData.packages : [],
-    stripe_account_id: formData.stripe_account_id ?? null
+    stripe_account_id: formData.stripe_account_id ?? null,
+    allow_pay_on_court: Boolean(formData.allow_pay_on_court)
   }, isNonEmptyString(formData.phone) && formData.smsConsentGranted === true, 'coach_onboarding');
 
   if (

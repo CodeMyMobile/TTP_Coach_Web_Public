@@ -27,6 +27,7 @@ import CalendarSection from './sections/CalendarSection';
 import AvailabilityReminderSheet from '../modals/AvailabilityReminderSheet';
 import { hasReviewedRecently, markAvailabilityReviewed } from '../../utils/availabilityReview';
 import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
+import { resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 import { COACH_SUPPLIES_URL } from '../../constants/urls';
 import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
@@ -84,13 +85,21 @@ const formatValidityLabel = (months) => {
 
 
 const resolveLessonPlayerStatus = (player) => {
-  const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
-  if (rawStatus === 1 || rawStatus === '1') {
+  const state = resolveBookingPaymentState({
+    status: player?.status,
+    paymentStatus: player?.payment_status ?? player?.paymentStatus,
+    paymentMethod: player?.payment_method ?? player?.paymentMethod
+  });
+
+  if (state.key === 'booked' || state.key === 'pay_on_court') {
     return 'confirmed';
   }
-  if (rawStatus === 2 || rawStatus === '2') {
+
+  if (state.key === 'cancelled') {
     return 'cancelled';
   }
+
+  const rawStatus = player?.payment_status ?? player?.paymentStatus ?? player?.status;
   const normalizedStatus = typeof rawStatus === 'string' ? rawStatus.toLowerCase() : '';
   if (normalizedStatus.includes('confirm') || normalizedStatus.includes('accept')) {
     return 'confirmed';

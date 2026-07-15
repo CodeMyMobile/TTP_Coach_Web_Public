@@ -21,6 +21,7 @@ import {
   LESSON_TITLE_MAX_LENGTH,
   getLessonMetadataLimitState
 } from '../../utils/lessonEdit';
+import { holdsLessonSpot, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -408,7 +409,9 @@ const LessonDetailModal = ({
     lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
     phone: student.phone || student.phone_number || '',
     profilePicture: student.profile_picture || student.profilePicture || '',
-    status: student.status
+    status: student.status,
+    paymentStatus: student.payment_status ?? student.paymentStatus,
+    paymentMethod: student.payment_method ?? student.paymentMethod
   }));
 
   const studentList = resolvedLesson.students?.length
@@ -438,7 +441,10 @@ const LessonDetailModal = ({
         name: student.name || student.full_name || student.player_name,
         level: student.level || student.skill_level || 'Intermediate',
         lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
-        phone: student.phone || student.phone_number || ''
+        phone: student.phone || student.phone_number || '',
+        status: student.status,
+        paymentStatus: student.payment_status ?? student.paymentStatus,
+        paymentMethod: student.payment_method ?? student.paymentMethod
       }))
     : [];
 
@@ -449,24 +455,18 @@ const LessonDetailModal = ({
       ? studentList
       : participantsFromProps;
 
-  const resolveParticipantStatus = (status) => {
-    if (status === 1 || status === '1') {
-      return 'Confirmed';
+  const resolveParticipantStatus = (participant) => {
+    const state = resolveBookingPaymentState({
+      status: participant.status,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    });
+
+    if (state.key !== 'pending' || participant.status === 0 || participant.status === '0') {
+      return state.label;
     }
 
-    if (status === 2 || status === '2') {
-      return 'Cancelled';
-    }
-
-    if (status === 0 || status === '0') {
-      return 'Pending';
-    }
-
-    if (!status) {
-      return 'Confirmed';
-    }
-
-    return status;
+    return participant.status || 'Confirmed';
   };
 
   const participantStatusClass = (status) => {
@@ -509,7 +509,19 @@ const LessonDetailModal = ({
     lessonsCompleted: participant.lessonsCompleted || 0,
     phone: participant.phone || '',
     rawStatus: participant.status,
-    status: resolveParticipantStatus(participant.status)
+    paymentStatus: participant.paymentStatus,
+    paymentMethod: participant.paymentMethod,
+    holdsSpot: holdsLessonSpot({
+      status: participant.status,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    }),
+    paymentDue: resolveBookingPaymentState({
+      status: participant.status,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    }).paymentDue,
+    status: resolveParticipantStatus(participant)
   }));
 
   const primaryStudent = participantList[0];
@@ -620,7 +632,9 @@ const LessonDetailModal = ({
       resolvedLesson.max_players ||
       8
   );
-  const filledSpots = participantList.length;
+  const filledSpots = isGroupOrSemiPrivate
+    ? participantList.filter((participant) => participant.holdsSpot).length
+    : participantList.length;
   const availableSpots = Math.max(groupCapacity - filledSpots, 0);
   const expectedRevenue = resolvedLessonFee !== null ? resolvedLessonFee * filledSpots : null;
 
@@ -976,6 +990,9 @@ const LessonDetailModal = ({
                           <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
                           <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
                           <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
+                          {participant.paymentDue && (
+                            <p className="mt-1 text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
+                          )}
                         </div>
                         <div className="flex gap-1">
                           <button
@@ -1082,6 +1099,9 @@ const LessonDetailModal = ({
                             <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
                             <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
                             <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
+                            {participant.paymentDue && (
+                              <p className="mt-1 text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
+                            )}
                           </div>
                           <div className="flex gap-1">
                             <button

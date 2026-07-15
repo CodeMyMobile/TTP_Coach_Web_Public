@@ -19,7 +19,8 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
     pricePrivate: '',
     priceSemi: '',
     priceGroup: '',
-    otherLanguages: ''
+    otherLanguages: '',
+    allowPayOnCourt: false
   });
   const [profileId, setProfileId] = useState(null);
   const [action, setAction] = useState(null);
@@ -78,7 +79,8 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
         pricePrivate: payload?.price_private ?? '',
         priceSemi: payload?.price_semi ?? '',
         priceGroup: payload?.price_group ?? '',
-        otherLanguages: payload?.other_languages ?? ''
+        otherLanguages: payload?.other_languages ?? '',
+        allowPayOnCourt: Boolean(payload?.allow_pay_on_court)
       });
       setStripeStatus({
         accountId: payload?.stripe_account_id || '',
@@ -377,7 +379,8 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
           id: profileId,
           fullName: form.fullName.trim(),
           aboutMe: form.aboutMe.trim(),
-          hourlyRate: resolvedRate
+          hourlyRate: resolvedRate,
+          allowPayOnCourt: form.allowPayOnCourt
         });
 
         if (!response?.ok) {
@@ -390,7 +393,8 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
           fullName: form.fullName.trim(),
           aboutMe: form.aboutMe.trim(),
           hourlyRate: resolvedRate,
-          profilePicture: ''
+          profilePicture: '',
+          allowPayOnCourt: form.allowPayOnCourt
         });
 
         if (!response?.ok) {
@@ -790,6 +794,20 @@ const SettingsPage = ({ onBack, onOpenGoogleCalendar }) => {
                   </button>
                 </div>
               </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <input
+                  type="checkbox"
+                  checked={form.allowPayOnCourt}
+                  onChange={(event) => setForm((prev) => ({ ...prev, allowPayOnCourt: event.target.checked }))}
+                  className="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  <span className="block font-semibold">Allow pay on court</span>
+                  <span className="block text-emerald-700">
+                    Players can reserve spots now and pay you cash or Venmo on lesson day. No card or platform fees.
+                  </span>
+                </span>
+              </label>
             </div>
             </div>
           )}

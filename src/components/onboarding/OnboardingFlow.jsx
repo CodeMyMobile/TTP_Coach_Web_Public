@@ -982,7 +982,7 @@ const OnboardingFlow = ({
       Number(formData.price_private) >= 40 &&
       (!formData.formats.includes('semi') || Number.isFinite(Number(formData.price_semi)) && Number(formData.price_semi) > 0) &&
       (!formData.formats.includes('group') || Number.isFinite(Number(formData.price_group)) && Number(formData.price_group) > 0),
-    6: Boolean(formData.stripe_account_id),
+    6: Boolean(formData.stripe_account_id || formData.allow_pay_on_court),
     7: (Array.isArray(formData.languages) && formData.languages.length > 0) || Boolean(formData.otherLanguage?.trim())
   }), [formData]);
 
@@ -1700,7 +1700,21 @@ const OnboardingFlow = ({
           {currentStep === 6 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900">Set up payments</h2>
-              <p className="text-sm text-gray-600">Connect with Stripe to receive payments directly from students</p>
+              <p className="text-sm text-gray-600">Choose how students can pay for lessons</p>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.allow_pay_on_court)}
+                  onChange={(event) => setFormData({ ...formData, allow_pay_on_court: event.target.checked })}
+                  className="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  <span className="block font-semibold">Allow pay on court</span>
+                  <span className="block text-emerald-700">
+                    Players reserve in the app and pay you cash or Venmo on lesson day. No card or platform fees.
+                  </span>
+                </span>
+              </label>
               {stripeError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
                   {stripeError}

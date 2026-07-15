@@ -6,6 +6,7 @@ const buildProfilePayload = ({
   aboutMe = null,
   hourlyRate = 0,
   profilePicture = null,
+  allowPayOnCourt = null,
   includeAvatar = true
 } = {}) => {
   const payload = {};
@@ -24,6 +25,10 @@ const buildProfilePayload = ({
 
   if (includeAvatar && profilePicture !== undefined) {
     payload.profile_picture = profilePicture ?? '';
+  }
+
+  if (allowPayOnCourt !== null && allowPayOnCourt !== undefined) {
+    payload.allow_pay_on_court = Boolean(allowPayOnCourt);
   }
 
   return payload;
@@ -54,7 +59,8 @@ export const addCoachProfile = async ({
   fullName = null,
   aboutMe = null,
   hourlyRate = 0,
-  profilePicture = null
+  profilePicture = null,
+  allowPayOnCourt = null
 } = {}) =>
   apiRequest('/coach/profile', {
     method: 'POST',
@@ -65,6 +71,7 @@ export const addCoachProfile = async ({
         aboutMe: aboutMe ?? '',
         hourlyRate: hourlyRate ?? 0,
         profilePicture: profilePicture ?? '',
+        allowPayOnCourt,
         includeAvatar: true
       })
     )
@@ -80,7 +87,7 @@ const normaliseModifyArgs = (args) => {
 };
 
 export const modifyProfileDetails = async (...args) => {
-  const { coach = null, id = null, fullName = null, aboutMe = null, hourlyRate = 0, profilePicture = null } =
+  const { coach = null, id = null, fullName = null, aboutMe = null, hourlyRate = 0, profilePicture = null, allowPayOnCourt = null } =
     normaliseModifyArgs(args);
 
   if (!id) {
@@ -96,6 +103,7 @@ export const modifyProfileDetails = async (...args) => {
         aboutMe,
         hourlyRate,
         profilePicture,
+        allowPayOnCourt,
         includeAvatar: true
       })
     )
@@ -107,7 +115,8 @@ export const updateProfileDetails = async ({
   id = null,
   fullName = null,
   aboutMe = null,
-  hourlyRate = 0
+  hourlyRate = 0,
+  allowPayOnCourt = null
 } = {}) => {
   if (!id) {
     throw new Error('A profile id is required to update profile details.');
@@ -121,6 +130,7 @@ export const updateProfileDetails = async ({
         fullName,
         aboutMe,
         hourlyRate,
+        allowPayOnCourt,
         includeAvatar: false
       })
     )
