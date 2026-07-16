@@ -4,6 +4,7 @@ import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './CoachCalendar.css';
 import { normalizeGoogleEvent } from '../../utils/lessonDisplay';
+import { isPayOnCourt } from '../../utils/bookingPaymentState';
 
 const localizer = momentLocalizer(moment);
 
@@ -161,6 +162,31 @@ const getLessonGroupPlayers = (lesson) =>
 const getPlayerDisplayName = (player) =>
   String(player?.full_name ?? player?.player_name ?? player?.student_name ?? player?.name ?? '').trim();
 
+const hasPayOnCourtPayment = (lesson) => {
+  if (!lesson) {
+    return false;
+  }
+
+  const directMethod =
+    lesson.payment_method ??
+    lesson.paymentMethod ??
+    lesson.payment_method_id ??
+    lesson.paymentMethodId;
+
+  if (isPayOnCourt(directMethod)) {
+    return true;
+  }
+
+  return getLessonGroupPlayers(lesson).some((player) =>
+    isPayOnCourt(
+      player?.payment_method ??
+        player?.paymentMethod ??
+        player?.payment_method_id ??
+        player?.paymentMethodId
+    )
+  );
+};
+
 const uniqueBy = (items, keyBuilder) => {
   const map = new Map();
   (Array.isArray(items) ? items : []).forEach((item, index) => {
@@ -214,6 +240,7 @@ const buildLessonEvents = (lessons) => {
       lessonType: getLessonTypeId(lesson),
       status: normalizeLessonStatus(lesson.status ?? lesson.lessonStatus ?? lesson.lesson_status),
       cancelledBy: resolveCancelledBy(lesson),
+      isPayOnCourt: hasPayOnCourtPayment(lesson),
       type: 'lesson'
     };
 
@@ -255,6 +282,7 @@ const buildLessonEvents = (lessons) => {
           ? 'cancelled'
           : existing.status,
       cancelledBy: existing.cancelledBy || event.cancelledBy,
+      isPayOnCourt: existing.isPayOnCourt || event.isPayOnCourt,
       resource: {
         ...existingResourceWithoutPlayerSummary,
         ...resourceWithoutPlayerSummary,
@@ -359,6 +387,18 @@ const buildAvailabilityEvents = (availability, referenceDate) => {
 
   return events;
 };
+
+const CalendarEvent = ({ event }) => (
+  <div className="coach-calendar-event-content">
+    <span className="coach-calendar-event-title">{event.title}</span>
+    {event.type === 'lesson' && event.isPayOnCourt ? (
+      <span className="coach-calendar-pay-indicator" title="Pay on court">
+        <span className="coach-calendar-pay-dot" />
+        Pay on court
+      </span>
+    ) : null}
+  </div>
+);
 
 const CoachCalendar = ({
   lessons = [],
@@ -651,6 +691,10 @@ const CoachCalendar = ({
           <span className="legend-dot busy" />
           Busy
         </span>
+        <span className="legend-item">
+          <span className="legend-dot pay-on-court" />
+          Pay on court
+        </span>
       </div>
 
       <div className="coach-calendar-mobile">
@@ -758,6 +802,7 @@ const CoachCalendar = ({
                     const isBusy = lesson.type === 'busy';
                     const isCancelled = lesson.status === 'cancelled';
                     const cancelledBy = lesson.cancelledBy || resolveCancelledBy(lesson.resource || {});
+                    const showPayOnCourt = !isBusy && lesson.isPayOnCourt;
 
                     return (
                       <button
@@ -784,6 +829,12 @@ const CoachCalendar = ({
                         </div>
                         <div className="lesson-card-title">{title}</div>
                         {subtitle && <div className="lesson-card-subtitle">{subtitle}</div>}
+                        {showPayOnCourt ? (
+                          <div className="lesson-card-payment-pill">
+                            <span className="lesson-card-payment-dot" />
+                            Pay on court
+                          </div>
+                        ) : null}
                         {isCancelled && (
                           <div className={`lesson-card-cancel-pill ${cancelledBy || 'generic'}`}>
                             Cancelled{cancelledBy ? ` by ${cancelledBy === 'coach' ? 'Coach' : 'Player'}` : ''}
@@ -909,6 +960,7 @@ const CoachCalendar = ({
             };
           }}
           components={{
+            event: CalendarEvent,
             week: {
               header: WeekHeader
             }

@@ -43,6 +43,10 @@
   border: 1px solid rgba(147, 197, 253, 0.4);
 }
 .coach-calendar-legend .legend-dot.busy { background: #6b7280; }
+.coach-calendar-legend .legend-dot.pay-on-court {
+  background: #14b8a6;
+  border-radius: 999px;
+}
 
 .coach-calendar .rbc-toolbar {
   align-items: center;
@@ -308,6 +312,50 @@
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
 
+.coach-calendar-event-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coach-calendar-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coach-calendar-pay-indicator,
+.lesson-card-payment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.14);
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.coach-calendar-pay-indicator {
+  max-width: 100%;
+  padding: 1px 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.coach-calendar-pay-dot,
+.lesson-card-payment-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #14b8a6;
+}
+
 .coach-calendar .lesson-private {
   background: #fee2e2;
   border-left-color: #ef4444;
@@ -569,6 +617,12 @@
 .lesson-card-subtitle {
   font-size: 11px;
   color: #64748b;
+}
+
+.lesson-card-payment-pill {
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: 10px;
 }
 
 .lesson-card-cancel-pill {
