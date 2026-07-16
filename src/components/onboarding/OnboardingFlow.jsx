@@ -30,6 +30,7 @@ import {
   requestCoachAvatarUploadUrl,
   uploadCoachAvatar
 } from '../../api/CoachApi/onboarding';
+import { formatCertificationString, parseCertificationList } from '../../utils/certifications';
 import ConfirmationDialog from '../modals/ConfirmationDialog';
 import { buildDraftPartialPayload, resetDraftUiState } from './draftUtils';
 
@@ -1399,9 +1400,9 @@ const OnboardingFlow = ({
                       >
                         <input
                           type="checkbox"
-                          checked={formData.certifications.split(', ').includes(cert.value)}
+                          checked={parseCertificationList(formData.certifications).includes(cert.value)}
                           onChange={(event) => {
-                            const current = formData.certifications ? formData.certifications.split(', ') : [];
+                            const current = parseCertificationList(formData.certifications);
                             if (event.target.checked) {
                               if (!current.includes(cert.value)) {
                                 current.push(cert.value);
@@ -1412,7 +1413,7 @@ const OnboardingFlow = ({
                                 current.splice(index, 1);
                               }
                             }
-                            setFormData({ ...formData, certifications: current.filter(Boolean).join(', ') });
+                            setFormData({ ...formData, certifications: formatCertificationString(current) });
                           }}
                           className="rounded text-green-500 focus:ring-green-500"
                         />
@@ -1424,6 +1425,7 @@ const OnboardingFlow = ({
                     type="text"
                     value={formData.certifications}
                     onChange={(event) => setFormData({ ...formData, certifications: event.target.value })}
+                    onBlur={(event) => setFormData({ ...formData, certifications: formatCertificationString(event.target.value) })}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Add other certifications or edit..."
                   />

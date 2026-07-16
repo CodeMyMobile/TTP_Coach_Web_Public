@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCoachOnboarding, getCoachOnboardingDraft, putCoachOnboarding } from '../api/CoachApi/onboarding';
 import { createDefaultProfile } from '../constants/profile';
 import { mergeOnboardingWithDraft } from '../components/onboarding/draftUtils';
+import { formatCertificationString } from '../utils/certifications';
 import { deriveOnboardingCompletion, resolveCompletionValue } from '../utils/profileCompletion';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -72,6 +73,15 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
   const aboutMe = pickDefined(profileCandidate?.about_me, profileCandidate?.aboutMe, profileCandidate?.bio);
   if (aboutMe !== undefined) {
     resolvedProfile.bio = aboutMe;
+  }
+
+  const certifications = pickDefined(
+    profileCandidate?.certifications,
+    profileCandidate?.certification,
+    container?.certifications
+  );
+  if (certifications !== undefined) {
+    resolvedProfile.certifications = formatCertificationString(certifications);
   }
 
   const email = pickDefined(profileCandidate?.email, container?.email);
