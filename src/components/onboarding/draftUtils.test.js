@@ -57,6 +57,20 @@ test('merge ignores empty default draft fields over complete onboarding data', (
   assert.deepEqual(merged.availability.Monday, ['09:00 - 10:00']);
 });
 
+test('merge ignores false sms consent draft over granted saved consent', () => {
+  const onboarding = {
+    phone: '+19990000000',
+    smsConsentGranted: true
+  };
+  const draft = {
+    smsConsentGranted: false
+  };
+
+  const merged = mergeOnboardingWithDraft(onboarding, draft);
+
+  assert.equal(merged.smsConsentGranted, true);
+});
+
 test('buildDraftPartialPayload returns only changed meaningful keys', () => {
   const previous = { name: 'A', formats: [], availability: { monday: [] }, bio: '' };
   const current = { name: 'B', formats: [], availability: { monday: ['09:00'] }, bio: '' };
@@ -87,6 +101,15 @@ test('final submit success helper state indicates no draft-dependent warning', (
 test('buildDraftPartialPayload excludes server-managed stripe status fields', () => {
   const previous = { charges_enabled: false, charges_disabled_reason: '' };
   const current = { charges_enabled: true, charges_disabled_reason: 'pending' };
+
+  const patch = buildDraftPartialPayload(previous, current);
+
+  assert.deepEqual(patch, {});
+});
+
+test('buildDraftPartialPayload does not persist sms consent revocation in draft', () => {
+  const previous = { smsConsentGranted: true };
+  const current = { smsConsentGranted: false };
 
   const patch = buildDraftPartialPayload(previous, current);
 

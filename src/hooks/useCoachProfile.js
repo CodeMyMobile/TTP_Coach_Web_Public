@@ -84,6 +84,16 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     resolvedProfile.phone = phone;
   }
 
+  const smsConsentGranted = pickDefined(
+    profileCandidate?.smsConsentGranted,
+    profileCandidate?.sms_consent_granted,
+    container?.smsConsentGranted,
+    container?.sms_consent_granted
+  );
+  if (smsConsentGranted !== undefined) {
+    resolvedProfile.smsConsentGranted = smsConsentGranted === true || smsConsentGranted === 'true';
+  }
+
   const hourlyRate = pickDefined(
     profileCandidate?.hourly_rate,
     profileCandidate?.hourlyRate,
