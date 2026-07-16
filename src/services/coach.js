@@ -125,6 +125,7 @@ const request = async (path, options = {}) => {
     const message =
       errorBody?.message ||
       errorBody?.error ||
+      errorBody?.detail ||
       response.statusText ||
       'An unknown error occurred while communicating with the server.';
     const error = new Error(message);
@@ -349,6 +350,20 @@ export const updateCoachLesson = (lessonId, payload) => {
   return request(`/coach/lesson/${lessonId}`, {
     method: 'PATCH',
     body: payload
+  });
+};
+
+export const markPayOnCourtLessonPaid = ({ lessonId, playerId } = {}) => {
+  if (!lessonId) {
+    throw new Error('A lesson id is required to mark pay-on-court paid.');
+  }
+
+  const path = playerId
+    ? `/coach/lesson/${lessonId}/participants/${playerId}/pay-on-court/paid`
+    : `/coach/lesson/${lessonId}/pay-on-court/paid`;
+
+  return request(path, {
+    method: 'PATCH'
   });
 };
 
@@ -700,6 +715,7 @@ export default {
   replaceCoachAvailability,
   updateCoachPlayer,
   updateCoachLesson,
+  markPayOnCourtLessonPaid,
   getCoachRequests,
   updateCoachRequest,
   getCoachPlayerGroups,

@@ -1751,6 +1751,7 @@ const DashboardPage = ({
           <PayOnCourtSection
             lessons={mergedLessons}
             onLessonSelect={onLessonSelect}
+            onMarkedPaid={onRefreshSchedule}
           />
         )}
 

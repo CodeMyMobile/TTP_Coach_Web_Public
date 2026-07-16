@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import moment from 'moment';
 import { CalendarDays, CheckCircle2, Clock3, MapPin, User } from 'lucide-react';
+import { markPayOnCourtLessonPaid } from '../../../services/coach';
 import { isPayOnCourt } from '../../../utils/bookingPaymentState';
 
 const parseStatus = (value) => {
@@ -128,6 +129,8 @@ const collectPayOnCourtItems = (lessons) => {
         byKey.set(key, {
           ...base,
           key,
+          playerId: player.player_id ?? player.playerId ?? player.id,
+          isParticipant: true,
           playerName: getPlayerName(player, `Participant ${index + 1}`),
           paymentStatus,
           status: paymentStatus === 1 ? 'completed' : 'pending'
@@ -142,6 +145,8 @@ const collectPayOnCourtItems = (lessons) => {
       byKey.set(key, {
         ...base,
         key,
+        playerId: null,
+        isParticipant: false,
         playerName: getPlayerName(lesson),
         paymentStatus,
         status: paymentStatus === 1 ? 'completed' : 'pending'
@@ -156,14 +161,37 @@ const collectPayOnCourtItems = (lessons) => {
   });
 };
 
-const PayOnCourtSection = ({ lessons = [], onLessonSelect }) => {
+const PayOnCourtSection = ({ lessons = [], onLessonSelect, onMarkedPaid }) => {
   const [view, setView] = useState('pending');
+  const [markingKey, setMarkingKey] = useState('');
+  const [actionError, setActionError] = useState('');
   const items = useMemo(() => collectPayOnCourtItems(lessons), [lessons]);
   const pendingItems = items.filter((item) => item.status === 'pending');
   const completedItems = items.filter((item) => item.status === 'completed');
   const visibleItems = view === 'completed' ? completedItems : pendingItems;
   const totalDue = pendingItems.reduce((sum, item) => sum + (item.amount || 0), 0);
   const totalCollected = completedItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  const handleMarkPaid = async (item) => {
+    if (!item?.lessonId || markingKey) {
+      return;
+    }
+
+    setMarkingKey(item.key);
+    setActionError('');
+    try {
+      await markPayOnCourtLessonPaid({
+        lessonId: item.lessonId,
+        playerId: item.isParticipant ? item.playerId : undefined
+      });
+      await onMarkedPaid?.();
+      setView('completed');
+    } catch (error) {
+      setActionError(error?.message || 'Unable to mark this payment as paid.');
+    } finally {
+      setMarkingKey('');
+    }
+  };
 
   return (
     <section className="space-y-5">
@@ -205,6 +233,12 @@ const PayOnCourtSection = ({ lessons = [], onLessonSelect }) => {
         ))}
       </div>
 
+      {actionError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {actionError}
+        </div>
+      ) : null}
+
       <div className="grid gap-3">
         {visibleItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
@@ -215,10 +249,8 @@ const PayOnCourtSection = ({ lessons = [], onLessonSelect }) => {
           </div>
         ) : (
           visibleItems.map((item) => (
-            <button
+            <div
               key={item.key}
-              type="button"
-              onClick={() => onLessonSelect?.(item.lesson)}
               className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-teal-200 hover:shadow-md"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -246,11 +278,27 @@ const PayOnCourtSection = ({ lessons = [], onLessonSelect }) => {
                 <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-slate-400" />{item.time}</span>
                 <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4 text-slate-400" />{item.location}</span>
               </div>
-              <div className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
-                <User className="h-3.5 w-3.5" />
-                Open lesson details
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {item.status === 'pending' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleMarkPaid(item)}
+                    disabled={markingKey === item.key}
+                    className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {markingKey === item.key ? 'Marking...' : 'Mark as paid'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => onLessonSelect?.(item.lesson)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-teal-200 hover:text-teal-700"
+                >
+                  <User className="h-3.5 w-3.5" />
+                  Open lesson details
+                </button>
               </div>
-            </button>
+            </div>
           ))
         )}
       </div>
