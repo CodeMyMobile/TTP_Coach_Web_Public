@@ -21,7 +21,7 @@ import {
   LESSON_TITLE_MAX_LENGTH,
   getLessonMetadataLimitState
 } from '../../utils/lessonEdit';
-import { holdsLessonSpot, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
+import { holdsLessonSpot, isPayOnCourt, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -429,7 +429,13 @@ const LessonDetailModal = ({
               .slice(0, 2)
               .toUpperCase(),
             level: resolvedLesson.studentLevel || 'Intermediate',
-            lessonsCompleted: resolvedLesson.lessonsCompleted || 0
+            lessonsCompleted: resolvedLesson.lessonsCompleted || 0,
+            paymentStatus: resolvedLesson.payment_status ?? resolvedLesson.paymentStatus,
+            paymentMethod:
+              resolvedLesson.payment_method ??
+              resolvedLesson.paymentMethod ??
+              resolvedLesson.payment_method_id ??
+              resolvedLesson.paymentMethodId
           }
         ]
       : [];
@@ -523,6 +529,14 @@ const LessonDetailModal = ({
     }).paymentDue,
     status: resolveParticipantStatus(participant)
   }));
+  const lessonPaymentMethod =
+    resolvedLesson.payment_method ??
+    resolvedLesson.paymentMethod ??
+    resolvedLesson.payment_method_id ??
+    resolvedLesson.paymentMethodId;
+  const hasPayOnCourtPayment =
+    isPayOnCourt(lessonPaymentMethod) ||
+    participantList.some((participant) => isPayOnCourt(participant.paymentMethod));
 
   const primaryStudent = participantList[0];
   const groupLessonTitle =
@@ -901,6 +915,19 @@ const LessonDetailModal = ({
       <div className="flex-1 overflow-y-auto bg-slate-50 px-4 pb-6 pt-4 sm:px-6">
         {!isEditing ? (
           <div className="space-y-5">
+            {hasPayOnCourtPayment && (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-3 w-3 shrink-0 rounded-full bg-teal-500 shadow-[0_0_0_4px_rgba(20,184,166,0.16)]" />
+                  <div>
+                    <p className="text-sm font-semibold text-teal-800">Pay on court</p>
+                    <p className="text-xs font-medium text-teal-700">
+                      Collect {resolvedLessonFee !== null ? `$${resolvedLessonFee}` : 'payment'} from the player on lesson day. No card charge or service fee applies.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             {isGroupLesson && (
               <>
                 <div className="flex items-center gap-3 rounded-xl bg-blue-100 px-4 py-3">
