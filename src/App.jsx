@@ -2147,6 +2147,7 @@ function App() {
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
         onRemoveParticipant={handleRemoveLessonParticipant}
+        onPayOnCourtMarkedPaid={refreshSchedule}
         groups={coachGroups}
       />
 

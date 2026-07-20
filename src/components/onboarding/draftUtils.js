@@ -9,6 +9,10 @@ const shouldApplyDraftValue = (key, value, baseValue) => {
     return false;
   }
 
+  if (key === 'smsConsentGranted' && value === false && baseValue === true) {
+    return false;
+  }
+
   if (typeof value === 'string') {
     return value.trim().length > 0;
   }
@@ -72,6 +76,10 @@ const hasMeaningfulValue = (value) => {
 export const buildDraftPartialPayload = (previous = {}, current = {}) =>
   Object.keys(current).reduce((accumulator, key) => {
     if (SERVER_MANAGED_ONBOARDING_FIELDS.has(key)) {
+      return accumulator;
+    }
+
+    if (key === 'smsConsentGranted' && current[key] === false) {
       return accumulator;
     }
 

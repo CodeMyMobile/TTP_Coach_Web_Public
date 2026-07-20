@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCoachOnboarding, getCoachOnboardingDraft, putCoachOnboarding } from '../api/CoachApi/onboarding';
 import { createDefaultProfile } from '../constants/profile';
 import { mergeOnboardingWithDraft } from '../components/onboarding/draftUtils';
+import { formatCertificationString } from '../utils/certifications';
 import { deriveOnboardingCompletion, resolveCompletionValue } from '../utils/profileCompletion';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -74,6 +75,15 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
     resolvedProfile.bio = aboutMe;
   }
 
+  const certifications = pickDefined(
+    profileCandidate?.certifications,
+    profileCandidate?.certification,
+    container?.certifications
+  );
+  if (certifications !== undefined) {
+    resolvedProfile.certifications = formatCertificationString(certifications);
+  }
+
   const email = pickDefined(profileCandidate?.email, container?.email);
   if (email !== undefined) {
     resolvedProfile.email = email;
@@ -82,6 +92,16 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
   const phone = pickDefined(profileCandidate?.phone, profileCandidate?.phone_number, container?.phone);
   if (phone !== undefined) {
     resolvedProfile.phone = phone;
+  }
+
+  const smsConsentGranted = pickDefined(
+    profileCandidate?.smsConsentGranted,
+    profileCandidate?.sms_consent_granted,
+    container?.smsConsentGranted,
+    container?.sms_consent_granted
+  );
+  if (smsConsentGranted !== undefined) {
+    resolvedProfile.smsConsentGranted = smsConsentGranted === true || smsConsentGranted === 'true';
   }
 
   const hourlyRate = pickDefined(
@@ -195,6 +215,12 @@ const normaliseProfileResponse = (raw, fallbackProfile = null, fallbackId = null
 
   if (profileCandidate?.stripe_account_id !== undefined) {
     resolvedProfile.stripe_account_id = profileCandidate.stripe_account_id;
+  }
+
+  if (profileCandidate?.allow_pay_on_court !== undefined || profileCandidate?.allowPayOnCourt !== undefined) {
+    resolvedProfile.allow_pay_on_court = Boolean(
+      pickDefined(profileCandidate?.allow_pay_on_court, profileCandidate?.allowPayOnCourt)
+    );
   }
 
   if (profileCandidate?.charges_enabled !== undefined) {

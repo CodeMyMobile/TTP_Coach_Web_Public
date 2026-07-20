@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getCoachPlayerPackageUsage } from '../../services/coach';
+import { getCoachPlayerPackageUsage, markPayOnCourtLessonPaid } from '../../services/coach';
 import { openSmsComposer, openPhoneDialer, textAllParticipants } from '../../utils/messaging';
 import moment from 'moment';
 import {
@@ -21,6 +21,7 @@ import {
   LESSON_TITLE_MAX_LENGTH,
   getLessonMetadataLimitState
 } from '../../utils/lessonEdit';
+import { holdsLessonSpot, isPayOnCourt, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -127,6 +128,7 @@ const LessonDetailModal = ({
   onDeclineRequest,
   onCreateLesson,
   onRemoveParticipant,
+  onPayOnCourtMarkedPaid,
   coachHourlyRate = null,
   groups = []
 }) => {
@@ -138,6 +140,9 @@ const LessonDetailModal = ({
   const [shareCopied, setShareCopied] = useState(false);
   const [editPlayerSearch, setEditPlayerSearch] = useState('');
   const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState(null);
+  const [markingPayOnCourtKey, setMarkingPayOnCourtKey] = useState('');
+  const [payOnCourtActionError, setPayOnCourtActionError] = useState('');
+  const [locallyPaidPayOnCourtKeys, setLocallyPaidPayOnCourtKeys] = useState(() => new Set());
 
   const resolvedLesson = useMemo(() => {
     if (!lesson) {
@@ -408,7 +413,9 @@ const LessonDetailModal = ({
     lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
     phone: student.phone || student.phone_number || '',
     profilePicture: student.profile_picture || student.profilePicture || '',
-    status: student.status
+    status: student.status,
+    paymentStatus: student.payment_status ?? student.paymentStatus,
+    paymentMethod: student.payment_method ?? student.paymentMethod
   }));
 
   const studentList = resolvedLesson.students?.length
@@ -426,7 +433,13 @@ const LessonDetailModal = ({
               .slice(0, 2)
               .toUpperCase(),
             level: resolvedLesson.studentLevel || 'Intermediate',
-            lessonsCompleted: resolvedLesson.lessonsCompleted || 0
+            lessonsCompleted: resolvedLesson.lessonsCompleted || 0,
+            paymentStatus: resolvedLesson.payment_status ?? resolvedLesson.paymentStatus,
+            paymentMethod:
+              resolvedLesson.payment_method ??
+              resolvedLesson.paymentMethod ??
+              resolvedLesson.payment_method_id ??
+              resolvedLesson.paymentMethodId
           }
         ]
       : [];
@@ -438,7 +451,10 @@ const LessonDetailModal = ({
         name: student.name || student.full_name || student.player_name,
         level: student.level || student.skill_level || 'Intermediate',
         lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
-        phone: student.phone || student.phone_number || ''
+        phone: student.phone || student.phone_number || '',
+        status: student.status,
+        paymentStatus: student.payment_status ?? student.paymentStatus,
+        paymentMethod: student.payment_method ?? student.paymentMethod
       }))
     : [];
 
@@ -449,24 +465,18 @@ const LessonDetailModal = ({
       ? studentList
       : participantsFromProps;
 
-  const resolveParticipantStatus = (status) => {
-    if (status === 1 || status === '1') {
-      return 'Confirmed';
+  const resolveParticipantStatus = (participant) => {
+    const state = resolveBookingPaymentState({
+      status: participant.status,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    });
+
+    if (state.key !== 'pending' || participant.status === 0 || participant.status === '0') {
+      return state.label;
     }
 
-    if (status === 2 || status === '2') {
-      return 'Cancelled';
-    }
-
-    if (status === 0 || status === '0') {
-      return 'Pending';
-    }
-
-    if (!status) {
-      return 'Confirmed';
-    }
-
-    return status;
+    return participant.status || 'Confirmed';
   };
 
   const participantStatusClass = (status) => {
@@ -509,8 +519,36 @@ const LessonDetailModal = ({
     lessonsCompleted: participant.lessonsCompleted || 0,
     phone: participant.phone || '',
     rawStatus: participant.status,
-    status: resolveParticipantStatus(participant.status)
+    paymentStatus: participant.paymentStatus,
+    paymentMethod: participant.paymentMethod,
+    holdsSpot: holdsLessonSpot({
+      status: participant.status,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    }),
+    paymentDue: resolveBookingPaymentState({
+      status: participant.status,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    }).paymentDue,
+    status: resolveParticipantStatus(participant)
   }));
+  const lessonPaymentMethod =
+    resolvedLesson.payment_method ??
+    resolvedLesson.paymentMethod ??
+    resolvedLesson.payment_method_id ??
+    resolvedLesson.paymentMethodId;
+  const hasPayOnCourtPayment =
+    isPayOnCourt(lessonPaymentMethod) ||
+    participantList.some((participant) => isPayOnCourt(participant.paymentMethod));
+  const lessonPaymentStatus = resolvedLesson.payment_status ?? resolvedLesson.paymentStatus;
+  const currentLessonId = resolvedLesson.id ?? resolvedLesson.lesson_id ?? resolvedLesson.lessonId;
+  const directPayOnCourtDue =
+    !isGroupOrSemiPrivate &&
+    isPayOnCourt(lessonPaymentMethod) &&
+    Number(lessonPaymentStatus) !== 1 &&
+    Number(lessonPaymentStatus) !== 2 &&
+    !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:direct`);
 
   const primaryStudent = participantList[0];
   const groupLessonTitle =
@@ -620,7 +658,9 @@ const LessonDetailModal = ({
       resolvedLesson.max_players ||
       8
   );
-  const filledSpots = participantList.length;
+  const filledSpots = isGroupOrSemiPrivate
+    ? participantList.filter((participant) => participant.holdsSpot).length
+    : participantList.length;
   const availableSpots = Math.max(groupCapacity - filledSpots, 0);
   const expectedRevenue = resolvedLessonFee !== null ? resolvedLessonFee * filledSpots : null;
 
@@ -673,6 +713,35 @@ const LessonDetailModal = ({
       await onRemoveParticipant(participant);
     } finally {
       setPendingRemovePlayerId(null);
+    }
+  };
+
+  const handleMarkPayOnCourtPaid = async ({ participant } = {}) => {
+    const lessonId = currentLessonId;
+    const playerId = participant?.playerId;
+    const key = playerId ? `${lessonId}:participant:${playerId}` : `${lessonId}:direct`;
+
+    if (!lessonId || markingPayOnCourtKey) {
+      return;
+    }
+
+    setMarkingPayOnCourtKey(key);
+    setPayOnCourtActionError('');
+    try {
+      await markPayOnCourtLessonPaid({
+        lessonId,
+        playerId: playerId || undefined
+      });
+      setLocallyPaidPayOnCourtKeys((current) => {
+        const next = new Set(current);
+        next.add(key);
+        return next;
+      });
+      await onPayOnCourtMarkedPaid?.();
+    } catch (error) {
+      setPayOnCourtActionError(error?.message || 'Unable to mark pay-on-court payment as paid.');
+    } finally {
+      setMarkingPayOnCourtKey('');
     }
   };
 
@@ -887,6 +956,32 @@ const LessonDetailModal = ({
       <div className="flex-1 overflow-y-auto bg-slate-50 px-4 pb-6 pt-4 sm:px-6">
         {!isEditing ? (
           <div className="space-y-5">
+            {hasPayOnCourtPayment && (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-3 w-3 shrink-0 rounded-full bg-teal-500 shadow-[0_0_0_4px_rgba(20,184,166,0.16)]" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-teal-800">Pay on court</p>
+                    <p className="text-xs font-medium text-teal-700">
+                      Collect {resolvedLessonFee !== null ? `$${resolvedLessonFee}` : 'payment'} from the player on lesson day. No card charge or service fee applies.
+                    </p>
+                    {payOnCourtActionError ? (
+                      <p className="mt-2 text-xs font-semibold text-red-600">{payOnCourtActionError}</p>
+                    ) : null}
+                  </div>
+                  {directPayOnCourtDue ? (
+                    <button
+                      type="button"
+                      onClick={() => handleMarkPayOnCourtPaid()}
+                      disabled={markingPayOnCourtKey === `${currentLessonId}:direct`}
+                      className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {markingPayOnCourtKey === `${currentLessonId}:direct` ? 'Marking...' : 'Mark as paid'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            )}
             {isGroupLesson && (
               <>
                 <div className="flex items-center gap-3 rounded-xl bg-blue-100 px-4 py-3">
@@ -976,6 +1071,19 @@ const LessonDetailModal = ({
                           <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
                           <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
                           <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
+                          {participant.paymentDue && !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:participant:${participant.playerId}`) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <p className="text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkPayOnCourtPaid({ participant })}
+                                disabled={markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}`}
+                                className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}` ? 'Marking...' : 'Mark as paid'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-1">
                           <button
@@ -1082,6 +1190,19 @@ const LessonDetailModal = ({
                             <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
                             <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
                             <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
+                            {participant.paymentDue && !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:participant:${participant.playerId}`) && (
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <p className="text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkPayOnCourtPaid({ participant })}
+                                  disabled={markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}`}
+                                  className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}` ? 'Marking...' : 'Mark as paid'}
+                                </button>
+                              </div>
+                            )}
                           </div>
                           <div className="flex gap-1">
                             <button
