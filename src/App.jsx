@@ -34,6 +34,8 @@ import UpcomingLessonsPage from './components/dashboard/UpcomingLessonsPage';
 import EarningsHistoryPage from './components/dashboard/sections/EarningsHistoryPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
 import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet';
+import PayoutSetupPage from './components/payouts/PayoutSetupPage';
+import { getPayoutSetupStatus } from './api/CoachApi/payouts';
 import {
   createCoachPlayerGroup,
   deleteCoachPlayerGroup,
@@ -246,6 +248,7 @@ function App() {
   const [groupsError, setGroupsError] = useState(null);
   const [groupsActionError, setGroupsActionError] = useState(null);
   const [groupsSaving, setGroupsSaving] = useState(false);
+  const [payoutSetupStatus, setPayoutSetupStatus] = useState(null);
   const sessionProfileComplete = user?.onboardingComplete ?? false;
   const hasSessionProfileComplete = Boolean(user?.hasOnboardingCompleteSignal);
   const isLoginRoute = currentPath === '/';
@@ -257,6 +260,7 @@ function App() {
   const isGoogleRedirectRoute = currentPath === '/redirect';
   const isTransactionsHistoryRoute = currentPath === '/earnings/transactions';
   const isPayoutHistoryRoute = currentPath === '/earnings/payouts';
+  const isPayoutSetupRoute = currentPath === '/coach/payout-setup';
   const lessonDetailRouteMatch = currentPath.match(/^\/dashboard\/lesson\/([^/]+)\/?$/);
   const isLessonDetailRoute = Boolean(lessonDetailRouteMatch);
   const lessonRouteLessonId = lessonDetailRouteMatch?.[1]
@@ -336,6 +340,7 @@ function App() {
       setGroupsError(null);
       setGroupsActionError(null);
       setGroupsSaving(false);
+      setPayoutSetupStatus(null);
     }
   }, [isAuthenticated]);
 
@@ -369,7 +374,8 @@ function App() {
       '/google-calendar',
       '/redirect',
       '/earnings/transactions',
-      '/earnings/payouts'
+      '/earnings/payouts',
+      '/coach/payout-setup'
     ]);
 
     if (isLessonDetailRoute || isPlayerDetailRoute) {
@@ -619,6 +625,34 @@ function App() {
     date: currentDate,
     dates: visibleCalendarDates
   });
+
+  useEffect(() => {
+    if (!isAuthenticated || !isProfileComplete || shouldShowOnboarding) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadPayoutSetupStatus = async () => {
+      try {
+        const status = await getPayoutSetupStatus();
+        if (!cancelled) {
+          setPayoutSetupStatus(status || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load payout setup status', error);
+          setPayoutSetupStatus(null);
+        }
+      }
+    };
+
+    loadPayoutSetupStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isProfileComplete, shouldShowOnboarding]);
 
   // Derive Google Calendar connection state ONCE for the header sync pill.
   // Only a definitive 404 ("not connected") flips to false; any transient failure
@@ -2034,6 +2068,8 @@ function App() {
         <EarningsHistoryPage mode="transactions" onBack={() => navigate('/dashboard')} />
       ) : isPayoutHistoryRoute ? (
         <EarningsHistoryPage mode="payouts" onBack={() => navigate('/dashboard')} />
+      ) : isPayoutSetupRoute ? (
+        <PayoutSetupPage onBack={() => navigate('/dashboard')} />
       ) : (
         <DashboardPage
           profile={profileData}
@@ -2087,6 +2123,8 @@ function App() {
           onOpenUpcomingLessons={() => navigate('/upcoming-lessons')}
           onOpenTransactionsHistory={() => navigate('/earnings/transactions')}
           onOpenPayoutHistory={() => navigate('/earnings/payouts')}
+          payoutSetupStatus={payoutSetupStatus}
+          onOpenPayoutSetup={() => navigate('/coach/payout-setup')}
           onLogout={logout}
           studentSearchQuery={studentSearchQuery}
           onStudentSearchQueryChange={setStudentSearchQuery}

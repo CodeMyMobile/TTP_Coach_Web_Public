@@ -460,7 +460,9 @@ const DashboardPage = ({
   onViewGroup = async () => null,
   onOpenUpcomingLessons = () => {},
   onOpenTransactionsHistory = () => {},
-  onOpenPayoutHistory = () => {}
+  onOpenPayoutHistory = () => {},
+  payoutSetupStatus = null,
+  onOpenPayoutSetup = () => {}
 }) => {
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
@@ -478,6 +480,11 @@ const DashboardPage = ({
       }),
     []
   );
+  const pendingPayoutCents = Number(payoutSetupStatus?.stripe_pending_balance || 0);
+  const shouldShowPayoutSetupBanner =
+    payoutSetupStatus &&
+    !payoutSetupStatus.stripe_onboarding_complete &&
+    pendingPayoutCents > 0;
 
   const packages = useMemo(() => {
     if (!Array.isArray(profile?.packages)) {
@@ -1143,6 +1150,26 @@ const DashboardPage = ({
           </div>
         </div>
       )}
+
+      {shouldShowPayoutSetupBanner ? (
+        <div className="border-b border-emerald-200 bg-emerald-50">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-700" />
+              <span>
+                You have {currencyFormatter.format(pendingPayoutCents / 100)} waiting from your last session. Complete payout setup to receive it.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenPayoutSetup}
+              className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              Set up payouts
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <nav className="dashboard-header border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4">

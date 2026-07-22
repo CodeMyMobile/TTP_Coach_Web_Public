@@ -130,6 +130,7 @@ const EarningsSection = ({ onOpenTransactionsHistory, onOpenPayoutHistory }) => 
 
   const apiBalances = dashboard?.balances || {};
   const nextPayout = apiBalances?.next_payout || null;
+  const onboardingIncomplete = apiBalances?.stripe_onboarding_complete === false;
   const lessonTypeBreakdown = getCollection(dashboard?.breakdown, ['lesson_type']);
   const locationBreakdown = getCollection(dashboard?.breakdown, ['location']);
   const topStudents = getCollection(dashboard?.breakdown, ['top_students']);
@@ -145,14 +146,16 @@ const EarningsSection = ({ onOpenTransactionsHistory, onOpenPayoutHistory }) => 
     {
       label: 'Pending',
       value: currency(apiBalances?.pending ?? 0),
-      sub: 'Clearing in 2-3 days',
+      sub: onboardingIncomplete ? 'Waiting for payout setup' : 'Clearing in 2-3 days',
       icon: Clock3,
       accent: 'default'
     },
     {
       label: 'Next Payout',
       value: currency(nextPayout?.amount ?? 0),
-      sub: nextPayout?.arrival_date
+      sub: onboardingIncomplete
+        ? 'Complete Stripe setup to enable payouts'
+        : nextPayout?.arrival_date
         ? `Arriving ${new Date(nextPayout.arrival_date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric'
@@ -267,7 +270,11 @@ const EarningsSection = ({ onOpenTransactionsHistory, onOpenPayoutHistory }) => 
               <button onClick={onOpenPayoutHistory} className="text-sm font-semibold text-violet-600">View history →</button>
             </div>
             <div className="px-4 py-2">
-              {payouts.slice(0, 3).map((item) => {
+              {onboardingIncomplete ? (
+                <p className="py-4 text-sm text-slate-500">
+                  Payouts unlock after Stripe verifies your identity and bank details.
+                </p>
+              ) : payouts.slice(0, 3).map((item) => {
                 const parts = dateParts(item?.arrival_date);
                 return (
                   <div key={item.id} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-none">
