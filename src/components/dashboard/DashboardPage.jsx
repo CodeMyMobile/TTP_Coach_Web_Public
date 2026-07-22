@@ -481,10 +481,14 @@ const DashboardPage = ({
     []
   );
   const pendingPayoutCents = Number(payoutSetupStatus?.stripe_pending_balance || 0);
+  const hasPendingPayoutBalance = pendingPayoutCents > 0;
+  const payoutsReady = Boolean(
+    payoutSetupStatus?.charges_enabled &&
+    payoutSetupStatus?.stripe_onboarding_complete
+  );
   const shouldShowPayoutSetupBanner =
     payoutSetupStatus &&
-    !payoutSetupStatus.stripe_onboarding_complete &&
-    pendingPayoutCents > 0;
+    !payoutsReady;
 
   const packages = useMemo(() => {
     if (!Array.isArray(profile?.packages)) {
@@ -1157,7 +1161,9 @@ const DashboardPage = ({
             <div className="flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-emerald-700" />
               <span>
-                You have {currencyFormatter.format(pendingPayoutCents / 100)} waiting from your last session. Complete payout setup to receive it.
+                {hasPendingPayoutBalance
+                  ? `You have ${currencyFormatter.format(pendingPayoutCents / 100)} waiting from your last session. Complete Stripe setup to receive it.`
+                  : 'Enable card payments with Stripe so players can pay by saved card.'}
               </span>
             </div>
             <button
@@ -1165,7 +1171,7 @@ const DashboardPage = ({
               onClick={onOpenPayoutSetup}
               className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
             >
-              Set up payouts
+              {hasPendingPayoutBalance ? 'Set up payouts' : 'Enable card payments'}
             </button>
           </div>
         </div>
