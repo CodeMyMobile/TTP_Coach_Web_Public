@@ -13,6 +13,7 @@ import {
 import SuppliesSelectorModal from '../../modals/SuppliesSelectorModal';
 import {
   formatLessonDuration,
+  getBookedGroupParticipants,
   getGroupCapacity,
   getLessonDateKey,
   getLessonMoments,
@@ -115,9 +116,9 @@ const LessonCard = ({ lesson, onLessonSelect }) => {
   const type = getLessonType(lesson);
   const group = isGroupLesson(lesson);
   const participants = getLessonParticipants(lesson);
-  const activeParticipants = participants.filter(
-    (participant) => String(participant.status).toLowerCase() !== 'cancelled'
-  );
+  const activeParticipants = group
+    ? getBookedGroupParticipants(lesson)
+    : participants.filter((participant) => String(participant.status).toLowerCase() !== 'cancelled');
   const capacity = getGroupCapacity(lesson);
   const filled = activeParticipants.length;
   const needed = Math.max(capacity - filled, 0);

@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { holdsLessonSpot } from './bookingPaymentState.js';
 
 // Duration is stored as a count of 30-minute slots (e.g. 2 = 1 hour).
 export const formatLessonDuration = (duration) => {
@@ -178,7 +179,10 @@ export const getLessonParticipants = (lesson) => {
       initials: toInitials(player.full_name || player.name || player.player_name),
       phone: player.phone || player.phone_number || '',
       profilePicture: player.profile_picture || player.profilePicture || '',
-      status: resolveParticipantStatus(player.status)
+      status: resolveParticipantStatus(player.status),
+      bookingStatus: player.status ?? player.bookingStatus,
+      paymentStatus: player.payment_status ?? player.paymentStatus,
+      paymentMethod: player.payment_method ?? player.paymentMethod
     }));
   }
 
@@ -203,10 +207,22 @@ export const getLessonParticipants = (lesson) => {
       initials: toInitials(name),
       phone: lesson.phone || lesson.phone_number || '',
       profilePicture: lesson.profile_picture || lesson.profilePicture || '',
-      status: resolveParticipantStatus(lesson.status)
+      status: resolveParticipantStatus(lesson.status),
+      bookingStatus: lesson.status ?? lesson.bookingStatus,
+      paymentStatus: lesson.payment_status ?? lesson.paymentStatus,
+      paymentMethod: lesson.payment_method ?? lesson.paymentMethod
     }
   ];
 };
+
+export const getBookedGroupParticipants = (lesson) =>
+  getLessonParticipants(lesson).filter((participant) =>
+    holdsLessonSpot({
+      status: participant.bookingStatus,
+      paymentStatus: participant.paymentStatus,
+      paymentMethod: participant.paymentMethod
+    })
+  );
 
 // Total spots for a group lesson (defaults to 8 when no capacity field is present).
 export const getGroupCapacity = (lesson) =>

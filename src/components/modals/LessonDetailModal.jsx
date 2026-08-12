@@ -5,6 +5,7 @@ import moment from 'moment';
 import {
   AlertCircle,
   Calendar,
+  ChevronDown,
   MapPin,
   MessageCircle,
   Pencil,
@@ -22,6 +23,7 @@ import {
   getLessonMetadataLimitState
 } from '../../utils/lessonEdit';
 import { holdsLessonSpot, isPayOnCourt, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
+import { splitParticipantsByBookingState } from '../../utils/participantSections';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -134,6 +136,7 @@ const LessonDetailModal = ({
 }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [participantsOpen, setParticipantsOpen] = useState(true);
+  const [pendingParticipantsOpen, setPendingParticipantsOpen] = useState(false);
   const [creditUsageLoading, setCreditUsageLoading] = useState(false);
   const [creditUsageError, setCreditUsageError] = useState('');
   const [creditUsage, setCreditUsage] = useState(null);
@@ -533,6 +536,10 @@ const LessonDetailModal = ({
     }).paymentDue,
     status: resolveParticipantStatus(participant)
   }));
+  const participantSections = splitParticipantsByBookingState(participantList);
+  const activeParticipantList = isGroupOrSemiPrivate ? participantSections.active : participantList;
+  const pendingParticipantList = isGroupOrSemiPrivate ? participantSections.pending : [];
+  const otherParticipantList = isGroupOrSemiPrivate ? participantSections.other : [];
   const lessonPaymentMethod =
     resolvedLesson.payment_method ??
     resolvedLesson.paymentMethod ??
@@ -702,7 +709,8 @@ const LessonDetailModal = ({
     }
   };
 
-  const handleTextAll = () => textAllParticipants(participantList);
+  const textableParticipants = isGroupOrSemiPrivate ? activeParticipantList : participantList;
+  const handleTextAll = () => textAllParticipants(textableParticipants);
   const handleRemoveParticipant = async (participant) => {
     if (!onRemoveParticipant || !participant?.playerId) {
       return;
@@ -744,6 +752,60 @@ const LessonDetailModal = ({
       setMarkingPayOnCourtKey('');
     }
   };
+
+  const renderParticipantRow = (participant, index) => (
+    <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
+      <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
+        {participant.initials}
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
+        <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
+        <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
+        {participant.paymentDue && !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:participant:${participant.playerId}`) && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
+            <button
+              type="button"
+              onClick={() => handleMarkPayOnCourtPaid({ participant })}
+              disabled={markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}`}
+              className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}` ? 'Marking...' : 'Mark as paid'}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => openSmsComposer({ playerId: participant.playerId, phone: participant.phone })}
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+        >
+          <MessageCircle className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => openPhoneDialer({ playerId: participant.playerId, phone: participant.phone })}
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+        >
+          <Phone className="h-4 w-4" />
+        </button>
+        {onRemoveParticipant && !String(participant.status).toLowerCase().includes('cancel') && (
+          <button
+            type="button"
+            onClick={() => handleRemoveParticipant(participant)}
+            disabled={pendingRemovePlayerId === participant.playerId}
+            title={`Remove ${participant.name}`}
+            aria-label={`Remove ${participant.name}`}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600 transition hover:bg-rose-100 disabled:cursor-wait disabled:bg-rose-100 disabled:text-rose-300"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   const editablePlayers = (Array.isArray(students) ? students : [])
     .map((student) => ({
@@ -1050,7 +1112,7 @@ const LessonDetailModal = ({
                     <button
                       type="button"
                       onClick={handleTextAll}
-                      disabled={participantList.length === 0}
+                      disabled={textableParticipants.length === 0}
                       className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-violet-300"
                     >
                       💬 Text All
@@ -1059,62 +1121,32 @@ const LessonDetailModal = ({
 
                   {participantsOpen && (
                     <div className="space-y-1 p-2">
-                    {participantList.length === 0 && (
-                      <p className="px-2 py-3 text-sm text-slate-500">No participants yet.</p>
-                    )}
-                    {participantList.map((participant, index) => (
-                      <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
-                        <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
-                          {participant.initials}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
-                          <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
-                          <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
-                          {participant.paymentDue && !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:participant:${participant.playerId}`) && (
-                            <div className="mt-1 flex flex-wrap items-center gap-2">
-                              <p className="text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
-                              <button
-                                type="button"
-                                onClick={() => handleMarkPayOnCourtPaid({ participant })}
-                                disabled={markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}`}
-                                className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}` ? 'Marking...' : 'Mark as paid'}
-                              </button>
+                      {activeParticipantList.length === 0 && (
+                        <p className="px-2 py-3 text-sm text-slate-500">No active participants yet.</p>
+                      )}
+                      {activeParticipantList.map((participant, index) => renderParticipantRow(participant, index))}
+                      {otherParticipantList.map((participant, index) =>
+                        renderParticipantRow(participant, activeParticipantList.length + index)
+                      )}
+                      {pendingParticipantList.length > 0 && (
+                        <div className="mt-2 overflow-hidden rounded-xl border border-amber-100 bg-amber-50/40">
+                          <button
+                            type="button"
+                            onClick={() => setPendingParticipantsOpen((prev) => !prev)}
+                            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-amber-700"
+                          >
+                            <span>Pending players ({pendingParticipantList.length})</span>
+                            <ChevronDown className={`h-4 w-4 transition ${pendingParticipantsOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          {pendingParticipantsOpen && (
+                            <div className="border-t border-amber-100 bg-white p-2">
+                              {pendingParticipantList.map((participant, index) =>
+                                renderParticipantRow(participant, activeParticipantList.length + otherParticipantList.length + index)
+                              )}
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openSmsComposer({ playerId: participant.playerId, phone: participant.phone })}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openPhoneDialer({ playerId: participant.playerId, phone: participant.phone })}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
-                          >
-                            <Phone className="h-4 w-4" />
-                          </button>
-                          {onRemoveParticipant && !String(participant.status).toLowerCase().includes('cancel') && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveParticipant(participant)}
-                              disabled={pendingRemovePlayerId === participant.playerId}
-                              title={`Remove ${participant.name}`}
-                              aria-label={`Remove ${participant.name}`}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600 transition hover:bg-rose-100 disabled:cursor-wait disabled:bg-rose-100 disabled:text-rose-300"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      )}
                     </div>
                   )}
 
@@ -1181,47 +1213,32 @@ const LessonDetailModal = ({
                     </div>
                     {participantsOpen && (
                       <div className="space-y-1 p-2">
-                        {participantList.map((participant, index) => (
-                        <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
-                          <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
-                            {participant.initials}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
-                            <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
-                            <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
-                            {participant.paymentDue && !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:participant:${participant.playerId}`) && (
-                              <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <p className="text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkPayOnCourtPaid({ participant })}
-                                  disabled={markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}`}
-                                  className="rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {markingPayOnCourtKey === `${currentLessonId}:participant:${participant.playerId}` ? 'Marking...' : 'Mark as paid'}
-                                </button>
+                        {activeParticipantList.length === 0 && (
+                          <p className="px-2 py-3 text-sm text-slate-500">No active participants yet.</p>
+                        )}
+                        {activeParticipantList.map((participant, index) => renderParticipantRow(participant, index))}
+                        {otherParticipantList.map((participant, index) =>
+                          renderParticipantRow(participant, activeParticipantList.length + index)
+                        )}
+                        {pendingParticipantList.length > 0 && (
+                          <div className="mt-2 overflow-hidden rounded-xl border border-amber-100 bg-amber-50/40">
+                            <button
+                              type="button"
+                              onClick={() => setPendingParticipantsOpen((prev) => !prev)}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-amber-700"
+                            >
+                              <span>Pending players ({pendingParticipantList.length})</span>
+                              <ChevronDown className={`h-4 w-4 transition ${pendingParticipantsOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {pendingParticipantsOpen && (
+                              <div className="border-t border-amber-100 bg-white p-2">
+                                {pendingParticipantList.map((participant, index) =>
+                                  renderParticipantRow(participant, activeParticipantList.length + otherParticipantList.length + index)
+                                )}
                               </div>
                             )}
                           </div>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openSmsComposer({ playerId: participant.playerId, phone: participant.phone })}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openPhoneDialer({ playerId: participant.playerId, phone: participant.phone })}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
-                            >
-                              <Phone className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        )}
                       </div>
                     )}
                   </div>
