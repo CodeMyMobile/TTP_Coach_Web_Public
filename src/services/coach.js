@@ -702,6 +702,16 @@ export const createLessonShareLink = (lessonId, payload = {}) => {
   });
 };
 
+export const getCoachRestringingCatalog = () => request('/coach/restringing/catalog');
+export const getCoachRestringingPlayers = () => request('/coach/restringing/players');
+export const getCoachRestringingOrders = () => request('/coach/restringing/orders');
+export const getCoachRestringingEarnings = () => request('/coach/restringing/earnings');
+export const createCoachRestringingOrder = (payload = {}) => request('/coach/restringing/orders', {
+  method: 'POST',
+  authType: 'token',
+  body: payload
+});
+
 export default {
   getCoachStudents,
   getCoachLessons,
@@ -733,4 +743,9 @@ export default {
   getGoogleCalendarSyncedEvents,
   sendLessonInvites,
   createLessonShareLink
+  ,getCoachRestringingCatalog,
+  getCoachRestringingPlayers,
+  getCoachRestringingOrders,
+  getCoachRestringingEarnings,
+  createCoachRestringingOrder
 };

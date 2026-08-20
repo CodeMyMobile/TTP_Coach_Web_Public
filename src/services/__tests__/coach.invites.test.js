@@ -68,6 +68,24 @@ test('createLessonShareLink posts payload with token auth header', async () => {
   await removeTokens();
 });
 
+test('createCoachRestringingOrder posts the roster-scoped order payload', async () => {
+  await storeTokens('coach-token', 'refresh-token');
+  let calledUrl = '';
+  let calledOptions = null;
+  global.fetch = async (url, options = {}) => {
+    calledUrl = url;
+    calledOptions = options;
+    return jsonResponse({ order: { id: 42 } });
+  };
+  const { createCoachRestringingOrder } = await import('../coach.js');
+  const payload = { player_user_id: 501, vendor_id: 1, items: [{ service_tier_id: 3, racket_make_model: 'Blade 98' }] };
+  await createCoachRestringingOrder(payload);
+  assert.equal(calledUrl, 'https://api.example.com/coach/restringing/orders');
+  assert.equal(calledOptions?.method, 'POST');
+  assert.deepEqual(JSON.parse(calledOptions?.body), payload);
+  await removeTokens();
+});
+
 test('coach service redirects to sign in and clears tokens on forbidden response', async () => {
   await storeTokens('coach-token', 'refresh-token');
 
