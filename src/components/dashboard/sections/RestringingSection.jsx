@@ -9,6 +9,8 @@ import {
 } from '../../../services/coach';
 import {
   buildCoachRestringingOrderPayload,
+  filterRosterPlayers,
+  playerLabel,
   initialRestringingForm
 } from './restringingOrderPayload';
 
@@ -61,6 +63,13 @@ const RestringingSection = () => {
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
   const earnings = data.earnings || {};
   const orderRows = useMemo(() => data.orders, [data.orders]);
+  const filteredPlayers = useMemo(
+    () => filterRosterPlayers(data.players, form.player_query),
+    [data.players, form.player_query]
+  );
+  const selectedRosterPlayer = data.players.find(
+    player => String(player.player_user_id || player.id) === String(form.player_user_id)
+  );
   const enabled =
     data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
@@ -174,19 +183,18 @@ const RestringingSection = () => {
 
           {form.player_mode === 'roster' ? (
             <div className="grid gap-3 md:grid-cols-3">
-              <select
-                required
-                value={form.player_user_id}
-                onChange={event => updateForm({ player_user_id: event.target.value })}
-                className="rounded-lg border border-gray-200 p-3 text-sm"
-              >
-                <option value="">Choose a roster player</option>
-                {data.players.map(player => (
-                  <option key={player.player_user_id || player.id} value={player.player_user_id || player.id}>
-                    {player.display_name || player.name} {player.status === 'invited' ? '- Invited' : ''}
-                  </option>
-                ))}
-              </select>
+              <RosterPlayerPicker
+                players={filteredPlayers}
+                query={form.player_query}
+                selectedPlayer={selectedRosterPlayer}
+                onQueryChange={player_query => updateForm({ player_query, player_user_id: '' })}
+                onSelect={player =>
+                  updateForm({
+                    player_user_id: String(player.player_user_id || player.id),
+                    player_query: playerLabel(player)
+                  })
+                }
+              />
               <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateForm} />
               <RacketInput value={form.racket_make_model} onChange={updateForm} />
             </div>
@@ -221,7 +229,7 @@ const RestringingSection = () => {
             Let the stringer advise at drop-off
           </label>
           <button
-            disabled={creating}
+            disabled={creating || (form.player_mode === 'roster' && !form.player_user_id)}
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             <Send className="h-4 w-4" />
@@ -273,6 +281,49 @@ const RestringingSection = () => {
     </section>
   );
 };
+
+const RosterPlayerPicker = ({
+  players,
+  query,
+  selectedPlayer,
+  onQueryChange,
+  onSelect
+}) => (
+  <div className="relative">
+    <input
+      value={query}
+      onChange={event => onQueryChange(event.target.value)}
+      placeholder="Search roster player"
+      className="w-full rounded-lg border border-gray-200 p-3 text-sm"
+    />
+    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+      {players.length ? (
+        players.slice(0, 8).map(player => {
+          const playerId = player.player_user_id || player.id;
+          const selected = String(selectedPlayer?.player_user_id || selectedPlayer?.id || '') === String(playerId);
+
+          return (
+            <button
+              key={playerId}
+              type="button"
+              onClick={() => onSelect(player)}
+              className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-purple-50 ${
+                selected ? 'bg-purple-50 text-purple-800' : 'text-gray-800'
+              }`}
+            >
+              <span className="font-medium">{playerLabel(player)}</span>
+              {player.status === 'invited' && (
+                <span className="text-xs text-gray-500">Invited</span>
+              )}
+            </button>
+          );
+        })
+      ) : (
+        <p className="px-3 py-3 text-sm text-gray-500">No roster matches</p>
+      )}
+    </div>
+  </div>
+);
 
 const ServiceSelect = ({ tiers, value, onChange }) => (
   <select

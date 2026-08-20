@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCoachRestringingOrderPayload } from './restringingOrderPayload.js';
+import {
+  buildCoachRestringingOrderPayload,
+  filterRosterPlayers
+} from './restringingOrderPayload.js';
 
 test('buildCoachRestringingOrderPayload sends new player details instead of a roster id', () => {
   const payload = buildCoachRestringingOrderPayload({
@@ -56,4 +59,25 @@ test('buildCoachRestringingOrderPayload sends selected roster player id by defau
     ]
   });
   assert.equal('new_player' in payload, false);
+});
+
+test('filterRosterPlayers matches roster entries by typed name or phone', () => {
+  const players = [
+    { player_user_id: 501, display_name: 'Alex Lee', phone: '+1 512 555 0123', status: 'invited' },
+    { player_user_id: 502, display_name: 'Sarah Chen', phone: '+1 512 555 0456', status: 'linked' },
+    { player_user_id: 503, display_name: 'Jordan Miles', phone: '+1 310 555 0123', status: 'linked' }
+  ];
+
+  assert.deepEqual(
+    filterRosterPlayers(players, 'sarah').map(player => player.player_user_id),
+    [502]
+  );
+  assert.deepEqual(
+    filterRosterPlayers(players, '310').map(player => player.player_user_id),
+    [503]
+  );
+  assert.deepEqual(
+    filterRosterPlayers(players, '').map(player => player.player_user_id),
+    [501, 502, 503]
+  );
 });

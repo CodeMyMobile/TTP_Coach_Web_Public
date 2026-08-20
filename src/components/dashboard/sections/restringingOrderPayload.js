@@ -3,9 +3,31 @@ export const initialRestringingForm = {
   player_user_id: '',
   new_player_name: '',
   new_player_phone: '',
+  player_query: '',
   service_tier_id: '',
   racket_make_model: '',
   advice_requested: true
+};
+
+export const playerLabel = player =>
+  String(player?.display_name || player?.name || 'Unnamed player').trim();
+
+export const filterRosterPlayers = (players = [], query = '') => {
+  const normalizedQuery = String(query || '').trim().toLowerCase();
+  if (!normalizedQuery) return players;
+
+  return players.filter(player => {
+    const searchable = [
+      playerLabel(player),
+      player?.phone,
+      player?.status === 'invited' ? 'invited' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return searchable.includes(normalizedQuery);
+  });
 };
 
 export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
