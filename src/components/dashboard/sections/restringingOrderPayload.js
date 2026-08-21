@@ -34,6 +34,21 @@ export const filterRosterPlayers = (players = [], query = '') => {
 export const serviceTierRequiresOwnString = tier =>
   tier?.string_category === null && !tier?.string_composition;
 
+export const formatCoachCommission = cents =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+    Number(cents || 0) / 100
+  );
+
+export const coachCommissionStatusText = order => {
+  const amount = formatCoachCommission(order?.coach_commission_cents);
+  if (order?.payment_status === 'paid') {
+    return order?.coach_transfer_id
+      ? `Earned ${amount}`
+      : `Paid · transfer pending ${amount}`;
+  }
+  return `You earn ${amount} when paid`;
+};
+
 export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
   const item = {
     service_tier_id: Number(form.service_tier_id),

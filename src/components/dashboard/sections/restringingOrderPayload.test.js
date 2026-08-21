@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildCoachRestringingOrderPayload,
+  coachCommissionStatusText,
   filterRosterPlayers,
   serviceTierRequiresOwnString
 } from './restringingOrderPayload.js';
@@ -95,6 +96,32 @@ test('serviceTierRequiresOwnString detects player supplied string tiers', () => 
   assert.equal(
     serviceTierRequiresOwnString({ string_category: null, string_composition: 'hybrid' }),
     false
+  );
+});
+
+test('coachCommissionStatusText distinguishes paid transfer state', () => {
+  assert.equal(
+    coachCommissionStatusText({
+      payment_status: 'paid',
+      coach_transfer_id: 'tr_coach',
+      coach_commission_cents: 450
+    }),
+    'Earned $4.50'
+  );
+  assert.equal(
+    coachCommissionStatusText({
+      payment_status: 'paid',
+      coach_transfer_id: null,
+      coach_commission_cents: 450
+    }),
+    'Paid · transfer pending $4.50'
+  );
+  assert.equal(
+    coachCommissionStatusText({
+      payment_status: 'unpaid',
+      coach_commission_cents: 450
+    }),
+    'You earn $4.50 when paid'
   );
 });
 

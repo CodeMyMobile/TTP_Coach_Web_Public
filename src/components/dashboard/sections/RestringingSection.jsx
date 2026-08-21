@@ -9,6 +9,7 @@ import {
 } from '../../../services/coach';
 import {
   buildCoachRestringingOrderPayload,
+  coachCommissionStatusText,
   filterRosterPlayers,
   playerLabel,
   serviceTierRequiresOwnString,
@@ -291,9 +292,7 @@ const RestringingSection = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-emerald-700">
-                    {order.payment_status === 'paid'
-                      ? `Earned ${money(order.coach_commission_cents)}`
-                      : `You earn ${money(order.coach_commission_cents)} when paid`}
+                    {coachCommissionStatusText(order)}
                   </p>
                   <p className="text-xs text-gray-500">{order.payment_status}</p>
                 </div>
