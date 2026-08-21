@@ -6,6 +6,7 @@ export const initialRestringingForm = {
   player_query: '',
   service_tier_id: '',
   racket_make_model: '',
+  own_string_text: '',
   advice_requested: true
 };
 
@@ -30,16 +31,23 @@ export const filterRosterPlayers = (players = [], query = '') => {
   });
 };
 
+export const serviceTierRequiresOwnString = tier =>
+  tier?.string_category === null && !tier?.string_composition;
+
 export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
+  const item = {
+    service_tier_id: Number(form.service_tier_id),
+    racket_make_model: String(form.racket_make_model || '').trim(),
+    advice_requested: Boolean(form.advice_requested)
+  };
+  const ownStringText = String(form.own_string_text || '').trim();
+  if (ownStringText) {
+    item.own_string_text = ownStringText;
+  }
+
   const payload = {
     vendor_id: Number(vendorId),
-    items: [
-      {
-        service_tier_id: Number(form.service_tier_id),
-        racket_make_model: String(form.racket_make_model || '').trim(),
-        advice_requested: Boolean(form.advice_requested)
-      }
-    ]
+    items: [item]
   };
 
   if (form.player_mode === 'new') {

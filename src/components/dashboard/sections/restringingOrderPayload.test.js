@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildCoachRestringingOrderPayload,
-  filterRosterPlayers
+  filterRosterPlayers,
+  serviceTierRequiresOwnString
 } from './restringingOrderPayload.js';
 
 test('buildCoachRestringingOrderPayload sends new player details instead of a roster id', () => {
@@ -59,6 +60,42 @@ test('buildCoachRestringingOrderPayload sends selected roster player id by defau
     ]
   });
   assert.equal('new_player' in payload, false);
+});
+
+test('buildCoachRestringingOrderPayload sends player supplied string text', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster',
+      player_user_id: '501',
+      service_tier_id: '5',
+      racket_make_model: 'Ezone 100',
+      advice_requested: true,
+      own_string_text: 'Solinco Hyper-G 16L'
+    },
+    vendorId: 1
+  });
+
+  assert.deepEqual(payload.items[0], {
+    service_tier_id: 5,
+    racket_make_model: 'Ezone 100',
+    advice_requested: true,
+    own_string_text: 'Solinco Hyper-G 16L'
+  });
+});
+
+test('serviceTierRequiresOwnString detects player supplied string tiers', () => {
+  assert.equal(
+    serviceTierRequiresOwnString({ string_category: null, string_composition: null }),
+    true
+  );
+  assert.equal(
+    serviceTierRequiresOwnString({ string_category: 'std_poly', string_composition: null }),
+    false
+  );
+  assert.equal(
+    serviceTierRequiresOwnString({ string_category: null, string_composition: 'hybrid' }),
+    false
+  );
 });
 
 test('filterRosterPlayers matches roster entries by typed name or phone', () => {

@@ -11,6 +11,7 @@ import {
   buildCoachRestringingOrderPayload,
   filterRosterPlayers,
   playerLabel,
+  serviceTierRequiresOwnString,
   initialRestringingForm
 } from './restringingOrderPayload';
 
@@ -61,6 +62,8 @@ const RestringingSection = () => {
   }, []);
 
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
+  const selectedServiceTier = tiers.find(tier => String(tier.id) === String(form.service_tier_id));
+  const ownStringRequired = serviceTierRequiresOwnString(selectedServiceTier);
   const earnings = data.earnings || {};
   const orderRows = useMemo(() => data.orders, [data.orders]);
   const filteredPlayers = useMemo(
@@ -75,6 +78,13 @@ const RestringingSection = () => {
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
 
   const updateForm = patch => setForm(current => ({ ...current, ...patch }));
+  const updateServiceTier = service_tier_id => {
+    const tier = tiers.find(entry => String(entry.id) === String(service_tier_id));
+    updateForm({
+      service_tier_id,
+      ...(serviceTierRequiresOwnString(tier) ? {} : { own_string_text: '' })
+    });
+  };
 
   const submit = async event => {
     event.preventDefault();
@@ -195,7 +205,7 @@ const RestringingSection = () => {
                   })
                 }
               />
-              <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateForm} />
+              <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateServiceTier} />
               <RacketInput value={form.racket_make_model} onChange={updateForm} />
             </div>
           ) : (
@@ -215,8 +225,26 @@ const RestringingSection = () => {
                 placeholder="Mobile number"
                 className="rounded-lg border border-gray-200 p-3 text-sm"
               />
-              <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateForm} />
+              <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateServiceTier} />
               <RacketInput value={form.racket_make_model} onChange={updateForm} />
+            </div>
+          )}
+
+          {ownStringRequired && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Player&apos;s string
+              </label>
+              <input
+                required
+                value={form.own_string_text}
+                onChange={event => updateForm({ own_string_text: event.target.value })}
+                placeholder="e.g. Solinco Hyper-G 16L"
+                className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Required for restringing-only orders where the player supplies the string.
+              </p>
             </div>
           )}
 
@@ -329,7 +357,7 @@ const ServiceSelect = ({ tiers, value, onChange }) => (
   <select
     required
     value={value}
-    onChange={event => onChange({ service_tier_id: event.target.value })}
+    onChange={event => onChange(event.target.value)}
     className="rounded-lg border border-gray-200 p-3 text-sm"
   >
     <option value="">Choose a service</option>
