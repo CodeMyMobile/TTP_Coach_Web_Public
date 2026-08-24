@@ -15,7 +15,8 @@ import {
   User,
   Users,
   MapPin,
-  TrendingUp
+  TrendingUp,
+  CircleDot
 } from 'lucide-react';
 import {
   getCoachRequests,
@@ -35,6 +36,7 @@ import PackagesSection from './sections/PackagesSection';
 import LocationsSection from './sections/LocationsSection';
 import CoachGroupsSection from './sections/CoachGroupsSection';
 import PayOnCourtSection from './sections/PayOnCourtSection';
+import RestringingSection from './sections/RestringingSection';
 import './DashboardPage.css';
 
 const parseNumber = (value) => {
@@ -1475,6 +1477,7 @@ const DashboardPage = ({
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
               { key: 'earnings', label: 'Earnings', icon: DollarSign },
+              { key: 'restringing', label: 'Restringing', icon: CircleDot },
               { key: 'pay-on-court', label: 'Pay on court', icon: DollarSign },
               { key: 'packages', label: 'Packages', icon: Package },
               { key: 'locations', label: 'Locations', icon: MapPin },
@@ -1746,6 +1749,8 @@ const DashboardPage = ({
             onOpenPayoutHistory={onOpenPayoutHistory}
           />
         )}
+
+        {dashboardTab === 'restringing' && <RestringingSection />}
 
         {dashboardTab === 'pay-on-court' && (
           <PayOnCourtSection
