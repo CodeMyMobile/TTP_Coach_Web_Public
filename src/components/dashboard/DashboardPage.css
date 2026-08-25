@@ -570,6 +570,10 @@
   display: none;
 }
 
+.mobile-restringing-card {
+  display: none;
+}
+
 @media (max-width: 430px) {
   .dashboard-mobile-toggle {
     display: inline-flex;
@@ -675,6 +679,10 @@
   .dashboard-main {
     padding: 12px;
     padding-bottom: 120px;
+  }
+
+  .mobile-restringing-card {
+    display: flex;
   }
 
   .calendar-section-header {
