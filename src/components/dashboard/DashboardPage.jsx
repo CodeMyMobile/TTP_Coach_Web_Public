@@ -1700,6 +1700,7 @@ const DashboardPage = ({
             onLessonSelect={onLessonSelect}
             coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
             onViewFullCalendar={() => onDashboardTabChange('calendar')}
+            onOpenRestringing={() => onDashboardTabChange('restringing')}
           />
         )}
 

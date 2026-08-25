@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import {
   AlertTriangle,
   CalendarDays,
   ChevronRight,
+  CircleDot,
   Clock,
   MapPin,
   MessageCircle,
@@ -11,6 +12,8 @@ import {
   Users
 } from 'lucide-react';
 import SuppliesSelectorModal from '../../modals/SuppliesSelectorModal';
+import { getCoachRestringingOrders } from '../../../services/coach';
+import { getRestringingOrderSummary } from './restringingOrderPayload';
 import {
   formatLessonDuration,
   getBookedGroupParticipants,
@@ -279,6 +282,25 @@ const SuppliesCard = ({ onOpen }) => (
   </button>
 );
 
+const RestringingCard = ({ summary, onOpen }) => (
+  <button
+    type="button"
+    onClick={onOpen}
+    className="mobile-restringing-card flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-200 hover:shadow"
+  >
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+      <CircleDot className="h-5 w-5" />
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block text-sm font-semibold text-gray-900">Restringing</span>
+      <span className="block truncate text-xs text-gray-500">
+        {summary.awaitingDropOff} awaiting drop-off · {summary.ready} ready
+      </span>
+    </span>
+    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+  </button>
+);
+
 // Compact busy time range: show the meridiem once when start and end share it
 // ("3:30 – 5:30 PM"); keep both when they differ ("11:30 AM – 1:00 PM").
 const formatBusyTimeRange = (start, end) => {
@@ -347,9 +369,11 @@ const TodayPage = ({
   calendarConnected = null,
   onLessonSelect,
   coachName = '',
-  onViewFullCalendar = () => {}
+  onViewFullCalendar = () => {},
+  onOpenRestringing = () => {}
 }) => {
   const [suppliesOpen, setSuppliesOpen] = useState(false);
+  const [restringingSummary, setRestringingSummary] = useState({ awaitingDropOff: 0, ready: 0 });
   const todayLabel = useMemo(() => moment().format('dddd, MMMM D'), []);
   const todayKey = useMemo(() => moment().format('YYYY-MM-DD'), []);
   const greeting = useMemo(() => {
@@ -361,6 +385,22 @@ const TodayPage = ({
 
   const firstName = String(coachName || '').trim().split(' ')[0];
   const subline = `${todayLabel} · ${todayLessonCount} ${todayLessonCount === 1 ? 'lesson' : 'lessons'} today`;
+
+  useEffect(() => {
+    let active = true;
+
+    getCoachRestringingOrders()
+      .then(response => {
+        if (active) {
+          setRestringingSummary(getRestringingOrderSummary(response?.orders || response || []));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Busy blocks grouped by local day → { allDay, timed }. Covers the whole synced
   // window, not just today. Suppress only when the calendar is *definitively* not
@@ -436,6 +476,7 @@ const TodayPage = ({
 
       <SuppliesCard onOpen={() => setSuppliesOpen(true)} />
       <SuppliesSelectorModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
+      <RestringingCard summary={restringingSummary} onOpen={onOpenRestringing} />
 
       {(requests.length > 0 || cancelledLessons.length > 0) && (
         <section className="space-y-3">
