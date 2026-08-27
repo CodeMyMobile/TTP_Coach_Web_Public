@@ -86,6 +86,25 @@ test('createCoachRestringingOrder posts the roster-scoped order payload', async 
   await removeTokens();
 });
 
+test('cancelCoachRestringingOrder posts to the authenticated coach order endpoint', async () => {
+  await storeTokens('coach-token', 'refresh-token');
+  let calledUrl = '';
+  let calledOptions = null;
+  global.fetch = async (url, options = {}) => {
+    calledUrl = url;
+    calledOptions = options;
+    return jsonResponse({ order: { id: 42, fulfillment_status: 'cancelled' } });
+  };
+
+  const { cancelCoachRestringingOrder } = await import('../coach.js');
+  await cancelCoachRestringingOrder(42);
+
+  assert.equal(calledUrl, 'https://api.example.com/coach/restringing/orders/42/cancel');
+  assert.equal(calledOptions?.method, 'POST');
+  assert.equal(calledOptions?.headers?.Authorization, 'token coach-token');
+  await removeTokens();
+});
+
 test('coach service redirects to sign in and clears tokens on forbidden response', async () => {
   await storeTokens('coach-token', 'refresh-token');
 

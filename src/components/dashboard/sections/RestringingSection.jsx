@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleDot, Loader2, Plus, Send, UserPlus, Users } from 'lucide-react';
+import { CircleDot, Loader2, Plus, Send, UserPlus, Users, XCircle } from 'lucide-react';
 import {
   createCoachRestringingOrder,
+  cancelCoachRestringingOrder,
   getCoachRestringingCatalog,
   getCoachRestringingEarnings,
   getCoachRestringingOrders,
@@ -31,6 +32,7 @@ const RestringingSection = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [form, setForm] = useState(initialRestringingForm);
 
   const load = async () => {
@@ -65,6 +67,11 @@ const RestringingSection = () => {
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
   const selectedServiceTier = tiers.find(tier => String(tier.id) === String(form.service_tier_id));
   const ownStringRequired = serviceTierRequiresOwnString(selectedServiceTier);
+  const compositionTier = Boolean(selectedServiceTier?.string_composition);
+  const stockedStrings = (data.catalog?.catalog || data.catalog?.strings || []).filter(string =>
+    !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
+  );
+  const selectedString = stockedStrings.find(string => String(string.id) === String(form.string_id));
   const earnings = data.earnings || {};
   const orderRows = useMemo(() => data.orders, [data.orders]);
   const filteredPlayers = useMemo(
@@ -83,7 +90,12 @@ const RestringingSection = () => {
     const tier = tiers.find(entry => String(entry.id) === String(service_tier_id));
     updateForm({
       service_tier_id,
-      ...(serviceTierRequiresOwnString(tier) ? {} : { own_string_text: '' })
+      own_string_text: '',
+      string_id: '',
+      gauge: '',
+      string_selection: serviceTierRequiresOwnString(tier)
+        ? 'player_supplied'
+        : tier?.string_composition ? 'shop_choice' : 'shop_choice'
     });
   };
 
@@ -102,6 +114,19 @@ const RestringingSection = () => {
       setError(err.message || 'Unable to send order.');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const cancelOrder = async orderId => {
+    setCancellingOrderId(orderId);
+    setError('');
+    try {
+      await cancelCoachRestringingOrder(orderId);
+      await load();
+    } catch (err) {
+      setError(err.message || 'Unable to cancel order.');
+    } finally {
+      setCancellingOrderId(null);
     }
   };
 
@@ -249,6 +274,22 @@ const RestringingSection = () => {
             </div>
           )}
 
+          {!ownStringRequired && compositionTier && (
+            <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm text-violet-800">
+              <span className="font-medium">String: Shop&apos;s choice.</span> This service includes a shop-selected composition.
+            </div>
+          )}
+
+          {!ownStringRequired && !compositionTier && selectedServiceTier && (
+            <StringSelection
+              value={form.string_selection}
+              strings={stockedStrings}
+              selectedString={selectedString}
+              gauge={form.gauge}
+              onChange={patch => updateForm(patch)}
+            />
+          )}
+
           <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
             <input
               type="checkbox"
@@ -286,7 +327,8 @@ const RestringingSection = () => {
                     <span className="text-xs font-normal text-gray-500">#{order.id}</span>
                   </p>
                   <p className="text-sm text-gray-500">
-                    {order.items?.[0]?.racket_make_model || 'Racket'} -{' '}
+                    {Number(order.item_count || order.items?.length || 1)} racket{Number(order.item_count || order.items?.length || 1) === 1 ? '' : 's'} ·{' '}
+                    {order.service_tier_name || order.items?.[0]?.service_tier_name || 'Restringing'} ·{' '}
                     {order.fulfillment_status?.replaceAll('_', ' ')}
                   </p>
                 </div>
@@ -295,6 +337,17 @@ const RestringingSection = () => {
                     {coachCommissionStatusText(order)}
                   </p>
                   <p className="text-xs text-gray-500">{order.payment_status}</p>
+                  {order.fulfillment_status === 'pending' && order.payment_status === 'unpaid' && (
+                    <button
+                      type="button"
+                      disabled={cancellingOrderId === order.id}
+                      onClick={() => cancelOrder(order.id)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 disabled:opacity-60"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel order'}
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -376,6 +429,55 @@ const RacketInput = ({ value, onChange }) => (
     placeholder="Racket, e.g. Blade 98"
     className="rounded-lg border border-gray-200 p-3 text-sm"
   />
+);
+
+const StringSelection = ({ value, strings, selectedString, gauge, onChange }) => (
+  <fieldset className="mt-3 rounded-lg border border-gray-200 p-3">
+    <legend className="px-1 text-sm font-medium text-gray-700">String choice</legend>
+    <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+      <label className="flex items-center gap-2">
+        <input
+          type="radio"
+          checked={value === 'specified'}
+          onChange={() => onChange({ string_selection: 'specified' })}
+        />
+        Choose a string
+      </label>
+      <label className="flex items-center gap-2">
+        <input
+          type="radio"
+          checked={value === 'shop_choice'}
+          onChange={() => onChange({ string_selection: 'shop_choice', string_id: '', gauge: '' })}
+        />
+        Shop&apos;s choice
+      </label>
+    </div>
+    {value === 'specified' && (
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <select
+          required
+          value={selectedString ? selectedString.id : ''}
+          onChange={event => onChange({ string_id: event.target.value, gauge: '' })}
+          className="rounded-lg border border-gray-200 p-3 text-sm"
+        >
+          <option value="">Choose a stocked string</option>
+          {strings.map(string => (
+            <option key={string.id} value={string.id}>{string.brand} {string.name}</option>
+          ))}
+        </select>
+        {selectedString?.gauges_stocked?.length ? (
+          <select
+            value={gauge}
+            onChange={event => onChange({ gauge: event.target.value })}
+            className="rounded-lg border border-gray-200 p-3 text-sm"
+          >
+            <option value="">Gauge (stringer can advise)</option>
+            {selectedString.gauges_stocked.map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
+        ) : null}
+      </div>
+    )}
+  </fieldset>
 );
 
 export default RestringingSection;

@@ -80,8 +80,43 @@ test('buildCoachRestringingOrderPayload sends player supplied string text', () =
     service_tier_id: 5,
     racket_make_model: 'Ezone 100',
     advice_requested: true,
+    string_selection: 'player_supplied',
     own_string_text: 'Solinco Hyper-G 16L'
   });
+});
+
+test('buildCoachRestringingOrderPayload sends a specified stocked string', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster', player_user_id: '501', service_tier_id: '3',
+      racket_make_model: 'Blade 98', advice_requested: true,
+      string_selection: 'specified', string_id: '8', gauge: '16L'
+    },
+    vendorId: 1
+  });
+
+  assert.deepEqual(payload.items[0], {
+    service_tier_id: 3,
+    racket_make_model: 'Blade 98',
+    advice_requested: true,
+    string_selection: 'specified',
+    string_id: 8,
+    gauge: '16L'
+  });
+});
+
+test('buildCoachRestringingOrderPayload sends shop choice independently from advice', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster', player_user_id: '501', service_tier_id: '3',
+      racket_make_model: 'Blade 98', advice_requested: false,
+      string_selection: 'shop_choice'
+    },
+    vendorId: 1
+  });
+
+  assert.equal(payload.items[0].string_selection, 'shop_choice');
+  assert.equal('string_id' in payload.items[0], false);
 });
 
 test('serviceTierRequiresOwnString detects player supplied string tiers', () => {

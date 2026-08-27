@@ -7,6 +7,9 @@ export const initialRestringingForm = {
   service_tier_id: '',
   racket_make_model: '',
   own_string_text: '',
+  string_selection: 'shop_choice',
+  string_id: '',
+  gauge: '',
   advice_requested: true
 };
 
@@ -56,8 +59,20 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
     advice_requested: Boolean(form.advice_requested)
   };
   const ownStringText = String(form.own_string_text || '').trim();
+  const stringSelection = String(form.string_selection || '').trim() || (
+    ownStringText ? 'player_supplied' : ''
+  );
+  if (stringSelection) {
+    item.string_selection = stringSelection;
+  }
   if (ownStringText) {
     item.own_string_text = ownStringText;
+  }
+  if (stringSelection === 'specified') {
+    const stringId = Number(form.string_id);
+    if (Number.isInteger(stringId) && stringId > 0) item.string_id = stringId;
+    const gauge = String(form.gauge || '').trim();
+    if (gauge) item.gauge = gauge;
   }
 
   const payload = {
