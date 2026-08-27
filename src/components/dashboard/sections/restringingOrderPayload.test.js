@@ -5,6 +5,7 @@ import {
   coachCommissionStatusText,
   filterRosterPlayers,
   normalizeRestringingEarnings,
+  getRestringingOrderSummary,
   serviceTierRequiresOwnString
 } from './restringingOrderPayload.js';
 
@@ -159,6 +160,20 @@ test('coachCommissionStatusText distinguishes paid transfer state', () => {
     }),
     'You earn $4.50 when paid'
   );
+});
+
+test('getRestringingOrderSummary counts drop-offs and ready orders', () => {
+  const summary = getRestringingOrderSummary([
+    { fulfillment_status: 'awaiting_drop_off' },
+    { fulfillment_status: 'awaiting_dropoff' },
+    { fulfillment_status: 'ready_for_pickup' },
+    { fulfillment_status: 'completed' }
+  ]);
+
+  assert.deepEqual(summary, {
+    awaitingDropOff: 2,
+    ready: 1
+  });
 });
 
 test('filterRosterPlayers only returns matches after the coach types a query', () => {

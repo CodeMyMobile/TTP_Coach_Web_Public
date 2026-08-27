@@ -57,6 +57,21 @@ export const coachCommissionStatusText = order => {
   return `You earn ${amount} when paid`;
 };
 
+export const getRestringingOrderSummary = (orders = []) =>
+  orders.reduce(
+    (summary, order) => {
+      const status = String(order?.fulfillment_status || '').toLowerCase();
+      if (status === 'awaiting_drop_off' || status === 'awaiting_dropoff') {
+        summary.awaitingDropOff += 1;
+      }
+      if (status === 'ready_for_pickup') {
+        summary.ready += 1;
+      }
+      return summary;
+    },
+    { awaitingDropOff: 0, ready: 0 }
+  );
+
 export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
   const item = {
     service_tier_id: Number(form.service_tier_id),
