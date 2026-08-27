@@ -34,10 +34,13 @@ export const filterRosterPlayers = (players = [], query = '') => {
   });
 };
 
-export const normalizeRestringingEarnings = (earnings = {}) => ({
-  earned_cents: earnings.total_commission_cents ?? earnings.earned_cents ?? earnings.earned ?? 0,
-  pending_cents: earnings.pending_commission_cents ?? earnings.pending_cents ?? earnings.pending ?? 0
-});
+export const normalizeRestringingEarnings = (earnings = {}) => {
+  const summary = earnings || {};
+  return {
+    earned_cents: summary.total_commission_cents ?? summary.earned_cents ?? summary.earned ?? 0,
+    pending_cents: summary.pending_commission_cents ?? summary.pending_cents ?? summary.pending ?? 0
+  };
+};
 
 export const serviceTierRequiresOwnString = tier =>
   tier?.string_category === null && !tier?.string_composition;
