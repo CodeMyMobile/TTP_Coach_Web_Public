@@ -206,3 +206,10 @@ test('normalizeRestringingEarnings reads the API commission total', () => {
     { earned_cents: 1350, pending_cents: 450 }
   );
 });
+
+test('normalizeRestringingEarnings handles an unavailable earnings response', () => {
+  assert.deepEqual(
+    normalizeRestringingEarnings(null),
+    { earned_cents: 0, pending_cents: 0 }
+  );
+});
