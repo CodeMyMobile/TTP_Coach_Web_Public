@@ -711,6 +711,10 @@ export const createCoachRestringingOrder = (payload = {}) => request('/coach/res
   authType: 'token',
   body: payload
 });
+export const cancelCoachRestringingOrder = orderId => request(`/coach/restringing/orders/${orderId}/cancel`, {
+  method: 'POST',
+  authType: 'token'
+});
 
 export default {
   getCoachStudents,
