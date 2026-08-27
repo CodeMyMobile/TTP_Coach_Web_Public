@@ -4,6 +4,7 @@ import {
   buildCoachRestringingOrderPayload,
   coachCommissionStatusText,
   filterRosterPlayers,
+  normalizeRestringingEarnings,
   serviceTierRequiresOwnString
 } from './restringingOrderPayload.js';
 
@@ -160,7 +161,7 @@ test('coachCommissionStatusText distinguishes paid transfer state', () => {
   );
 });
 
-test('filterRosterPlayers matches roster entries by typed name or phone', () => {
+test('filterRosterPlayers only returns matches after the coach types a query', () => {
   const players = [
     { player_user_id: 501, display_name: 'Alex Lee', phone: '+1 512 555 0123', status: 'invited' },
     { player_user_id: 502, display_name: 'Sarah Chen', phone: '+1 512 555 0456', status: 'linked' },
@@ -177,6 +178,16 @@ test('filterRosterPlayers matches roster entries by typed name or phone', () => 
   );
   assert.deepEqual(
     filterRosterPlayers(players, '').map(player => player.player_user_id),
-    [501, 502, 503]
+    []
+  );
+});
+
+test('normalizeRestringingEarnings reads the API commission total', () => {
+  assert.deepEqual(
+    normalizeRestringingEarnings({
+      total_commission_cents: 1350,
+      pending_commission_cents: 450
+    }),
+    { earned_cents: 1350, pending_cents: 450 }
   );
 });

@@ -12,6 +12,7 @@ import {
   buildCoachRestringingOrderPayload,
   coachCommissionStatusText,
   filterRosterPlayers,
+  normalizeRestringingEarnings,
   playerLabel,
   serviceTierRequiresOwnString,
   initialRestringingForm
@@ -72,7 +73,7 @@ const RestringingSection = () => {
     !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
   );
   const selectedString = stockedStrings.find(string => String(string.id) === String(form.string_id));
-  const earnings = data.earnings || {};
+  const earnings = normalizeRestringingEarnings(data.earnings);
   const orderRows = useMemo(() => data.orders, [data.orders]);
   const filteredPlayers = useMemo(
     () => filterRosterPlayers(data.players, form.player_query),
@@ -157,13 +158,13 @@ const RestringingSection = () => {
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div>
             <p className="text-2xl font-bold">
-              {money(earnings.earned_cents || earnings.earned)}
+              {money(earnings.earned_cents)}
             </p>
             <p className="text-xs text-violet-100">Earned</p>
           </div>
           <div>
             <p className="text-2xl font-bold">
-              {money(earnings.pending_cents || earnings.pending)}
+              {money(earnings.pending_cents)}
             </p>
             <p className="text-xs text-violet-100">Awaiting payment</p>
           </div>

@@ -18,7 +18,7 @@ export const playerLabel = player =>
 
 export const filterRosterPlayers = (players = [], query = '') => {
   const normalizedQuery = String(query || '').trim().toLowerCase();
-  if (!normalizedQuery) return players;
+  if (!normalizedQuery) return [];
 
   return players.filter(player => {
     const searchable = [
@@ -33,6 +33,11 @@ export const filterRosterPlayers = (players = [], query = '') => {
     return searchable.includes(normalizedQuery);
   });
 };
+
+export const normalizeRestringingEarnings = (earnings = {}) => ({
+  earned_cents: earnings.total_commission_cents ?? earnings.earned_cents ?? earnings.earned ?? 0,
+  pending_cents: earnings.pending_commission_cents ?? earnings.pending_cents ?? earnings.pending ?? 0
+});
 
 export const serviceTierRequiresOwnString = tier =>
   tier?.string_category === null && !tier?.string_composition;
