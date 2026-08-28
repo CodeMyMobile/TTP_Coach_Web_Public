@@ -15,7 +15,8 @@ import {
   normalizeRestringingEarnings,
   playerLabel,
   serviceTierRequiresOwnString,
-  initialRestringingForm
+  initialRestringingForm,
+  vendorImageUrl
 } from './restringingOrderPayload';
 
 const money = cents =>
@@ -73,6 +74,7 @@ const RestringingSection = () => {
     !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
   );
   const selectedString = stockedStrings.find(string => String(string.id) === String(form.string_id));
+  const vendorImage = vendorImageUrl(data.catalog);
   const earnings = normalizeRestringingEarnings(data.earnings);
   const orderRows = useMemo(() => data.orders, [data.orders]);
   const filteredPlayers = useMemo(
@@ -152,7 +154,15 @@ const RestringingSection = () => {
               Order from The Tennis Garage for your players.
             </p>
           </div>
-          <CircleDot className="h-8 w-8" />
+          {vendorImage ? (
+            <img
+              src={vendorImage}
+              alt={`${data.catalog?.vendor?.name || 'Vendor'} profile`}
+              className="h-12 w-12 rounded-xl object-cover"
+            />
+          ) : (
+            <CircleDot className="h-8 w-8" />
+          )}
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
