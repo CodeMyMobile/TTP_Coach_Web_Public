@@ -5,6 +5,7 @@ import {
   coachCommissionStatusText,
   filterRosterPlayers,
   normalizeRestringingEarnings,
+  vendorImageUrl,
   getRestringingOrderSummary,
   serviceTierRequiresOwnString
 } from './restringingOrderPayload.js';
@@ -212,4 +213,12 @@ test('normalizeRestringingEarnings handles an unavailable earnings response', ()
     normalizeRestringingEarnings(null),
     { earned_cents: 0, pending_cents: 0 }
   );
+});
+
+test('vendorImageUrl returns the saved vendor profile image', () => {
+  assert.equal(
+    vendorImageUrl({ vendor: { image_url: 'https://images.example.test/tennis-garage.png' } }),
+    'https://images.example.test/tennis-garage.png'
+  );
+  assert.equal(vendorImageUrl({ vendor: { image_url: '' } }), '');
 });

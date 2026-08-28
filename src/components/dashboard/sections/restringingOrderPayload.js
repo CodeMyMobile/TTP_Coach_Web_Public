@@ -16,6 +16,9 @@ export const initialRestringingForm = {
 export const playerLabel = player =>
   String(player?.display_name || player?.name || 'Unnamed player').trim();
 
+export const vendorImageUrl = catalog =>
+  String(catalog?.vendor?.image_url || '').trim();
+
 export const filterRosterPlayers = (players = [], query = '') => {
   const normalizedQuery = String(query || '').trim().toLowerCase();
   if (!normalizedQuery) return [];
