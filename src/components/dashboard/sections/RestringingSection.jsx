@@ -16,6 +16,7 @@ import {
   playerLabel,
   serviceTierRequiresOwnString,
   initialRestringingForm,
+  newRestringingOrderItem,
   vendorImageUrl
 } from './restringingOrderPayload';
 
@@ -67,13 +68,6 @@ const RestringingSection = () => {
   }, []);
 
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
-  const selectedServiceTier = tiers.find(tier => String(tier.id) === String(form.service_tier_id));
-  const ownStringRequired = serviceTierRequiresOwnString(selectedServiceTier);
-  const compositionTier = Boolean(selectedServiceTier?.string_composition);
-  const stockedStrings = (data.catalog?.catalog || data.catalog?.strings || []).filter(string =>
-    !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
-  );
-  const selectedString = stockedStrings.find(string => String(string.id) === String(form.string_id));
   const vendorImage = vendorImageUrl(data.catalog);
   const earnings = normalizeRestringingEarnings(data.earnings);
   const orderRows = useMemo(() => data.orders, [data.orders]);
@@ -89,9 +83,15 @@ const RestringingSection = () => {
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
 
   const updateForm = patch => setForm(current => ({ ...current, ...patch }));
-  const updateServiceTier = service_tier_id => {
+  const updateRacket = (index, patch) => {
+    setForm(current => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item)
+    }));
+  };
+  const updateServiceTier = (index, service_tier_id) => {
     const tier = tiers.find(entry => String(entry.id) === String(service_tier_id));
-    updateForm({
+    updateRacket(index, {
       service_tier_id,
       own_string_text: '',
       string_id: '',
@@ -101,6 +101,14 @@ const RestringingSection = () => {
         : tier?.string_composition ? 'shop_choice' : 'shop_choice'
     });
   };
+  const addRacket = () => setForm(current => ({
+    ...current,
+    items: [...current.items, newRestringingOrderItem()]
+  }));
+  const removeRacket = index => setForm(current => ({
+    ...current,
+    items: current.items.filter((_, itemIndex) => itemIndex !== index)
+  }));
 
   const submit = async event => {
     event.preventDefault();
@@ -242,8 +250,6 @@ const RestringingSection = () => {
                   })
                 }
               />
-              <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateServiceTier} />
-              <RacketInput value={form.racket_make_model} onChange={updateForm} />
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-4">
@@ -262,53 +268,64 @@ const RestringingSection = () => {
                 placeholder="Mobile number"
                 className="rounded-lg border border-gray-200 p-3 text-sm"
               />
-              <ServiceSelect tiers={tiers} value={form.service_tier_id} onChange={updateServiceTier} />
-              <RacketInput value={form.racket_make_model} onChange={updateForm} />
             </div>
           )}
 
-          {ownStringRequired && (
-            <div className="mt-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Player&apos;s string
-              </label>
-              <input
-                required
-                value={form.own_string_text}
-                onChange={event => updateForm({ own_string_text: event.target.value })}
-                placeholder="e.g. Solinco Hyper-G 16L"
-                className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Required for restringing-only orders where the player supplies the string.
-              </p>
-            </div>
-          )}
+          <div className="mt-5 space-y-4">
+            {form.items.map((item, index) => {
+              const selectedServiceTier = tiers.find(tier => String(tier.id) === String(item.service_tier_id));
+              const ownStringRequired = serviceTierRequiresOwnString(selectedServiceTier);
+              const compositionTier = Boolean(selectedServiceTier?.string_composition);
+              const stockedStrings = (data.catalog?.catalog || data.catalog?.strings || []).filter(string =>
+                !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
+              );
+              const selectedString = stockedStrings.find(string => String(string.id) === String(item.string_id));
+              return (
+                <fieldset key={index} className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <legend className="font-semibold text-gray-900">Racket {index + 1}</legend>
+                    {form.items.length > 1 && (
+                      <button type="button" onClick={() => removeRacket(index)} className="text-sm font-medium text-red-600">
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <ServiceSelect tiers={tiers} value={item.service_tier_id} onChange={value => updateServiceTier(index, value)} />
+                    <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
+                  </div>
 
-          {!ownStringRequired && compositionTier && (
-            <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm text-violet-800">
-              <span className="font-medium">String: Shop&apos;s choice.</span> This service includes a shop-selected composition.
-            </div>
-          )}
+                  {ownStringRequired && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700">Player&apos;s string</label>
+                      <input required value={item.own_string_text} onChange={event => updateRacket(index, { own_string_text: event.target.value })} placeholder="e.g. Solinco Hyper-G 16L" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm" />
+                    </div>
+                  )}
 
-          {!ownStringRequired && !compositionTier && selectedServiceTier && (
-            <StringSelection
-              value={form.string_selection}
-              strings={stockedStrings}
-              selectedString={selectedString}
-              gauge={form.gauge}
-              onChange={patch => updateForm(patch)}
-            />
-          )}
+                  {!ownStringRequired && compositionTier && (
+                    <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm text-violet-800"><span className="font-medium">String: Shop&apos;s choice.</span> This service includes a shop-selected composition.</div>
+                  )}
 
-          <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={form.advice_requested}
-              onChange={event => updateForm({ advice_requested: event.target.checked })}
-            />
-            Let the stringer advise at drop-off
-          </label>
+                  {!ownStringRequired && !compositionTier && selectedServiceTier && (
+                    <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={patch => updateRacket(index, patch)} />
+                  )}
+
+                  <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" checked={item.advice_requested} onChange={event => updateRacket(index, { advice_requested: event.target.checked })} />
+                    Let the stringer advise at drop-off
+                  </label>
+                  <label className="mt-3 block text-sm font-medium text-gray-700">
+                    Note for vendor
+                    <textarea value={item.notes} onChange={event => updateRacket(index, { notes: event.target.value })} placeholder="e.g. Check grommets or add a stencil" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm" rows={2} />
+                  </label>
+                </fieldset>
+              );
+            })}
+          </div>
+
+          <button type="button" onClick={addRacket} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
+            <Plus className="h-4 w-4" /> Add another racket
+          </button>
           <button
             disabled={creating || (form.player_mode === 'roster' && !form.player_user_id)}
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"

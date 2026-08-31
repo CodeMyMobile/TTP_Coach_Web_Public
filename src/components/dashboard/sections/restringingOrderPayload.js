@@ -1,16 +1,21 @@
-export const initialRestringingForm = {
-  player_mode: 'roster',
-  player_user_id: '',
-  new_player_name: '',
-  new_player_phone: '',
-  player_query: '',
+export const newRestringingOrderItem = () => ({
   service_tier_id: '',
   racket_make_model: '',
   own_string_text: '',
   string_selection: 'shop_choice',
   string_id: '',
   gauge: '',
-  advice_requested: true
+  advice_requested: true,
+  notes: ''
+});
+
+export const initialRestringingForm = {
+  player_mode: 'roster',
+  player_user_id: '',
+  new_player_name: '',
+  new_player_phone: '',
+  player_query: '',
+  items: [newRestringingOrderItem()]
 };
 
 export const playerLabel = player =>
@@ -79,31 +84,37 @@ export const getRestringingOrderSummary = (orders = []) =>
   );
 
 export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
-  const item = {
-    service_tier_id: Number(form.service_tier_id),
-    racket_make_model: String(form.racket_make_model || '').trim(),
-    advice_requested: Boolean(form.advice_requested)
-  };
-  const ownStringText = String(form.own_string_text || '').trim();
-  const stringSelection = String(form.string_selection || '').trim() || (
-    ownStringText ? 'player_supplied' : ''
-  );
-  if (stringSelection) {
-    item.string_selection = stringSelection;
-  }
-  if (ownStringText) {
-    item.own_string_text = ownStringText;
-  }
-  if (stringSelection === 'specified') {
-    const stringId = Number(form.string_id);
-    if (Number.isInteger(stringId) && stringId > 0) item.string_id = stringId;
-    const gauge = String(form.gauge || '').trim();
-    if (gauge) item.gauge = gauge;
-  }
+  const formItems = Array.isArray(form.items) && form.items.length ? form.items : [form];
+  const items = formItems.map(formItem => {
+    const item = {
+      service_tier_id: Number(formItem.service_tier_id),
+      racket_make_model: String(formItem.racket_make_model || '').trim(),
+      advice_requested: Boolean(formItem.advice_requested)
+    };
+    const ownStringText = String(formItem.own_string_text || '').trim();
+    const stringSelection = String(formItem.string_selection || '').trim() || (
+      ownStringText ? 'player_supplied' : ''
+    );
+    if (stringSelection) {
+      item.string_selection = stringSelection;
+    }
+    if (ownStringText) {
+      item.own_string_text = ownStringText;
+    }
+    if (stringSelection === 'specified') {
+      const stringId = Number(formItem.string_id);
+      if (Number.isInteger(stringId) && stringId > 0) item.string_id = stringId;
+      const gauge = String(formItem.gauge || '').trim();
+      if (gauge) item.gauge = gauge;
+    }
+    const notes = String(formItem.notes || '').trim();
+    if (notes) item.notes = notes;
+    return item;
+  });
 
   const payload = {
     vendor_id: Number(vendorId),
-    items: [item]
+    items
   };
 
   if (form.player_mode === 'new') {

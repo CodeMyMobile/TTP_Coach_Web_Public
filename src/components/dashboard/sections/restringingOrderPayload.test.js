@@ -108,6 +108,55 @@ test('buildCoachRestringingOrderPayload sends a specified stocked string', () =>
   });
 });
 
+test('buildCoachRestringingOrderPayload sends multiple rackets with vendor notes', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster',
+      player_user_id: '501',
+      items: [
+        {
+          service_tier_id: '3',
+          racket_make_model: 'Blade 98',
+          advice_requested: false,
+          string_selection: 'specified',
+          string_id: '8',
+          gauge: '16L',
+          notes: 'Check grommets before restringing'
+        },
+        {
+          service_tier_id: '5',
+          racket_make_model: 'Ezone 100',
+          advice_requested: true,
+          string_selection: 'player_supplied',
+          own_string_text: 'Hyper-G 16L',
+          notes: 'Add stencil if possible'
+        }
+      ]
+    },
+    vendorId: 1
+  });
+
+  assert.deepEqual(payload.items, [
+    {
+      service_tier_id: 3,
+      racket_make_model: 'Blade 98',
+      advice_requested: false,
+      string_selection: 'specified',
+      string_id: 8,
+      gauge: '16L',
+      notes: 'Check grommets before restringing'
+    },
+    {
+      service_tier_id: 5,
+      racket_make_model: 'Ezone 100',
+      advice_requested: true,
+      string_selection: 'player_supplied',
+      own_string_text: 'Hyper-G 16L',
+      notes: 'Add stencil if possible'
+    }
+  ]);
+});
+
 test('buildCoachRestringingOrderPayload sends shop choice independently from advice', () => {
   const payload = buildCoachRestringingOrderPayload({
     form: {
