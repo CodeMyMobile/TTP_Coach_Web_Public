@@ -131,6 +131,7 @@ const LessonDetailModal = ({
   onCreateLesson,
   onRemoveParticipant,
   onPayOnCourtMarkedPaid,
+  onAddCompedPlayer,
   coachHourlyRate = null,
   groups = []
 }) => {
@@ -146,6 +147,9 @@ const LessonDetailModal = ({
   const [markingPayOnCourtKey, setMarkingPayOnCourtKey] = useState('');
   const [payOnCourtActionError, setPayOnCourtActionError] = useState('');
   const [locallyPaidPayOnCourtKeys, setLocallyPaidPayOnCourtKeys] = useState(() => new Set());
+  const [selectedCompedPlayerId, setSelectedCompedPlayerId] = useState('');
+  const [addingCompedPlayer, setAddingCompedPlayer] = useState(false);
+  const [compedPlayerActionError, setCompedPlayerActionError] = useState('');
 
   const resolvedLesson = useMemo(() => {
     if (!lesson) {
@@ -366,6 +370,15 @@ const LessonDetailModal = ({
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setSelectedCompedPlayerId('');
+    setCompedPlayerActionError('');
+  }, [isOpen, lesson]);
+
   if (!resolvedLesson) {
     return null;
   }
@@ -550,6 +563,22 @@ const LessonDetailModal = ({
     participantList.some((participant) => isPayOnCourt(participant.paymentMethod));
   const lessonPaymentStatus = resolvedLesson.payment_status ?? resolvedLesson.paymentStatus;
   const currentLessonId = resolvedLesson.id ?? resolvedLesson.lesson_id ?? resolvedLesson.lessonId;
+  const isOpenGroupLesson = Number(
+    resolvedLesson.lessontype_id ?? resolvedLesson.lesson_type_id ?? resolvedLesson.lessonTypeId
+  ) === 3;
+  const existingGroupPlayerIds = new Set(
+    participantList
+      .map((participant) => Number(participant.playerId))
+      .filter((playerId) => Number.isFinite(playerId) && playerId > 0)
+  );
+  const compedPlayerOptions = (Array.isArray(students) ? students : [])
+    .map((student) => ({
+      id: Number(student.playerId ?? student.player_id ?? student.id),
+      name: student.name || student.full_name || student.player_name || 'Unnamed player',
+      email: student.email || student.email_address || ''
+    }))
+    .filter((student) => Number.isFinite(student.id) && student.id > 0 && !existingGroupPlayerIds.has(student.id))
+    .filter((student, index, list) => list.findIndex((candidate) => candidate.id === student.id) === index);
   const directPayOnCourtDue =
     !isGroupOrSemiPrivate &&
     isPayOnCourt(lessonPaymentMethod) &&
@@ -721,6 +750,24 @@ const LessonDetailModal = ({
       await onRemoveParticipant(participant);
     } finally {
       setPendingRemovePlayerId(null);
+    }
+  };
+
+  const handleAddCompedPlayer = async () => {
+    const playerId = Number(selectedCompedPlayerId);
+    if (!onAddCompedPlayer || !Number.isFinite(playerId) || playerId <= 0 || addingCompedPlayer) {
+      return;
+    }
+
+    setAddingCompedPlayer(true);
+    setCompedPlayerActionError('');
+    try {
+      await onAddCompedPlayer(playerId);
+      setSelectedCompedPlayerId('');
+    } catch (error) {
+      setCompedPlayerActionError(error?.message || 'Unable to add this player without charging them.');
+    } finally {
+      setAddingCompedPlayer(false);
     }
   };
 
@@ -1102,6 +1149,41 @@ const LessonDetailModal = ({
                   <p className="text-sm text-emerald-900">Expected revenue ({filledSpots} participants)</p>
                   <p className="text-xl font-bold text-emerald-600">{expectedRevenue !== null ? `$${expectedRevenue}` : '—'}</p>
                 </div>
+
+                {isOpenGroupLesson && (
+                  <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                    <p className="text-sm font-semibold text-violet-950">Add a player without charging</p>
+                    <p className="mt-1 text-xs text-violet-800">The player will take a spot in this lesson, but no payment is due.</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <label className="sr-only" htmlFor="comped-player-picker">Player</label>
+                      <select
+                        id="comped-player-picker"
+                        value={selectedCompedPlayerId}
+                        onChange={(event) => setSelectedCompedPlayerId(event.target.value)}
+                        disabled={addingCompedPlayer}
+                        className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <option value="">Select a player</option>
+                        {compedPlayerOptions.map((student) => (
+                          <option key={student.id} value={student.id}>
+                            {student.name}{student.email ? ` · ${student.email}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAddCompedPlayer}
+                        disabled={!selectedCompedPlayerId || addingCompedPlayer}
+                        className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
+                      >
+                        {addingCompedPlayer ? 'Adding...' : 'Add without charging'}
+                      </button>
+                    </div>
+                    {compedPlayerActionError ? (
+                      <p role="alert" className="mt-3 text-sm font-medium text-rose-700">{compedPlayerActionError}</p>
+                    ) : null}
+                  </div>
+                )}
 
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                   <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">

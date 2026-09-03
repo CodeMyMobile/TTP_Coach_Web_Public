@@ -21,6 +21,7 @@ import {
 } from './api/CoachApi/packages';
 import {
   addCoachCustomLocation,
+  addPlayerToLesson,
   deleteCoachLocation,
   getCoachLocations,
   scheduleCoachLesson
@@ -1099,6 +1100,37 @@ function App() {
     }
   };
 
+  const handleAddCompedGroupPlayer = async (playerId) => {
+    const lessonId = selectedLessonDetail?.id ?? selectedLessonDetail?.lesson_id ?? selectedLessonDetail?.lessonId;
+    if (!lessonId || !playerId) {
+      throw new Error('Select a player before adding them to this lesson.');
+    }
+
+    const response = await addPlayerToLesson({
+      coachAccessToken: user?.session?.access_token,
+      lessonId,
+      playerId,
+      paymentMethod: 'comped'
+    });
+
+    if (!response?.ok) {
+      const errorBody = await response?.json?.().catch(() => null);
+      const detail = errorBody?.detail || errorBody?.error || errorBody?.message;
+      throw new Error(typeof detail === 'string' && detail ? detail : 'Unable to add this player without charging them.');
+    }
+
+    const [, lessonDetailPayload] = await Promise.all([
+      refreshSchedule(),
+      getCoachLessonById({ lessonId })
+    ]);
+    const refreshedLesson =
+      lessonDetailPayload?.lesson || lessonDetailPayload?.data?.lesson || lessonDetailPayload?.data || lessonDetailPayload;
+
+    if (refreshedLesson && typeof refreshedLesson === 'object') {
+      setSelectedLessonDetail(refreshedLesson);
+    }
+  };
+
 
   const handleLessonSelect = (lesson) => {
     setSelectedLessonDetail(lesson);
@@ -2148,6 +2180,7 @@ function App() {
         onCreateLesson={handleCreateLessonFromAvailability}
         onRemoveParticipant={handleRemoveLessonParticipant}
         onPayOnCourtMarkedPaid={refreshSchedule}
+        onAddCompedPlayer={handleAddCompedGroupPlayer}
         groups={coachGroups}
       />
 
