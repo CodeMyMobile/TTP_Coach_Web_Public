@@ -24,6 +24,7 @@ import {
 } from '../../utils/lessonEdit';
 import { holdsLessonSpot, isPayOnCourt, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 import { splitParticipantsByBookingState } from '../../utils/participantSections';
+import { getExpectedGroupRevenue } from '../../utils/lessonRevenue';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -132,6 +133,10 @@ const LessonDetailModal = ({
   onRemoveParticipant,
   onPayOnCourtMarkedPaid,
   onAddCompedPlayer,
+  compedPlayerSearch = '',
+  onCompedPlayerSearchChange,
+  compedPlayersLoading = false,
+  compedPlayersError = null,
   coachHourlyRate = null,
   groups = []
 }) => {
@@ -698,7 +703,10 @@ const LessonDetailModal = ({
     ? participantList.filter((participant) => participant.holdsSpot).length
     : participantList.length;
   const availableSpots = Math.max(groupCapacity - filledSpots, 0);
-  const expectedRevenue = resolvedLessonFee !== null ? resolvedLessonFee * filledSpots : null;
+  const { participantCount: revenueParticipantCount, expectedRevenue } = getExpectedGroupRevenue({
+    pricePerPerson: resolvedLessonFee,
+    participants: participantList
+  });
 
   const typeBadgeClass =
     resolvedLesson.status === 'cancelled'
@@ -1146,7 +1154,7 @@ const LessonDetailModal = ({
                 </div>
 
                 <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                  <p className="text-sm text-emerald-900">Expected revenue ({filledSpots} participants)</p>
+                  <p className="text-sm text-emerald-900">Expected revenue ({revenueParticipantCount} paying participants)</p>
                   <p className="text-xl font-bold text-emerald-600">{expectedRevenue !== null ? `$${expectedRevenue}` : '—'}</p>
                 </div>
 
@@ -1154,13 +1162,23 @@ const LessonDetailModal = ({
                   <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
                     <p className="text-sm font-semibold text-violet-950">Add a player without charging</p>
                     <p className="mt-1 text-xs text-violet-800">The player will take a spot in this lesson, but no payment is due.</p>
+                    <label className="sr-only" htmlFor="comped-player-search">Search roster players</label>
+                    <input
+                      id="comped-player-search"
+                      type="search"
+                      value={compedPlayerSearch}
+                      onChange={(event) => onCompedPlayerSearchChange?.(event.target.value)}
+                      disabled={addingCompedPlayer}
+                      placeholder="Search your roster..."
+                      className="mt-3 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <label className="sr-only" htmlFor="comped-player-picker">Player</label>
                       <select
                         id="comped-player-picker"
                         value={selectedCompedPlayerId}
                         onChange={(event) => setSelectedCompedPlayerId(event.target.value)}
-                        disabled={addingCompedPlayer}
+                        disabled={addingCompedPlayer || compedPlayersLoading}
                         className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <option value="">Select a player</option>
@@ -1173,12 +1191,23 @@ const LessonDetailModal = ({
                       <button
                         type="button"
                         onClick={handleAddCompedPlayer}
-                        disabled={!selectedCompedPlayerId || addingCompedPlayer}
+                        disabled={!selectedCompedPlayerId || addingCompedPlayer || compedPlayersLoading}
                         className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
                       >
                         {addingCompedPlayer ? 'Adding...' : 'Add without charging'}
                       </button>
                     </div>
+                    {compedPlayersLoading ? (
+                      <p className="mt-3 text-sm text-violet-800">Loading roster players...</p>
+                    ) : null}
+                    {compedPlayersError ? (
+                      <p role="alert" className="mt-3 text-sm font-medium text-rose-700">
+                        {compedPlayersError.message || 'Unable to load roster players.'}
+                      </p>
+                    ) : null}
+                    {!compedPlayersLoading && !compedPlayersError && compedPlayerOptions.length === 0 ? (
+                      <p className="mt-3 text-sm text-violet-800">No available roster players match this search.</p>
+                    ) : null}
                     {compedPlayerActionError ? (
                       <p role="alert" className="mt-3 text-sm font-medium text-rose-700">{compedPlayerActionError}</p>
                     ) : null}

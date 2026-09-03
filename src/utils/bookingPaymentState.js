@@ -1,7 +1,11 @@
 export const PAY_ON_COURT_METHOD = 'pay_on_court';
+export const COMPED_METHOD = 'comped';
 
 export const isPayOnCourt = (method) =>
   String(method ?? '').toLowerCase() === PAY_ON_COURT_METHOD;
+
+export const isComped = (method) =>
+  String(method ?? '').toLowerCase() === COMPED_METHOD;
 
 export const parseStatusValue = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -29,6 +33,15 @@ export const resolveBookingPaymentState = ({
       key: 'cancelled',
       label: 'Cancelled',
       tone: 'danger',
+      paymentDue: false
+    };
+  }
+
+  if (isComped(paymentMethod)) {
+    return {
+      key: 'comped',
+      label: 'Booked · added by coach',
+      tone: 'success',
       paymentDue: false
     };
   }
@@ -73,10 +86,20 @@ export const holdsLessonSpot = ({
   paymentStatus,
   paymentMethod
 } = {}) => {
-  if (parseStatusValue(status) !== 1) {
+  const parsedStatus = parseStatusValue(status);
+  const parsedPaymentStatus = parseStatusValue(paymentStatus);
+
+  if (parsedStatus === 2 || parsedPaymentStatus === 2) {
     return false;
   }
 
-  const parsedPaymentStatus = parseStatusValue(paymentStatus);
+  if (isComped(paymentMethod)) {
+    return true;
+  }
+
+  if (parsedStatus !== 1) {
+    return false;
+  }
+
   return parsedPaymentStatus === 1 || parsedPaymentStatus === null || isPayOnCourt(paymentMethod);
 };

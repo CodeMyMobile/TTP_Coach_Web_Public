@@ -13,7 +13,7 @@ const normaliseStudents = (payload) => {
   return [];
 };
 
-export const useCoachStudents = ({ enabled = true, perPage = 5, search = '' } = {}) => {
+export const useCoachStudents = ({ enabled = true, perPage = 5, search = '', loadAll = false } = {}) => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(Boolean(enabled));
   const [loadingMore, setLoadingMore] = useState(false);
@@ -35,6 +35,37 @@ export const useCoachStudents = ({ enabled = true, perPage = 5, search = '' } = 
     }
 
     try {
+      if (loadAll && pageToLoad === 1) {
+        const allStudents = [];
+        let nextPage = 1;
+
+        while (true) {
+          let response;
+          try {
+            response = await getCoachStudents({ perPage, page: nextPage, search });
+          } catch (err) {
+            if (allStudents.length > 0 && err?.status === 404) {
+              break;
+            }
+            throw err;
+          }
+
+          const rows = normaliseStudents(response);
+          allStudents.push(...rows);
+
+          if (rows.length < perPage) {
+            break;
+          }
+
+          nextPage += 1;
+        }
+
+        setStudents(allStudents);
+        setHasMore(false);
+        setError(null);
+        return allStudents;
+      }
+
       const response = await getCoachStudents({ perPage, page: pageToLoad, search });
       const data = normaliseStudents(response);
       setStudents((previous) => (pageToLoad === 1 ? data : [...previous, ...data]));
@@ -52,7 +83,7 @@ export const useCoachStudents = ({ enabled = true, perPage = 5, search = '' } = 
         setLoadingMore(false);
       }
     }
-  }, [enabled, perPage, search]);
+  }, [enabled, loadAll, perPage, search]);
 
   useEffect(() => {
     if (!enabled) {

@@ -78,3 +78,16 @@ test('pay-on-court booking holds a lesson spot', () => {
   assert.equal(holdsLessonSpot({ status: 1 }), true);
   assert.equal(holdsLessonSpot({ status: 1, paymentStatus: 0, paymentMethod: 'card' }), false);
 });
+
+test('comped booking holds a lesson spot without becoming expected revenue', () => {
+  assert.deepEqual(
+    resolveBookingPaymentState({ status: 0, paymentStatus: 0, paymentMethod: 'comped' }),
+    {
+      key: 'comped',
+      label: 'Booked · added by coach',
+      tone: 'success',
+      paymentDue: false
+    }
+  );
+  assert.equal(holdsLessonSpot({ status: 0, paymentStatus: 0, paymentMethod: 'comped' }), true);
+});

@@ -219,6 +219,7 @@ function App() {
   const [isEditingLesson, setIsEditingLesson] = useState(false);
   const [lessonEditData, setLessonEditData] = useState(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [compedPlayerSearchQuery, setCompedPlayerSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showStudentDetailModal, setShowStudentDetailModal] = useState(false);
   const [studentLessons, setStudentLessons] = useState([]);
@@ -471,6 +472,19 @@ function App() {
     enabled: isProfileComplete && isAuthenticated,
     perPage: 5,
     search: studentSearchQuery
+  });
+  const isSelectedOpenGroupLesson = Number(
+    selectedLessonDetail?.lessontype_id ?? selectedLessonDetail?.lesson_type_id ?? selectedLessonDetail?.lessonTypeId
+  ) === 3;
+  const {
+    students: compedRosterStudents,
+    loading: compedRosterLoading,
+    error: compedRosterError
+  } = useCoachStudents({
+    enabled: isProfileComplete && isAuthenticated && showLessonDetailModal && isSelectedOpenGroupLesson,
+    perPage: 100,
+    search: compedPlayerSearchQuery,
+    loadAll: true
   });
 
   const resolvePreviousLessons = useCallback((payload) => {
@@ -1119,21 +1133,25 @@ function App() {
       throw new Error(typeof detail === 'string' && detail ? detail : 'Unable to add this player without charging them.');
     }
 
-    const [, lessonDetailPayload] = await Promise.all([
-      refreshSchedule(),
-      getCoachLessonById({ lessonId })
-    ]);
-    const refreshedLesson =
-      lessonDetailPayload?.lesson || lessonDetailPayload?.data?.lesson || lessonDetailPayload?.data || lessonDetailPayload;
+    const refreshedSchedule = await refreshSchedule();
+    const refreshedLesson = [
+      ...(refreshedSchedule?.lessons || []),
+      ...(refreshedSchedule?.upcomingLessons || [])
+    ].find((candidate) =>
+      Number(candidate?.id ?? candidate?.lesson_id ?? candidate?.lessonId) === Number(lessonId)
+    );
 
-    if (refreshedLesson && typeof refreshedLesson === 'object') {
-      setSelectedLessonDetail(refreshedLesson);
+    const hasRefreshedRoster =
+      Array.isArray(refreshedLesson?.group_players) || Array.isArray(refreshedLesson?.groupPlayers);
+    if (hasRefreshedRoster) {
+      setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
     }
   };
 
 
   const handleLessonSelect = (lesson) => {
     setSelectedLessonDetail(lesson);
+    setCompedPlayerSearchQuery('');
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(true);
@@ -1848,6 +1866,7 @@ function App() {
 
   const handleCloseLessonDetail = () => {
     setShowLessonDetailModal(false);
+    setCompedPlayerSearchQuery('');
     setIsEditingLesson(false);
     setLessonEditData(null);
 
@@ -2171,7 +2190,7 @@ function App() {
         onEditChange={setLessonEditData}
         mutationLoading={scheduleMutationLoading}
         onCancelLesson={shouldUseDeclineFlowForSelectedLesson ? handleDeclineRequest : handleCancelLesson}
-        students={resolvedStudents}
+        students={isSelectedOpenGroupLesson ? compedRosterStudents : resolvedStudents}
         coachCourts={profileData.home_courts}
         coachHourlyRate={profileData.hourly_rate ?? profileData.price_private}
         formatDuration={formatDuration}
@@ -2181,6 +2200,10 @@ function App() {
         onRemoveParticipant={handleRemoveLessonParticipant}
         onPayOnCourtMarkedPaid={refreshSchedule}
         onAddCompedPlayer={handleAddCompedGroupPlayer}
+        compedPlayerSearch={compedPlayerSearchQuery}
+        onCompedPlayerSearchChange={setCompedPlayerSearchQuery}
+        compedPlayersLoading={compedRosterLoading}
+        compedPlayersError={compedRosterError}
         groups={coachGroups}
       />
 

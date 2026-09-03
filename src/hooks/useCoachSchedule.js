@@ -367,6 +367,8 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
 
     setLoading(true);
     try {
+      let refreshedLessons = [];
+      let refreshedUpcomingLessons = [];
       const resolvedDate = formatLocalDate(requestedDate);
       const resolvedDates = Array.isArray(requestedDates)
         ? requestedDates
@@ -419,7 +421,8 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
           }
         });
 
-        setLessons(normaliseLessons(lessonPayloads));
+        refreshedLessons = normaliseLessons(lessonPayloads);
+        setLessons(refreshedLessons);
         if (lessonPayloads.length === 0 && lessonError && !fetchError) {
           fetchError = lessonError;
         }
@@ -428,7 +431,8 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
       }
 
       if (upcomingLessonsResult.status === 'fulfilled') {
-        setUpcomingLessons(normaliseLessons(upcomingLessonsResult.value));
+        refreshedUpcomingLessons = normaliseLessons(upcomingLessonsResult.value);
+        setUpcomingLessons(refreshedUpcomingLessons);
       } else {
         setUpcomingLessons([]);
         if (!fetchError) {
@@ -466,6 +470,10 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
       }
 
       setError(null);
+      return {
+        lessons: refreshedLessons,
+        upcomingLessons: refreshedUpcomingLessons
+      };
     } catch (err) {
       const normalisedError = err instanceof Error ? err : new Error('Failed to load schedule data');
       setError(normalisedError);
