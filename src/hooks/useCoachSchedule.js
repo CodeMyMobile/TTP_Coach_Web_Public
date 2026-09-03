@@ -360,6 +360,9 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
   const [mutationError, setMutationError] = useState(null);
 
   const fetchSchedule = useCallback(async (requestedDate, requestedDates) => {
+    let refreshedLessons = [];
+    let refreshedUpcomingLessons = [];
+
     if (!enabled) {
       setLoading(false);
       return;
@@ -367,8 +370,6 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
 
     setLoading(true);
     try {
-      let refreshedLessons = [];
-      let refreshedUpcomingLessons = [];
       const resolvedDate = formatLocalDate(requestedDate);
       const resolvedDates = Array.isArray(requestedDates)
         ? requestedDates
@@ -477,6 +478,10 @@ export const useCoachSchedule = ({ enabled = true, date, dates } = {}) => {
     } catch (err) {
       const normalisedError = err instanceof Error ? err : new Error('Failed to load schedule data');
       setError(normalisedError);
+      return {
+        lessons: refreshedLessons,
+        upcomingLessons: refreshedUpcomingLessons
+      };
     } finally {
       setLoading(false);
     }

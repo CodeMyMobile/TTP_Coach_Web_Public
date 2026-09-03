@@ -47,6 +47,7 @@ import {
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
+import { findRosterCapableLesson } from './utils/scheduleLesson';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -1134,16 +1135,8 @@ function App() {
     }
 
     const refreshedSchedule = await refreshSchedule();
-    const refreshedLesson = [
-      ...(refreshedSchedule?.lessons || []),
-      ...(refreshedSchedule?.upcomingLessons || [])
-    ].find((candidate) =>
-      Number(candidate?.id ?? candidate?.lesson_id ?? candidate?.lessonId) === Number(lessonId)
-    );
-
-    const hasRefreshedRoster =
-      Array.isArray(refreshedLesson?.group_players) || Array.isArray(refreshedLesson?.groupPlayers);
-    if (hasRefreshedRoster) {
+    const refreshedLesson = findRosterCapableLesson(refreshedSchedule, lessonId);
+    if (refreshedLesson) {
       setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
     }
   };
