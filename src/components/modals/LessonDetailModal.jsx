@@ -24,6 +24,8 @@ import {
 } from '../../utils/lessonEdit';
 import { holdsLessonSpot, isPayOnCourt, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 import { splitParticipantsByBookingState } from '../../utils/participantSections';
+import { filterCompedPlayerOptions } from '../../utils/compedPlayerSearch';
+import { getExpectedGroupRevenue } from '../../utils/lessonRevenue';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -131,6 +133,11 @@ const LessonDetailModal = ({
   onCreateLesson,
   onRemoveParticipant,
   onPayOnCourtMarkedPaid,
+  onAddCompedPlayer,
+  compedPlayerSearch = '',
+  onCompedPlayerSearchChange,
+  compedPlayersLoading = false,
+  compedPlayersError = null,
   coachHourlyRate = null,
   groups = []
 }) => {
@@ -146,6 +153,9 @@ const LessonDetailModal = ({
   const [markingPayOnCourtKey, setMarkingPayOnCourtKey] = useState('');
   const [payOnCourtActionError, setPayOnCourtActionError] = useState('');
   const [locallyPaidPayOnCourtKeys, setLocallyPaidPayOnCourtKeys] = useState(() => new Set());
+  const [selectedCompedPlayerId, setSelectedCompedPlayerId] = useState('');
+  const [addingCompedPlayer, setAddingCompedPlayer] = useState(false);
+  const [compedPlayerActionError, setCompedPlayerActionError] = useState('');
 
   const resolvedLesson = useMemo(() => {
     if (!lesson) {
@@ -366,6 +376,15 @@ const LessonDetailModal = ({
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setSelectedCompedPlayerId('');
+    setCompedPlayerActionError('');
+  }, [isOpen, lesson]);
+
   if (!resolvedLesson) {
     return null;
   }
@@ -550,6 +569,15 @@ const LessonDetailModal = ({
     participantList.some((participant) => isPayOnCourt(participant.paymentMethod));
   const lessonPaymentStatus = resolvedLesson.payment_status ?? resolvedLesson.paymentStatus;
   const currentLessonId = resolvedLesson.id ?? resolvedLesson.lesson_id ?? resolvedLesson.lessonId;
+  const isOpenGroupLesson = Number(
+    resolvedLesson.lessontype_id ?? resolvedLesson.lesson_type_id ?? resolvedLesson.lessonTypeId
+  ) === 3;
+  const existingGroupPlayerIds = new Set(
+    participantList
+      .map((participant) => Number(participant.playerId))
+      .filter((playerId) => Number.isFinite(playerId) && playerId > 0)
+  );
+  const compedPlayerOptions = filterCompedPlayerOptions(students, compedPlayerSearch, existingGroupPlayerIds);
   const directPayOnCourtDue =
     !isGroupOrSemiPrivate &&
     isPayOnCourt(lessonPaymentMethod) &&
@@ -669,7 +697,10 @@ const LessonDetailModal = ({
     ? participantList.filter((participant) => participant.holdsSpot).length
     : participantList.length;
   const availableSpots = Math.max(groupCapacity - filledSpots, 0);
-  const expectedRevenue = resolvedLessonFee !== null ? resolvedLessonFee * filledSpots : null;
+  const { participantCount: revenueParticipantCount, expectedRevenue } = getExpectedGroupRevenue({
+    pricePerPerson: resolvedLessonFee,
+    participants: participantList
+  });
 
   const typeBadgeClass =
     resolvedLesson.status === 'cancelled'
@@ -721,6 +752,24 @@ const LessonDetailModal = ({
       await onRemoveParticipant(participant);
     } finally {
       setPendingRemovePlayerId(null);
+    }
+  };
+
+  const handleAddCompedPlayer = async () => {
+    const playerId = Number(selectedCompedPlayerId);
+    if (!onAddCompedPlayer || !Number.isFinite(playerId) || playerId <= 0 || addingCompedPlayer) {
+      return;
+    }
+
+    setAddingCompedPlayer(true);
+    setCompedPlayerActionError('');
+    try {
+      await onAddCompedPlayer(playerId);
+      setSelectedCompedPlayerId('');
+    } catch (error) {
+      setCompedPlayerActionError(error?.message || 'Unable to add this player without charging them.');
+    } finally {
+      setAddingCompedPlayer(false);
     }
   };
 
@@ -1099,9 +1148,68 @@ const LessonDetailModal = ({
                 </div>
 
                 <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                  <p className="text-sm text-emerald-900">Expected revenue ({filledSpots} participants)</p>
+                  <p className="text-sm text-emerald-900">Expected revenue ({revenueParticipantCount} paying participants)</p>
                   <p className="text-xl font-bold text-emerald-600">{expectedRevenue !== null ? `$${expectedRevenue}` : '—'}</p>
                 </div>
+
+                {isOpenGroupLesson && (
+                  <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                    <p className="text-sm font-semibold text-violet-950">Add a player without charging</p>
+                    <p className="mt-1 text-xs text-violet-800">The player will take a spot in this lesson, but no payment is due.</p>
+                    <label className="sr-only" htmlFor="comped-player-search">Search roster players</label>
+                    <input
+                      id="comped-player-search"
+                      type="search"
+                      value={compedPlayerSearch}
+                      onChange={(event) => onCompedPlayerSearchChange?.(event.target.value)}
+                      disabled={addingCompedPlayer}
+                      placeholder="Search your roster..."
+                      className="mt-3 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                    <div className="mt-3 space-y-2">
+                      {compedPlayerOptions.slice(0, 8).map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => setSelectedCompedPlayerId(String(student.id))}
+                          disabled={addingCompedPlayer}
+                          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${
+                            String(student.id) === String(selectedCompedPlayerId)
+                              ? 'border-violet-600 bg-violet-100 text-violet-950'
+                              : 'border-violet-200 bg-white text-slate-800 hover:border-violet-400 hover:bg-violet-50'
+                          }`}
+                        >
+                          <span className="font-medium">{student.name}</span>
+                          {student.email ? <span className="ml-3 truncate text-xs text-slate-500">{student.email}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={handleAddCompedPlayer}
+                        disabled={!selectedCompedPlayerId || addingCompedPlayer || compedPlayersLoading}
+                        className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
+                      >
+                        {addingCompedPlayer ? 'Adding...' : 'Add without charging'}
+                      </button>
+                    </div>
+                    {compedPlayersLoading ? (
+                      <p className="mt-3 text-sm text-violet-800">Loading roster players...</p>
+                    ) : null}
+                    {compedPlayersError ? (
+                      <p role="alert" className="mt-3 text-sm font-medium text-rose-700">
+                        {compedPlayersError.message || 'Unable to load roster players.'}
+                      </p>
+                    ) : null}
+                    {!compedPlayersLoading && !compedPlayersError && compedPlayerOptions.length === 0 ? (
+                      <p className="mt-3 text-sm text-violet-800">No available roster players match this search.</p>
+                    ) : null}
+                    {compedPlayerActionError ? (
+                      <p role="alert" className="mt-3 text-sm font-medium text-rose-700">{compedPlayerActionError}</p>
+                    ) : null}
+                  </div>
+                )}
 
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                   <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">

@@ -109,7 +109,7 @@ export const addCoachLesson = async (
   });
 };
 
-export const addPlayerInCoachLesson = async (coach, playerId, lessonId) => {
+export const addPlayerInCoachLesson = async (coach, playerId, lessonId, paymentMethod = null) => {
   if (!coach || !playerId || !lessonId) {
     return null;
   }
@@ -120,7 +120,10 @@ export const addPlayerInCoachLesson = async (coach, playerId, lessonId) => {
       'Content-type': 'application/json;charset=UTF-8',
       Authorization: `token ${coach}`
     },
-    body: JSON.stringify({ player_id: playerId })
+    body: JSON.stringify({
+      player_id: playerId,
+      ...(paymentMethod ? { payment_method: paymentMethod } : {})
+    })
   });
 };
 

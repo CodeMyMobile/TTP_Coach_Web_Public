@@ -220,7 +220,12 @@ export const coachStripePaymentIntent = async ({ coachAccessToken = null, lesson
   });
 };
 
-export const addPlayerToLesson = async ({ coachAccessToken = null, lessonId = null, playerId = null }) => {
+export const addPlayerToLesson = async ({
+  coachAccessToken = null,
+  lessonId = null,
+  playerId = null,
+  paymentMethod = null
+}) => {
   if (!coachAccessToken || lessonId === null || playerId === null) {
     return null;
   }
@@ -231,7 +236,10 @@ export const addPlayerToLesson = async ({ coachAccessToken = null, lessonId = nu
       'Content-type': 'application/json;charset=UTF-8',
       Authorization: `token ${coachAccessToken}`
     },
-    body: JSON.stringify({ player_id: playerId })
+    body: JSON.stringify({
+      player_id: playerId,
+      ...(paymentMethod ? { payment_method: paymentMethod } : {})
+    })
   });
 };
 

@@ -21,6 +21,7 @@ import {
 } from './api/CoachApi/packages';
 import {
   addCoachCustomLocation,
+  addPlayerToLesson,
   deleteCoachLocation,
   getCoachLocations,
   scheduleCoachLesson
@@ -46,6 +47,7 @@ import {
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
+import { findRosterCapableLesson } from './utils/scheduleLesson';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -218,6 +220,8 @@ function App() {
   const [isEditingLesson, setIsEditingLesson] = useState(false);
   const [lessonEditData, setLessonEditData] = useState(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [compedPlayerSearchQuery, setCompedPlayerSearchQuery] = useState('');
+  const [debouncedCompedPlayerSearchQuery, setDebouncedCompedPlayerSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showStudentDetailModal, setShowStudentDetailModal] = useState(false);
   const [studentLessons, setStudentLessons] = useState([]);
@@ -470,6 +474,24 @@ function App() {
     enabled: isProfileComplete && isAuthenticated,
     perPage: 5,
     search: studentSearchQuery
+  });
+  const isSelectedOpenGroupLesson = Number(
+    selectedLessonDetail?.lessontype_id ?? selectedLessonDetail?.lesson_type_id ?? selectedLessonDetail?.lessonTypeId
+  ) === 3;
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedCompedPlayerSearchQuery(compedPlayerSearchQuery.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [compedPlayerSearchQuery]);
+  const {
+    students: compedRosterStudents,
+    loading: compedRosterLoading,
+    error: compedRosterError
+  } = useCoachStudents({
+    enabled: isProfileComplete && isAuthenticated && showLessonDetailModal && isSelectedOpenGroupLesson,
+    perPage: 20,
+    search: debouncedCompedPlayerSearchQuery
   });
 
   const resolvePreviousLessons = useCallback((payload) => {
@@ -1099,9 +1121,36 @@ function App() {
     }
   };
 
+  const handleAddCompedGroupPlayer = async (playerId) => {
+    const lessonId = selectedLessonDetail?.id ?? selectedLessonDetail?.lesson_id ?? selectedLessonDetail?.lessonId;
+    if (!lessonId || !playerId) {
+      throw new Error('Select a player before adding them to this lesson.');
+    }
+
+    const response = await addPlayerToLesson({
+      coachAccessToken: user?.session?.access_token,
+      lessonId,
+      playerId,
+      paymentMethod: 'comped'
+    });
+
+    if (!response?.ok) {
+      const errorBody = await response?.json?.().catch(() => null);
+      const detail = errorBody?.detail || errorBody?.error || errorBody?.message;
+      throw new Error(typeof detail === 'string' && detail ? detail : 'Unable to add this player without charging them.');
+    }
+
+    const refreshedSchedule = await refreshSchedule();
+    const refreshedLesson = findRosterCapableLesson(refreshedSchedule, lessonId);
+    if (refreshedLesson) {
+      setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
+    }
+  };
+
 
   const handleLessonSelect = (lesson) => {
     setSelectedLessonDetail(lesson);
+    setCompedPlayerSearchQuery('');
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(true);
@@ -1816,6 +1865,7 @@ function App() {
 
   const handleCloseLessonDetail = () => {
     setShowLessonDetailModal(false);
+    setCompedPlayerSearchQuery('');
     setIsEditingLesson(false);
     setLessonEditData(null);
 
@@ -2139,7 +2189,7 @@ function App() {
         onEditChange={setLessonEditData}
         mutationLoading={scheduleMutationLoading}
         onCancelLesson={shouldUseDeclineFlowForSelectedLesson ? handleDeclineRequest : handleCancelLesson}
-        students={resolvedStudents}
+        students={isSelectedOpenGroupLesson ? compedRosterStudents : resolvedStudents}
         coachCourts={profileData.home_courts}
         coachHourlyRate={profileData.hourly_rate ?? profileData.price_private}
         formatDuration={formatDuration}
@@ -2148,6 +2198,11 @@ function App() {
         onCreateLesson={handleCreateLessonFromAvailability}
         onRemoveParticipant={handleRemoveLessonParticipant}
         onPayOnCourtMarkedPaid={refreshSchedule}
+        onAddCompedPlayer={handleAddCompedGroupPlayer}
+        compedPlayerSearch={compedPlayerSearchQuery}
+        onCompedPlayerSearchChange={setCompedPlayerSearchQuery}
+        compedPlayersLoading={compedRosterLoading}
+        compedPlayersError={compedRosterError}
         groups={coachGroups}
       />
 
