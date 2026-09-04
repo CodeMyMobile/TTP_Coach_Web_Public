@@ -221,6 +221,7 @@ function App() {
   const [lessonEditData, setLessonEditData] = useState(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [compedPlayerSearchQuery, setCompedPlayerSearchQuery] = useState('');
+  const [debouncedCompedPlayerSearchQuery, setDebouncedCompedPlayerSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showStudentDetailModal, setShowStudentDetailModal] = useState(false);
   const [studentLessons, setStudentLessons] = useState([]);
@@ -477,15 +478,20 @@ function App() {
   const isSelectedOpenGroupLesson = Number(
     selectedLessonDetail?.lessontype_id ?? selectedLessonDetail?.lesson_type_id ?? selectedLessonDetail?.lessonTypeId
   ) === 3;
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedCompedPlayerSearchQuery(compedPlayerSearchQuery.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [compedPlayerSearchQuery]);
   const {
     students: compedRosterStudents,
     loading: compedRosterLoading,
     error: compedRosterError
   } = useCoachStudents({
     enabled: isProfileComplete && isAuthenticated && showLessonDetailModal && isSelectedOpenGroupLesson,
-    perPage: 100,
-    search: compedPlayerSearchQuery,
-    loadAll: true
+    perPage: 20,
+    search: debouncedCompedPlayerSearchQuery
   });
 
   const resolvePreviousLessons = useCallback((payload) => {

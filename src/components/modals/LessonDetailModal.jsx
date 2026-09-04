@@ -24,6 +24,7 @@ import {
 } from '../../utils/lessonEdit';
 import { holdsLessonSpot, isPayOnCourt, resolveBookingPaymentState } from '../../utils/bookingPaymentState';
 import { splitParticipantsByBookingState } from '../../utils/participantSections';
+import { filterCompedPlayerOptions } from '../../utils/compedPlayerSearch';
 import { getExpectedGroupRevenue } from '../../utils/lessonRevenue';
 
 const typeStyles = {
@@ -576,14 +577,7 @@ const LessonDetailModal = ({
       .map((participant) => Number(participant.playerId))
       .filter((playerId) => Number.isFinite(playerId) && playerId > 0)
   );
-  const compedPlayerOptions = (Array.isArray(students) ? students : [])
-    .map((student) => ({
-      id: Number(student.playerId ?? student.player_id ?? student.id),
-      name: student.name || student.full_name || student.player_name || 'Unnamed player',
-      email: student.email || student.email_address || ''
-    }))
-    .filter((student) => Number.isFinite(student.id) && student.id > 0 && !existingGroupPlayerIds.has(student.id))
-    .filter((student, index, list) => list.findIndex((candidate) => candidate.id === student.id) === index);
+  const compedPlayerOptions = filterCompedPlayerOptions(students, compedPlayerSearch, existingGroupPlayerIds);
   const directPayOnCourtDue =
     !isGroupOrSemiPrivate &&
     isPayOnCourt(lessonPaymentMethod) &&
@@ -1172,22 +1166,25 @@ const LessonDetailModal = ({
                       placeholder="Search your roster..."
                       className="mt-3 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     />
+                    <div className="mt-3 space-y-2">
+                      {compedPlayerOptions.slice(0, 8).map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => setSelectedCompedPlayerId(String(student.id))}
+                          disabled={addingCompedPlayer}
+                          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${
+                            String(student.id) === String(selectedCompedPlayerId)
+                              ? 'border-violet-600 bg-violet-100 text-violet-950'
+                              : 'border-violet-200 bg-white text-slate-800 hover:border-violet-400 hover:bg-violet-50'
+                          }`}
+                        >
+                          <span className="font-medium">{student.name}</span>
+                          {student.email ? <span className="ml-3 truncate text-xs text-slate-500">{student.email}</span> : null}
+                        </button>
+                      ))}
+                    </div>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <label className="sr-only" htmlFor="comped-player-picker">Player</label>
-                      <select
-                        id="comped-player-picker"
-                        value={selectedCompedPlayerId}
-                        onChange={(event) => setSelectedCompedPlayerId(event.target.value)}
-                        disabled={addingCompedPlayer || compedPlayersLoading}
-                        className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <option value="">Select a player</option>
-                        {compedPlayerOptions.map((student) => (
-                          <option key={student.id} value={student.id}>
-                            {student.name}{student.email ? ` · ${student.email}` : ''}
-                          </option>
-                        ))}
-                      </select>
                       <button
                         type="button"
                         onClick={handleAddCompedPlayer}
