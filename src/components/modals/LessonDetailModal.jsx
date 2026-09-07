@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getCoachPlayerPackageUsage, markPayOnCourtLessonPaid } from '../../services/coach';
 import { openSmsComposer, openPhoneDialer, textAllParticipants } from '../../utils/messaging';
 import moment from 'moment';
@@ -156,12 +156,24 @@ const LessonDetailModal = ({
   const [pendingWaitlistPlayerId, setPendingWaitlistPlayerId] = useState(null);
   const [promotionPaymentMethod, setPromotionPaymentMethod] = useState('payment_link');
   const [waitlistActionError, setWaitlistActionError] = useState('');
+  const waitlistActionGenerationRef = useRef(0);
+  const waitlistLessonIdentity = String(lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId ?? '');
+  const waitlistLessonIdentityRef = useRef(waitlistLessonIdentity);
+  if (waitlistLessonIdentityRef.current !== waitlistLessonIdentity) {
+    waitlistLessonIdentityRef.current = waitlistLessonIdentity;
+    waitlistActionGenerationRef.current += 1;
+  }
   const [markingPayOnCourtKey, setMarkingPayOnCourtKey] = useState('');
   const [payOnCourtActionError, setPayOnCourtActionError] = useState('');
   const [locallyPaidPayOnCourtKeys, setLocallyPaidPayOnCourtKeys] = useState(() => new Set());
   const [selectedCompedPlayerId, setSelectedCompedPlayerId] = useState('');
   const [addingCompedPlayer, setAddingCompedPlayer] = useState(false);
   const [compedPlayerActionError, setCompedPlayerActionError] = useState('');
+
+  useEffect(() => {
+    setPendingWaitlistPlayerId(null);
+    setWaitlistActionError('');
+  }, [waitlistLessonIdentity]);
 
   const resolvedLesson = useMemo(() => {
     if (!lesson) {
@@ -778,14 +790,19 @@ const LessonDetailModal = ({
       return;
     }
 
+    const actionGeneration = waitlistActionGenerationRef.current;
     setPendingWaitlistPlayerId(participant.playerId);
     setWaitlistActionError('');
     try {
       await onRemoveWaitlistPlayer(participant);
     } catch (error) {
-      setWaitlistActionError(error?.message || 'Unable to remove this player from the waitlist.');
+      if (waitlistActionGenerationRef.current === actionGeneration) {
+        setWaitlistActionError(error?.message || 'Unable to remove this player from the waitlist.');
+      }
     } finally {
-      setPendingWaitlistPlayerId(null);
+      if (waitlistActionGenerationRef.current === actionGeneration) {
+        setPendingWaitlistPlayerId(null);
+      }
     }
   };
 
@@ -794,6 +811,7 @@ const LessonDetailModal = ({
       return;
     }
 
+    const actionGeneration = waitlistActionGenerationRef.current;
     setPendingWaitlistPlayerId(participant.playerId);
     setWaitlistActionError('');
     try {
@@ -802,9 +820,13 @@ const LessonDetailModal = ({
         getWaitlistPromotionPaymentMethod(promotionPaymentMethod)
       );
     } catch (error) {
-      setWaitlistActionError(error?.message || 'Unable to promote this player from the waitlist.');
+      if (waitlistActionGenerationRef.current === actionGeneration) {
+        setWaitlistActionError(error?.message || 'Unable to promote this player from the waitlist.');
+      }
     } finally {
-      setPendingWaitlistPlayerId(null);
+      if (waitlistActionGenerationRef.current === actionGeneration) {
+        setPendingWaitlistPlayerId(null);
+      }
     }
   };
 

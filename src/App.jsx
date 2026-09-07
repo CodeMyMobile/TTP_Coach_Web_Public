@@ -49,6 +49,7 @@ import {
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
 import {
+  createCoachLessonWaitlistCallbacks,
   createCoachLessonWaitlistController,
   loadCoachLessonDetail
 } from './utils/waitlistActions';
@@ -1166,43 +1167,16 @@ function App() {
     await refreshSelectedLessonDetail(lessonId);
   };
 
-  const handleRemoveLessonWaitlistPlayer = async (participant) => {
-    const lessonId = selectedLessonDetail?.id ?? selectedLessonDetail?.lesson_id ?? selectedLessonDetail?.lessonId;
-    const playerId = Number(participant?.playerId ?? participant?.player_id);
-
-    if (!lessonId || !Number.isFinite(playerId) || playerId <= 0) {
-      throw new Error('This waitlist player is unavailable.');
-    }
-
-    const playerName = participant?.name || 'this player';
-    if (!window.confirm(`Remove ${playerName} from this lesson waitlist?`)) {
-      return;
-    }
-
-    await lessonDetailSelectionControllerRef.current.removeWaitlistPlayer({
-      coachAccessToken: user?.session?.access_token,
-      lessonId,
-      playerId,
-      refreshSchedule
-    });
-  };
-
-  const handlePromoteLessonWaitlistPlayer = async (participant, paymentMethod) => {
-    const lessonId = selectedLessonDetail?.id ?? selectedLessonDetail?.lesson_id ?? selectedLessonDetail?.lessonId;
-    const playerId = Number(participant?.playerId ?? participant?.player_id);
-
-    if (!lessonId || !Number.isFinite(playerId) || playerId <= 0) {
-      throw new Error('This waitlist player is unavailable.');
-    }
-
-    await lessonDetailSelectionControllerRef.current.promoteWaitlistPlayer({
-      coachAccessToken: user?.session?.access_token,
-      lessonId,
-      playerId,
-      paymentMethod,
-      refreshSchedule,
-    });
-  };
+  const {
+    onRemoveWaitlistPlayer: handleRemoveLessonWaitlistPlayer,
+    onPromoteWaitlistPlayer: handlePromoteLessonWaitlistPlayer
+  } = createCoachLessonWaitlistCallbacks({
+    controller: lessonDetailSelectionControllerRef.current,
+    selectedLesson: selectedLessonDetail,
+    coachAccessToken: user?.session?.access_token,
+    confirmRemoval: (message) => window.confirm(message),
+    refreshSchedule
+  });
 
 
   const handleLessonSelect = (lesson) => {

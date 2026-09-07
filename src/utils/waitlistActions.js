@@ -9,6 +9,51 @@ export const getCoachLessonDetail = (payload) => payload?.lesson || payload?.dat
 export const getWaitlistPromotionPaymentMethod = (selection) =>
   selection === 'comped' ? 'comped' : undefined;
 
+export const createCoachLessonWaitlistCallbacks = ({
+  controller,
+  selectedLesson,
+  coachAccessToken,
+  confirmRemoval,
+  refreshSchedule
+}) => {
+  const lessonId = selectedLesson?.id ?? selectedLesson?.lesson_id ?? selectedLesson?.lessonId;
+
+  const requirePlayerId = (participant) => {
+    const playerId = Number(participant?.playerId ?? participant?.player_id);
+    if (!lessonId || !Number.isFinite(playerId) || playerId <= 0) {
+      throw new Error('This waitlist player is unavailable.');
+    }
+    return playerId;
+  };
+
+  return {
+    onRemoveWaitlistPlayer: async (participant) => {
+      const playerId = requirePlayerId(participant);
+      const playerName = participant?.name || 'this player';
+      if (!confirmRemoval(`Remove ${playerName} from this lesson waitlist?`)) {
+        return;
+      }
+
+      await controller.removeWaitlistPlayer({
+        coachAccessToken,
+        lessonId,
+        playerId,
+        refreshSchedule
+      });
+    },
+    onPromoteWaitlistPlayer: async (participant, paymentMethod) => {
+      const playerId = requirePlayerId(participant);
+      await controller.promoteWaitlistPlayer({
+        coachAccessToken,
+        lessonId,
+        playerId,
+        paymentMethod,
+        refreshSchedule
+      });
+    }
+  };
+};
+
 export const loadCoachLessonDetail = async ({
   lessonId,
   fetchLessonDetail,
