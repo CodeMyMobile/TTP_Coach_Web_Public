@@ -48,6 +48,7 @@ import {
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
+import { loadCoachLessonDetail, runCoachWaitlistAction } from './utils/waitlistActions';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -77,12 +78,6 @@ const resolvePackagesFromPayload = (payload) => {
   }
 
   return [];
-};
-
-const getResponseErrorDetail = async (response, fallbackMessage) => {
-  const errorBody = await response?.json?.().catch(() => null);
-  const detail = errorBody?.detail || errorBody?.error || errorBody?.message;
-  return typeof detail === 'string' && detail ? detail : fallbackMessage;
 };
 
 const resolvePackageFromPayload = (payload) => {
@@ -649,13 +644,11 @@ function App() {
   });
 
   const refreshSelectedLessonDetail = async (lessonId) => {
-    const payload = await getCoachLessonById({ lessonId });
-    const refreshedLesson = payload?.lesson || payload?.data?.lesson || payload?.data || payload;
-
-    if (refreshedLesson && typeof refreshedLesson === 'object') {
-      setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
-    }
-
+    await loadCoachLessonDetail({
+      lessonId,
+      fetchLessonDetail: getCoachLessonById,
+      updateSelectedLesson: setSelectedLessonDetail
+    });
     await refreshSchedule();
   };
 
@@ -1173,17 +1166,19 @@ function App() {
       return;
     }
 
-    const response = await removePlayerFromLessonWaitlist({
-      coachAccessToken: user?.session?.access_token,
+    await runCoachWaitlistAction({
+      action: () =>
+        removePlayerFromLessonWaitlist({
+          coachAccessToken: user?.session?.access_token,
+          lessonId,
+          playerId
+        }),
+      fetchLessonDetail: getCoachLessonById,
       lessonId,
-      playerId
+      updateSelectedLesson: setSelectedLessonDetail,
+      refreshSchedule,
+      fallbackMessage: 'Unable to remove this player from the waitlist.'
     });
-
-    if (!response?.ok) {
-      throw new Error(await getResponseErrorDetail(response, 'Unable to remove this player from the waitlist.'));
-    }
-
-    await refreshSelectedLessonDetail(lessonId);
   };
 
   const handlePromoteLessonWaitlistPlayer = async (participant, paymentMethod) => {
@@ -1194,18 +1189,20 @@ function App() {
       throw new Error('This waitlist player is unavailable.');
     }
 
-    const response = await addPlayerToLesson({
-      coachAccessToken: user?.session?.access_token,
+    await runCoachWaitlistAction({
+      action: () =>
+        addPlayerToLesson({
+          coachAccessToken: user?.session?.access_token,
+          lessonId,
+          playerId,
+          paymentMethod
+        }),
+      fetchLessonDetail: getCoachLessonById,
       lessonId,
-      playerId,
-      paymentMethod
+      updateSelectedLesson: setSelectedLessonDetail,
+      refreshSchedule,
+      fallbackMessage: 'Unable to promote this player from the waitlist.'
     });
-
-    if (!response?.ok) {
-      throw new Error(await getResponseErrorDetail(response, 'Unable to promote this player from the waitlist.'));
-    }
-
-    await refreshSelectedLessonDetail(lessonId);
   };
 
 
@@ -1215,6 +1212,17 @@ function App() {
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(true);
+
+    const lessonId = lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId;
+    if (lessonId) {
+      loadCoachLessonDetail({
+        lessonId,
+        fetchLessonDetail: getCoachLessonById,
+        updateSelectedLesson: setSelectedLessonDetail
+      }).catch((error) => {
+        console.error('Failed to load lesson detail', error);
+      });
+    }
   };
 
   const handleStudentSelect = (student) => {
