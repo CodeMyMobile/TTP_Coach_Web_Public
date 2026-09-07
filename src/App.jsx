@@ -24,6 +24,7 @@ import {
   addPlayerToLesson,
   deleteCoachLocation,
   getCoachLocations,
+  removePlayerFromLessonWaitlist,
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
@@ -47,7 +48,11 @@ import {
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
-import { findRosterCapableLesson } from './utils/scheduleLesson';
+import {
+  createCoachLessonWaitlistCallbacks,
+  createCoachLessonWaitlistController,
+  loadCoachLessonDetail
+} from './utils/waitlistActions';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -216,6 +221,15 @@ function App() {
   const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
   const [lessonCreatedSuccess, setLessonCreatedSuccess] = useState(null);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
+  const lessonDetailSelectionControllerRef = useRef(null);
+  if (!lessonDetailSelectionControllerRef.current) {
+    lessonDetailSelectionControllerRef.current = createCoachLessonWaitlistController({
+      fetchLessonDetail: getCoachLessonById,
+      updateSelectedLesson: setSelectedLessonDetail,
+      removePlayerFromLessonWaitlist,
+      addPlayerToLesson
+    });
+  }
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [isEditingLesson, setIsEditingLesson] = useState(false);
   const [lessonEditData, setLessonEditData] = useState(null);
@@ -419,6 +433,7 @@ function App() {
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(false);
+    lessonDetailSelectionControllerRef.current.adoptLesson({ id: lessonRouteLessonId });
 
     const fetchLessonDetail = async () => {
       try {
@@ -433,7 +448,7 @@ function App() {
           throw new Error('Lesson detail response was empty.');
         }
 
-        setSelectedLessonDetail(lesson);
+        lessonDetailSelectionControllerRef.current.adoptLesson(lesson);
         setShowLessonDetailModal(true);
       } catch (error) {
         if (cancelled) {
@@ -641,6 +656,15 @@ function App() {
     date: currentDate,
     dates: visibleCalendarDates
   });
+
+  const refreshSelectedLessonDetail = async (lessonId) => {
+    await loadCoachLessonDetail({
+      lessonId,
+      fetchLessonDetail: getCoachLessonById,
+      updateSelectedLesson: setSelectedLessonDetail
+    });
+    await refreshSchedule();
+  };
 
   // Derive Google Calendar connection state ONCE for the header sync pill.
   // Only a definitive 404 ("not connected") flips to false; any transient failure
@@ -1127,33 +1151,35 @@ function App() {
       throw new Error('Select a player before adding them to this lesson.');
     }
 
-    const response = await addPlayerToLesson({
+    await lessonDetailSelectionControllerRef.current.addCompedPlayer({
       coachAccessToken: user?.session?.access_token,
       lessonId,
       playerId,
-      paymentMethod: 'comped'
+      refreshSchedule
     });
-
-    if (!response?.ok) {
-      const errorBody = await response?.json?.().catch(() => null);
-      const detail = errorBody?.detail || errorBody?.error || errorBody?.message;
-      throw new Error(typeof detail === 'string' && detail ? detail : 'Unable to add this player without charging them.');
-    }
-
-    const refreshedSchedule = await refreshSchedule();
-    const refreshedLesson = findRosterCapableLesson(refreshedSchedule, lessonId);
-    if (refreshedLesson) {
-      setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
-    }
   };
+
+  const {
+    onRemoveWaitlistPlayer: handleRemoveLessonWaitlistPlayer,
+    onPromoteWaitlistPlayer: handlePromoteLessonWaitlistPlayer
+  } = createCoachLessonWaitlistCallbacks({
+    controller: lessonDetailSelectionControllerRef.current,
+    selectedLesson: selectedLessonDetail,
+    coachAccessToken: user?.session?.access_token,
+    confirmRemoval: (message) => window.confirm(message),
+    refreshSchedule
+  });
 
 
   const handleLessonSelect = (lesson) => {
-    setSelectedLessonDetail(lesson);
     setCompedPlayerSearchQuery('');
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(true);
+
+    lessonDetailSelectionControllerRef.current.select(lesson).catch((error) => {
+      console.error('Failed to load lesson detail', error);
+    });
   };
 
   const handleStudentSelect = (student) => {
@@ -2197,6 +2223,8 @@ function App() {
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
         onRemoveParticipant={handleRemoveLessonParticipant}
+        onRemoveWaitlistPlayer={handleRemoveLessonWaitlistPlayer}
+        onPromoteWaitlistPlayer={handlePromoteLessonWaitlistPlayer}
         onPayOnCourtMarkedPaid={refreshSchedule}
         onAddCompedPlayer={handleAddCompedGroupPlayer}
         compedPlayerSearch={compedPlayerSearchQuery}

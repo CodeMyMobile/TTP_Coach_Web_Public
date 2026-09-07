@@ -15,3 +15,18 @@ test('splitParticipantsByBookingState keeps active players ahead of pending play
   assert.deepEqual(sections.pending.map((player) => player.name), ['Pending One', 'Pending Two']);
   assert.deepEqual(sections.other, []);
 });
+
+test('splitParticipantsByBookingState keeps named waitlist entries in API order', () => {
+  const sections = splitParticipantsByBookingState([
+    { name: 'Booked One', status: 'Confirmed', holdsSpot: true },
+    { name: 'First Waiter', isWaitlisted: true, joinedAt: '2026-09-08T09:00:00.000Z' },
+    { name: 'Second Waiter', isWaitlisted: true, joinedAt: '2026-09-08T10:00:00.000Z' }
+  ]);
+
+  assert.deepEqual(sections.active.map((player) => player.name), ['Booked One']);
+  assert.deepEqual(sections.waitlist.map((player) => player.name), ['First Waiter', 'Second Waiter']);
+  assert.deepEqual(sections.waitlist.map((player) => player.joinedAt), [
+    '2026-09-08T09:00:00.000Z',
+    '2026-09-08T10:00:00.000Z'
+  ]);
+});

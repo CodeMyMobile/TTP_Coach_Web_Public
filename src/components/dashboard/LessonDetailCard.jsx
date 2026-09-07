@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import moment from 'moment';
 import {
   MapPin,
@@ -187,6 +187,8 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
   const pendingCount = groupPlayers.filter((player) => resolvePlayerStatus(player || {}).tone === 'pending').length;
   const cancelledCount = groupPlayers.filter((player) => resolvePlayerStatus(player || {}).tone === 'danger').length;
   const showStatusCounts = isGroupLesson && groupPlayers.length > 0;
+  const waitlistCount = Number(record.waitlist_count ?? record.waitlistCount);
+  const hasWaitlist = isGroupLesson && Number.isFinite(waitlistCount) && waitlistCount > 0;
 
   const privateName = record.full_name || lesson.coach_name;
   const title = isPrivateLesson
@@ -309,6 +311,9 @@ const LessonDetailCard = ({ lesson, statusLabel, onShare, currentUserId }) => {
               ) : null}
               {showStatusCounts && cancelledCount > 0 ? (
                 <span className="lesson-detail-card__pill lesson-detail-card__pill--cancel">{cancelledCount} Cancelled</span>
+              ) : null}
+              {hasWaitlist ? (
+                <span className="lesson-detail-card__pill lesson-detail-card__pill--pending">{waitlistCount} waiting</span>
               ) : null}
               {availabilityPill ? (
                 <span className={`lesson-detail-card__pill lesson-detail-card__pill--${availabilityPill.tone}`}>
