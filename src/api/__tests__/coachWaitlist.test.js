@@ -12,7 +12,7 @@ const vite = await createServer({
 const { addPlayerToLesson, removePlayerFromLessonWaitlist } = await vite.ssrLoadModule('/src/api/coach.js');
 const { default: LessonDetailModal } = await vite.ssrLoadModule('/src/components/modals/LessonDetailModal.jsx');
 const {
-  createCoachLessonSelectionController,
+  createCoachLessonWaitlistController,
   getWaitlistPromotionPaymentMethod,
   loadCoachLessonDetail,
   runCoachWaitlistAction
@@ -173,14 +173,16 @@ test('loadCoachLessonDetail merges waitlist data into the selected schedule summ
 test('selection controller ignores a stale lesson detail response after another lesson opens', async () => {
   const deferredDetails = new Map();
   let selectedLesson;
-  const controller = createCoachLessonSelectionController({
+  const controller = createCoachLessonWaitlistController({
     fetchLessonDetail: ({ lessonId }) =>
       new Promise((resolve) => {
         deferredDetails.set(lessonId, resolve);
       }),
     updateSelectedLesson: (nextLesson) => {
       selectedLesson = typeof nextLesson === 'function' ? nextLesson(selectedLesson) : nextLesson;
-    }
+    },
+    removePlayerFromLessonWaitlist: async () => ({ ok: true }),
+    addPlayerToLesson: async () => ({ ok: true })
   });
 
   const firstSelection = controller.select({ id: 77, title: 'Lesson A' });
@@ -193,6 +195,101 @@ test('selection controller ignores a stale lesson detail response after another 
 
   assert.equal(selectedLesson.id, 88);
   assert.deepEqual(selectedLesson.waitlist.map((waiter) => waiter.full_name), ['Lesson B Waiter']);
+});
+
+test('waitlist controller does not merge an action response after the coach opens another lesson', async () => {
+  const detailRequests = [];
+  let selectedLesson;
+  let promotionRequest;
+  let scheduleRefreshes = 0;
+  let resolvePromotion;
+  const controller = createCoachLessonWaitlistController({
+    fetchLessonDetail: ({ lessonId }) =>
+      new Promise((resolve) => {
+        detailRequests.push({ lessonId, resolve });
+      }),
+    updateSelectedLesson: (nextLesson) => {
+      selectedLesson = typeof nextLesson === 'function' ? nextLesson(selectedLesson) : nextLesson;
+    },
+    removePlayerFromLessonWaitlist: async () => ({ ok: true }),
+    addPlayerToLesson: async (request) => {
+      promotionRequest = request;
+      return new Promise((resolve) => {
+        resolvePromotion = resolve;
+      });
+    }
+  });
+
+  const selectA = controller.select({ id: 77, title: 'Lesson A' });
+  detailRequests[0].resolve({ id: 77, waitlist_count: 1, waitlist: [{ full_name: 'Lesson A Waiter' }] });
+  await selectA;
+
+  const promoteA = controller.promoteWaitlistPlayer({
+    coachAccessToken: 'coach-token',
+    lessonId: 77,
+    playerId: 501,
+    paymentMethod: 'comped',
+    refreshSchedule: async () => {
+      scheduleRefreshes += 1;
+    }
+  });
+  controller.adoptLesson({
+    id: 88,
+    title: 'Lesson B',
+    waitlist_count: 1,
+    waitlist: [{ full_name: 'Lesson B Waiter' }]
+  });
+
+  resolvePromotion({ ok: true });
+  for (let microtask = 0; microtask < 4 && detailRequests.length < 2; microtask += 1) {
+    await Promise.resolve();
+  }
+  detailRequests[1].resolve({ id: 77, waitlist_count: 0, waitlist: [] });
+  await promoteA;
+
+  assert.deepEqual(promotionRequest, {
+    coachAccessToken: 'coach-token',
+    lessonId: 77,
+    playerId: 501,
+    paymentMethod: 'comped'
+  });
+  assert.equal(selectedLesson.id, 88);
+  assert.deepEqual(selectedLesson.waitlist.map((waiter) => waiter.full_name), ['Lesson B Waiter']);
+  assert.equal(scheduleRefreshes, 1);
+});
+
+test('waitlist controller dispatches Remove and returns backend detail to the modal callback', async () => {
+  let removalRequest;
+  let scheduleRefreshed = false;
+  const controller = createCoachLessonWaitlistController({
+    fetchLessonDetail: async () => {
+      throw new Error('detail fetch should not run after a failed remove');
+    },
+    updateSelectedLesson: () => {},
+    removePlayerFromLessonWaitlist: async (request) => {
+      removalRequest = request;
+      return {
+        ok: false,
+        json: async () => ({ detail: 'Player is not on this waitlist.' })
+      };
+    },
+    addPlayerToLesson: async () => ({ ok: true })
+  });
+
+  await assert.rejects(
+    controller.removeWaitlistPlayer({
+      coachAccessToken: 'coach-token',
+      lessonId: 77,
+      playerId: 501,
+      refreshSchedule: async () => {
+        scheduleRefreshed = true;
+      }
+    }),
+    /Player is not on this waitlist\./
+  );
+
+  assert.deepEqual(removalRequest, { coachAccessToken: 'coach-token', lessonId: 77, playerId: 501 });
+  assert.equal(scheduleRefreshed, false);
 });
 
 test('runCoachWaitlistAction surfaces server detail without refreshing after a failed remove', async () => {
