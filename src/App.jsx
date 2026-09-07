@@ -1151,20 +1151,12 @@ function App() {
       throw new Error('Select a player before adding them to this lesson.');
     }
 
-    const response = await addPlayerToLesson({
+    await lessonDetailSelectionControllerRef.current.addCompedPlayer({
       coachAccessToken: user?.session?.access_token,
       lessonId,
       playerId,
-      paymentMethod: 'comped'
+      refreshSchedule
     });
-
-    if (!response?.ok) {
-      const errorBody = await response?.json?.().catch(() => null);
-      const detail = errorBody?.detail || errorBody?.error || errorBody?.message;
-      throw new Error(typeof detail === 'string' && detail ? detail : 'Unable to add this player without charging them.');
-    }
-
-    await refreshSelectedLessonDetail(lessonId);
   };
 
   const {

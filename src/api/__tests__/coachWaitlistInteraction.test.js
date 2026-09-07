@@ -28,14 +28,14 @@ const deferred = () => {
 
 // Only the network, native confirmation and schedule refresh are replaced. The
 // modal buttons, App callback boundary, controller and HTTP wrappers are real.
-const mount = async (initialLesson, events, confirmRemoval = () => true) => {
+const mount = async (initialLesson, events, confirmRemoval = () => true, refreshSchedule = async () => { events.push('schedule'); }) => {
   let renderer;
   let selectedLesson = initialLesson;
   const render = () => React.createElement(LessonDetailModal, {
     isOpen: true, lesson: selectedLesson, onClose: () => {}, onEditChange: () => {},
     ...createCoachLessonWaitlistCallbacks({
       controller, selectedLesson, coachAccessToken: 'coach-token', confirmRemoval,
-      refreshSchedule: async () => { events.push('schedule'); }
+      refreshSchedule
     })
   });
   const controller = createCoachLessonWaitlistController({
@@ -55,6 +55,63 @@ const mount = async (initialLesson, events, confirmRemoval = () => true) => {
     alerts: () => renderer.root.findAllByProps({ role: 'alert' }).map((node) => node.children.join(''))
   };
 };
+
+test('a pending mutation disables waitlist actions for every row', async (t) => {
+  const pending = deferred();
+  global.fetch = async (url, options) => options.method === 'DELETE' ? pending.promise : response([]);
+  const initial = lesson(77, 501, 'First Waiter');
+  initial.waitlist.push({ id: 502, player_id: 502, full_name: 'Second Waiter' });
+  initial.waitlist_count = 2;
+  const ui = await mount(initial, []);
+  t.after(() => act(() => ui.renderer.unmount()));
+  let action;
+  act(() => { action = ui.button('Remove').props.onClick(); });
+  const actionButtons = ui.renderer.root.findAllByType('button').filter(node => ['Remove', 'Promote', 'Working...'].some(label => node.children.includes(label)));
+  assert.equal(actionButtons.length, 4);
+  assert.ok(actionButtons.every(node => node.props.disabled));
+  await act(async () => { pending.resolve(response({ detail: 'Rejected' }, 409)); await action; });
+});
+
+test('changing lessons resets promotion choice to payment link', async (t) => {
+  global.fetch = async () => response([]);
+  const ui = await mount(lesson(77, 501, 'First Waiter'), []);
+  t.after(() => act(() => ui.renderer.unmount()));
+  await act(async () => { ui.payment().props.onChange({ target: { value: 'comped' } }); });
+  await ui.select(lesson(88, 502, 'Second Waiter'));
+  assert.equal(ui.payment().props.value, 'payment_link');
+});
+
+for (const action of ['Remove', 'Promote']) {
+  for (const failure of ['detail', 'schedule']) {
+    test(`successful ${action} reports success with warning after ${failure} refresh failure`, async (t) => {
+      const events = [];
+      global.fetch = async (url, options) => {
+        const path = new URL(url, 'https://coach.test').pathname;
+        if (options.method === 'DELETE' || path.endsWith('/addplayer')) {
+          events.push('mutation'); return response({});
+        }
+        if (path.endsWith('/coach/lesson/77')) {
+          events.push('detail');
+          return failure === 'detail' ? response({ detail: 'Offline' }, 500) : response({ id: 77, waitlist_count: 0, waitlist: [] });
+        }
+        return response([]);
+      };
+      const ui = await mount(lesson(77, 501, 'First Waiter'), events, () => true, async () => {
+        events.push('schedule');
+        if (failure === 'schedule') throw new Error('Schedule offline');
+      });
+      t.after(() => act(() => ui.renderer.unmount()));
+      await act(async () => { await ui.button(action).props.onClick(); });
+      assert.deepEqual(ui.alerts(), []);
+      assert.ok(events.includes('detail'));
+      assert.ok(events.includes('schedule'));
+      const messages = ui.renderer.root.findAllByProps({ role: 'status' }).map(node => node.children.join('')).join(' ');
+      assert.match(messages, action === 'Remove' ? /removed/i : /promoted/i);
+      assert.match(messages, /refresh/i);
+      assert.equal(ui.button(action), undefined, 'successful action must no longer be offered for the stale row');
+    });
+  }
+}
 
 for (const payment of ['payment_link', 'comped']) {
   test(`modal Promote uses App callback and real HTTP wrapper for ${payment}`, async (t) => {

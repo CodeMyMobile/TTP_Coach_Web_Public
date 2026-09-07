@@ -11,6 +11,7 @@ const vite = await createServer({
 });
 const { addPlayerToLesson, removePlayerFromLessonWaitlist } = await vite.ssrLoadModule('/src/api/coach.js');
 const { default: LessonDetailModal } = await vite.ssrLoadModule('/src/components/modals/LessonDetailModal.jsx');
+const { default: LessonDetailCard } = await vite.ssrLoadModule('/src/components/dashboard/LessonDetailCard.jsx');
 const {
   createCoachLessonWaitlistController,
   getWaitlistPromotionPaymentMethod,
@@ -345,4 +346,47 @@ test('runCoachWaitlistAction dispatches the selected waiter to Remove before ref
 test('getWaitlistPromotionPaymentMethod preserves payment-link promotions and comped promotions', () => {
   assert.equal(getWaitlistPromotionPaymentMethod('payment_link'), undefined);
   assert.equal(getWaitlistPromotionPaymentMethod('comped'), 'comped');
+});
+
+test('group summary card displays waitlist count even without booked participants', () => {
+  const markup = renderToStaticMarkup(React.createElement(LessonDetailCard, { lesson: {
+    id: 77, lessontype_id: 3, player_limit: 4, group_players: [], waitlist_count: 2,
+  } }));
+  assert.match(markup, /2 waiting/);
+});
+
+test('initial detail selection exposes loading then an actionable roster error', async () => {
+  let selectedLesson;
+  let rejectDetail;
+  const controller = createCoachLessonWaitlistController({
+    fetchLessonDetail: () => new Promise((resolve, reject) => { rejectDetail = reject; }),
+    updateSelectedLesson: update => { selectedLesson = typeof update === 'function' ? update(selectedLesson) : update; },
+  });
+  const pending = controller.select({ id: 77, lessontype_id: 3, player_limit: 4 });
+  const render = () => renderToStaticMarkup(React.createElement(LessonDetailModal, {
+    isOpen: true, lesson: selectedLesson, onClose() {}, onEditChange() {},
+  }));
+  assert.match(render(), /Loading participants and waitlist/);
+  assert.doesNotMatch(render(), /No active participants yet/);
+  rejectDetail(new Error('Network unavailable'));
+  await assert.rejects(pending, /Network unavailable/);
+  assert.match(render(), /Unable to load participants and waitlist/);
+  assert.doesNotMatch(render(), /No active participants yet/);
+});
+
+test('regular comped add cannot merge an old lesson after selection changes', async () => {
+  let selected;
+  let finishAdd;
+  const controller = createCoachLessonWaitlistController({
+    fetchLessonDetail: async ({ lessonId }) => ({ id: lessonId, waitlist: [] }),
+    addPlayerToLesson: () => new Promise(resolve => { finishAdd = resolve; }),
+    updateSelectedLesson: update => { selected = typeof update === 'function' ? update(selected) : update; },
+  });
+  controller.adoptLesson({ id: 77 });
+  const pending = controller.addCompedPlayer({ lessonId: 77, playerId: 501, refreshSchedule: async () => {} });
+  controller.adoptLesson({ id: 88, waitlist: [{ player_id: 502 }] });
+  finishAdd({ ok: true });
+  await pending;
+  assert.equal(selected.id, 88);
+  assert.deepEqual(selected.waitlist, [{ player_id: 502 }]);
 });

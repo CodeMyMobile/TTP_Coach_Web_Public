@@ -156,6 +156,7 @@ const LessonDetailModal = ({
   const [pendingWaitlistPlayerId, setPendingWaitlistPlayerId] = useState(null);
   const [promotionPaymentMethod, setPromotionPaymentMethod] = useState('payment_link');
   const [waitlistActionError, setWaitlistActionError] = useState('');
+  const [waitlistActionStatus, setWaitlistActionStatus] = useState('');
   const waitlistActionGenerationRef = useRef(0);
   const waitlistLessonIdentity = String(lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId ?? '');
   const waitlistLessonIdentityRef = useRef(waitlistLessonIdentity);
@@ -173,6 +174,8 @@ const LessonDetailModal = ({
   useEffect(() => {
     setPendingWaitlistPlayerId(null);
     setWaitlistActionError('');
+    setWaitlistActionStatus('');
+    setPromotionPaymentMethod('payment_link');
   }, [waitlistLessonIdentity]);
 
   const resolvedLesson = useMemo(() => {
@@ -589,6 +592,8 @@ const LessonDetailModal = ({
   const waitlistCount = Number.isFinite(Number(resolvedLesson.waitlist_count ?? resolvedLesson.waitlistCount))
     ? Number(resolvedLesson.waitlist_count ?? resolvedLesson.waitlistCount)
     : waitlistParticipantListOrdered.length;
+  const waitlistDetailLoading = Boolean(resolvedLesson.waitlistDetailLoading);
+  const waitlistDetailError = resolvedLesson.waitlistDetailError;
   const lessonPaymentMethod =
     resolvedLesson.payment_method ??
     resolvedLesson.paymentMethod ??
@@ -793,8 +798,13 @@ const LessonDetailModal = ({
     const actionGeneration = waitlistActionGenerationRef.current;
     setPendingWaitlistPlayerId(participant.playerId);
     setWaitlistActionError('');
+    setWaitlistActionStatus('');
     try {
-      await onRemoveWaitlistPlayer(participant);
+      const result = await onRemoveWaitlistPlayer(participant);
+      if (waitlistActionGenerationRef.current === actionGeneration) {
+        const warning = result?.refreshWarnings?.length ? ` Refresh warning: ${result.refreshWarnings.join(' ')}` : '';
+        setWaitlistActionStatus(`Player removed from the waitlist.${warning}`);
+      }
     } catch (error) {
       if (waitlistActionGenerationRef.current === actionGeneration) {
         setWaitlistActionError(error?.message || 'Unable to remove this player from the waitlist.');
@@ -814,11 +824,16 @@ const LessonDetailModal = ({
     const actionGeneration = waitlistActionGenerationRef.current;
     setPendingWaitlistPlayerId(participant.playerId);
     setWaitlistActionError('');
+    setWaitlistActionStatus('');
     try {
-      await onPromoteWaitlistPlayer(
+      const result = await onPromoteWaitlistPlayer(
         participant,
         getWaitlistPromotionPaymentMethod(promotionPaymentMethod)
       );
+      if (waitlistActionGenerationRef.current === actionGeneration) {
+        const warning = result?.refreshWarnings?.length ? ` Refresh warning: ${result.refreshWarnings.join(' ')}` : '';
+        setWaitlistActionStatus(`Player promoted from the waitlist.${warning}`);
+      }
     } catch (error) {
       if (waitlistActionGenerationRef.current === actionGeneration) {
         setWaitlistActionError(error?.message || 'Unable to promote this player from the waitlist.');
@@ -935,6 +950,7 @@ const LessonDetailModal = ({
     const joinedMoment = parseDisplayMoment(participant.joinedAt);
     const joinedLabel = joinedMoment ? joinedMoment.format('MMM D, YYYY · h:mm A') : 'Join date unavailable';
     const isPending = pendingWaitlistPlayerId === participant.playerId;
+    const waitlistActionPending = Boolean(pendingWaitlistPlayerId);
 
     return (
       <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
@@ -954,7 +970,7 @@ const LessonDetailModal = ({
           <button
             type="button"
             onClick={() => handlePromoteWaitlistPlayer(participant)}
-            disabled={isPending}
+            disabled={waitlistActionPending}
             className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:bg-violet-300"
           >
             {isPending ? 'Working...' : 'Promote'}
@@ -962,7 +978,7 @@ const LessonDetailModal = ({
           <button
             type="button"
             onClick={() => handleRemoveWaitlistPlayer(participant)}
-            disabled={isPending}
+            disabled={waitlistActionPending}
             className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-wait disabled:text-rose-300"
           >
             Remove
@@ -1345,7 +1361,13 @@ const LessonDetailModal = ({
 
                   {participantsOpen && (
                     <div className="space-y-1 p-2">
-                      {activeParticipantList.length === 0 && (
+                      {waitlistDetailLoading ? (
+                        <p className="px-2 py-3 text-sm text-slate-500">Loading participants and waitlist...</p>
+                      ) : waitlistDetailError ? (
+                        <p role="alert" className="px-2 py-3 text-sm font-medium text-rose-700">
+                          Unable to load participants and waitlist. {waitlistDetailError}
+                        </p>
+                      ) : activeParticipantList.length === 0 && (
                         <p className="px-2 py-3 text-sm text-slate-500">No active participants yet.</p>
                       )}
                       {activeParticipantList.map((participant, index) => renderParticipantRow(participant, index))}
@@ -1404,6 +1426,11 @@ const LessonDetailModal = ({
                           ) : null}
                         </div>
                       )}
+                      {waitlistActionStatus ? (
+                        <p role="status" className="px-3 py-2 text-xs font-medium text-emerald-700">
+                          {waitlistActionStatus}
+                        </p>
+                      ) : null}
                     </div>
                   )}
 
