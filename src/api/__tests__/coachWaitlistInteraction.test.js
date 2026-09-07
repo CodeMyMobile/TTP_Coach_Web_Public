@@ -167,6 +167,8 @@ test('modal Remove respects confirmation, then deletes and refreshes through App
   await act(async () => { await ui.button('Remove').props.onClick(); });
   assert.match(confirmation, /First Waiter/);
   assert.deepEqual(events, []);
+  const cancelledMessages = ui.renderer.root.findAllByProps({ role: 'status' }).map((node) => node.children.join(''));
+  assert.ok(!cancelledMessages.some((message) => /removed from the waitlist/i.test(message)));
   confirmed = true;
   await act(async () => { await ui.button('Remove').props.onClick(); });
   assert.deepEqual(ui.alerts(), []);

@@ -31,7 +31,7 @@ export const createCoachLessonWaitlistCallbacks = ({
       const playerId = requirePlayerId(participant);
       const playerName = participant?.name || 'this player';
       if (!confirmRemoval(`Remove ${playerName} from this lesson waitlist?`)) {
-        return;
+        return { cancelled: true };
       }
 
       return controller.removeWaitlistPlayer({

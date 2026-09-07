@@ -802,6 +802,9 @@ const LessonDetailModal = ({
     try {
       const result = await onRemoveWaitlistPlayer(participant);
       if (waitlistActionGenerationRef.current === actionGeneration) {
+        if (result?.cancelled) {
+          return;
+        }
         const warning = result?.refreshWarnings?.length ? ` Refresh warning: ${result.refreshWarnings.join(' ')}` : '';
         setWaitlistActionStatus(`Player removed from the waitlist.${warning}`);
       }
