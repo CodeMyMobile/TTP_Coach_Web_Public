@@ -20,6 +20,35 @@ export const loadCoachLessonDetail = async ({ lessonId, fetchLessonDetail, updat
   return lesson;
 };
 
+export const createCoachLessonSelectionController = ({ fetchLessonDetail, updateSelectedLesson }) => {
+  let latestSelection = 0;
+
+  return {
+    select: async (summaryLesson) => {
+      const selection = ++latestSelection;
+      updateSelectedLesson(summaryLesson);
+
+      const lessonId = summaryLesson?.id ?? summaryLesson?.lesson_id ?? summaryLesson?.lessonId;
+      if (!lessonId) {
+        return summaryLesson;
+      }
+
+      const payload = await fetchLessonDetail({ lessonId });
+      const lesson = getCoachLessonDetail(payload);
+      if (!lesson || typeof lesson !== 'object') {
+        throw new Error('Lesson detail response was empty.');
+      }
+
+      if (selection !== latestSelection) {
+        return null;
+      }
+
+      updateSelectedLesson((previousLesson) => ({ ...previousLesson, ...lesson }));
+      return lesson;
+    }
+  };
+};
+
 export const runCoachWaitlistAction = async ({
   action,
   fetchLessonDetail,

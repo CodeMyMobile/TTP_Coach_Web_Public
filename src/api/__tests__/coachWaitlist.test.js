@@ -12,6 +12,7 @@ const vite = await createServer({
 const { addPlayerToLesson, removePlayerFromLessonWaitlist } = await vite.ssrLoadModule('/src/api/coach.js');
 const { default: LessonDetailModal } = await vite.ssrLoadModule('/src/components/modals/LessonDetailModal.jsx');
 const {
+  createCoachLessonSelectionController,
   getWaitlistPromotionPaymentMethod,
   loadCoachLessonDetail,
   runCoachWaitlistAction
@@ -110,11 +111,19 @@ test('LessonDetailModal renders ordered waiter details after pending participant
 test('runCoachWaitlistAction refreshes detail and schedule after a successful promotion', async () => {
   const events = [];
   let mergedLesson;
+  let promotionRequest;
+  const promoteWaitlistPlayer = async (request) => {
+    promotionRequest = request;
+    events.push('promote');
+    return { ok: true };
+  };
   const detail = await runCoachWaitlistAction({
-    action: async () => {
-      events.push('promote');
-      return { ok: true };
-    },
+    action: () =>
+      promoteWaitlistPlayer({
+        lessonId: 77,
+        playerId: 501,
+        paymentMethod: getWaitlistPromotionPaymentMethod('comped')
+      }),
     fetchLessonDetail: async ({ lessonId }) => {
       events.push(`detail:${lessonId}`);
       return {
@@ -135,6 +144,7 @@ test('runCoachWaitlistAction refreshes detail and schedule after a successful pr
   });
 
   assert.deepEqual(events, ['promote', 'detail:77', 'selected', 'schedule']);
+  assert.deepEqual(promotionRequest, { lessonId: 77, playerId: 501, paymentMethod: 'comped' });
   assert.equal(detail.waitlist_count, 1);
   assert.equal(mergedLesson.startTime, '10:00 am');
   assert.deepEqual(mergedLesson.waitlist.map((waiter) => waiter.full_name), ['Second Waiter']);
@@ -158,6 +168,31 @@ test('loadCoachLessonDetail merges waitlist data into the selected schedule summ
   assert.equal(mergedLesson.startTime, '10:00 am');
   assert.equal(mergedLesson.waitlist_count, 1);
   assert.deepEqual(mergedLesson.waitlist.map((waiter) => waiter.full_name), ['First Waiter']);
+});
+
+test('selection controller ignores a stale lesson detail response after another lesson opens', async () => {
+  const deferredDetails = new Map();
+  let selectedLesson;
+  const controller = createCoachLessonSelectionController({
+    fetchLessonDetail: ({ lessonId }) =>
+      new Promise((resolve) => {
+        deferredDetails.set(lessonId, resolve);
+      }),
+    updateSelectedLesson: (nextLesson) => {
+      selectedLesson = typeof nextLesson === 'function' ? nextLesson(selectedLesson) : nextLesson;
+    }
+  });
+
+  const firstSelection = controller.select({ id: 77, title: 'Lesson A' });
+  const secondSelection = controller.select({ id: 88, title: 'Lesson B' });
+
+  deferredDetails.get(88)({ id: 88, waitlist_count: 1, waitlist: [{ full_name: 'Lesson B Waiter' }] });
+  await secondSelection;
+  deferredDetails.get(77)({ id: 77, waitlist_count: 1, waitlist: [{ full_name: 'Lesson A Waiter' }] });
+  await firstSelection;
+
+  assert.equal(selectedLesson.id, 88);
+  assert.deepEqual(selectedLesson.waitlist.map((waiter) => waiter.full_name), ['Lesson B Waiter']);
 });
 
 test('runCoachWaitlistAction surfaces server detail without refreshing after a failed remove', async () => {
@@ -185,6 +220,29 @@ test('runCoachWaitlistAction surfaces server detail without refreshing after a f
 
   assert.equal(fetchedDetail, false);
   assert.equal(refreshedSchedule, false);
+});
+
+test('runCoachWaitlistAction dispatches the selected waiter to Remove before refreshing', async () => {
+  let removalRequest;
+  let scheduleRefreshed = false;
+  const removeWaitlistPlayer = async (request) => {
+    removalRequest = request;
+    return { ok: true };
+  };
+
+  await runCoachWaitlistAction({
+    action: () => removeWaitlistPlayer({ lessonId: 77, playerId: 501 }),
+    fetchLessonDetail: async ({ lessonId }) => ({ id: lessonId, waitlist_count: 0, waitlist: [] }),
+    lessonId: 77,
+    updateSelectedLesson: () => {},
+    refreshSchedule: async () => {
+      scheduleRefreshed = true;
+    },
+    fallbackMessage: 'Unable to remove this player from the waitlist.'
+  });
+
+  assert.deepEqual(removalRequest, { lessonId: 77, playerId: 501 });
+  assert.equal(scheduleRefreshed, true);
 });
 
 test('getWaitlistPromotionPaymentMethod preserves payment-link promotions and comped promotions', () => {

@@ -48,7 +48,11 @@ import {
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
-import { loadCoachLessonDetail, runCoachWaitlistAction } from './utils/waitlistActions';
+import {
+  createCoachLessonSelectionController,
+  loadCoachLessonDetail,
+  runCoachWaitlistAction
+} from './utils/waitlistActions';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -217,6 +221,13 @@ function App() {
   const [lessonSubmitLoading, setLessonSubmitLoading] = useState(false);
   const [lessonCreatedSuccess, setLessonCreatedSuccess] = useState(null);
   const [selectedLessonDetail, setSelectedLessonDetail] = useState(null);
+  const lessonDetailSelectionControllerRef = useRef(null);
+  if (!lessonDetailSelectionControllerRef.current) {
+    lessonDetailSelectionControllerRef.current = createCoachLessonSelectionController({
+      fetchLessonDetail: getCoachLessonById,
+      updateSelectedLesson: setSelectedLessonDetail
+    });
+  }
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [isEditingLesson, setIsEditingLesson] = useState(false);
   const [lessonEditData, setLessonEditData] = useState(null);
@@ -1207,22 +1218,14 @@ function App() {
 
 
   const handleLessonSelect = (lesson) => {
-    setSelectedLessonDetail(lesson);
     setCompedPlayerSearchQuery('');
     setIsEditingLesson(false);
     setLessonEditData(null);
     setShowLessonDetailModal(true);
 
-    const lessonId = lesson?.id ?? lesson?.lesson_id ?? lesson?.lessonId;
-    if (lessonId) {
-      loadCoachLessonDetail({
-        lessonId,
-        fetchLessonDetail: getCoachLessonById,
-        updateSelectedLesson: setSelectedLessonDetail
-      }).catch((error) => {
-        console.error('Failed to load lesson detail', error);
-      });
-    }
+    lessonDetailSelectionControllerRef.current.select(lesson).catch((error) => {
+      console.error('Failed to load lesson detail', error);
+    });
   };
 
   const handleStudentSelect = (student) => {
