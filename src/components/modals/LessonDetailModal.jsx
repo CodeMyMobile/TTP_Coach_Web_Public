@@ -132,6 +132,8 @@ const LessonDetailModal = ({
   onDeclineRequest,
   onCreateLesson,
   onRemoveParticipant,
+  onRemoveWaitlistPlayer,
+  onPromoteWaitlistPlayer,
   onPayOnCourtMarkedPaid,
   onAddCompedPlayer,
   compedPlayerSearch = '',
@@ -150,6 +152,9 @@ const LessonDetailModal = ({
   const [shareCopied, setShareCopied] = useState(false);
   const [editPlayerSearch, setEditPlayerSearch] = useState('');
   const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState(null);
+  const [pendingWaitlistPlayerId, setPendingWaitlistPlayerId] = useState(null);
+  const [promotionPaymentMethod, setPromotionPaymentMethod] = useState('payment_link');
+  const [waitlistActionError, setWaitlistActionError] = useState('');
   const [markingPayOnCourtKey, setMarkingPayOnCourtKey] = useState('');
   const [payOnCourtActionError, setPayOnCourtActionError] = useState('');
   const [locallyPaidPayOnCourtKeys, setLocallyPaidPayOnCourtKeys] = useState(() => new Set());
@@ -555,10 +560,22 @@ const LessonDetailModal = ({
     }).paymentDue,
     status: resolveParticipantStatus(participant)
   }));
-  const participantSections = splitParticipantsByBookingState(participantList);
+  const waitlistParticipantList = (Array.isArray(resolvedLesson.waitlist) ? resolvedLesson.waitlist : []).map((entry, index) => ({
+    id: entry.id || `waitlist-${entry.player_id || entry.playerId || index}`,
+    playerId: entry.player_id || entry.playerId || entry.id || null,
+    name: entry.full_name || entry.name || `Waitlist player ${index + 1}`,
+    profilePicture: entry.profile_picture || entry.profilePicture || '',
+    joinedAt: entry.created_at || entry.createdAt || '',
+    isWaitlisted: true
+  }));
+  const participantSections = splitParticipantsByBookingState([...participantList, ...waitlistParticipantList]);
   const activeParticipantList = isGroupOrSemiPrivate ? participantSections.active : participantList;
   const pendingParticipantList = isGroupOrSemiPrivate ? participantSections.pending : [];
   const otherParticipantList = isGroupOrSemiPrivate ? participantSections.other : [];
+  const waitlistParticipantListOrdered = isGroupOrSemiPrivate ? participantSections.waitlist : [];
+  const waitlistCount = Number.isFinite(Number(resolvedLesson.waitlist_count ?? resolvedLesson.waitlistCount))
+    ? Number(resolvedLesson.waitlist_count ?? resolvedLesson.waitlistCount)
+    : waitlistParticipantListOrdered.length;
   const lessonPaymentMethod =
     resolvedLesson.payment_method ??
     resolvedLesson.paymentMethod ??
@@ -755,6 +772,41 @@ const LessonDetailModal = ({
     }
   };
 
+  const handleRemoveWaitlistPlayer = async (participant) => {
+    if (!onRemoveWaitlistPlayer || !participant?.playerId || pendingWaitlistPlayerId) {
+      return;
+    }
+
+    setPendingWaitlistPlayerId(participant.playerId);
+    setWaitlistActionError('');
+    try {
+      await onRemoveWaitlistPlayer(participant);
+    } catch (error) {
+      setWaitlistActionError(error?.message || 'Unable to remove this player from the waitlist.');
+    } finally {
+      setPendingWaitlistPlayerId(null);
+    }
+  };
+
+  const handlePromoteWaitlistPlayer = async (participant) => {
+    if (!onPromoteWaitlistPlayer || !participant?.playerId || pendingWaitlistPlayerId) {
+      return;
+    }
+
+    setPendingWaitlistPlayerId(participant.playerId);
+    setWaitlistActionError('');
+    try {
+      await onPromoteWaitlistPlayer(
+        participant,
+        promotionPaymentMethod === 'comped' ? 'comped' : undefined
+      );
+    } catch (error) {
+      setWaitlistActionError(error?.message || 'Unable to promote this player from the waitlist.');
+    } finally {
+      setPendingWaitlistPlayerId(null);
+    }
+  };
+
   const handleAddCompedPlayer = async () => {
     const playerId = Number(selectedCompedPlayerId);
     if (!onAddCompedPlayer || !Number.isFinite(playerId) || playerId <= 0 || addingCompedPlayer) {
@@ -855,6 +907,47 @@ const LessonDetailModal = ({
       </div>
     </div>
   );
+
+  const renderWaitlistRow = (participant, index) => {
+    const joinedMoment = parseDisplayMoment(participant.joinedAt);
+    const joinedLabel = joinedMoment ? joinedMoment.format('MMM D, YYYY · h:mm A') : 'Join date unavailable';
+    const isPending = pendingWaitlistPlayerId === participant.playerId;
+
+    return (
+      <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
+          {participant.name
+            .split(' ')
+            .map((part) => part[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase()}
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-500">Joined waitlist {joinedLabel}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => handlePromoteWaitlistPlayer(participant)}
+            disabled={isPending}
+            className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:bg-violet-300"
+          >
+            {isPending ? 'Working...' : 'Promote'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleRemoveWaitlistPlayer(participant)}
+            disabled={isPending}
+            className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-wait disabled:text-rose-300"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const editablePlayers = (Array.isArray(students) ? students : [])
     .map((student) => ({
@@ -1235,6 +1328,39 @@ const LessonDetailModal = ({
                       {activeParticipantList.map((participant, index) => renderParticipantRow(participant, index))}
                       {otherParticipantList.map((participant, index) =>
                         renderParticipantRow(participant, activeParticipantList.length + index)
+                      )}
+                      {waitlistCount > 0 && (
+                        <div className="mt-2 overflow-hidden rounded-xl border border-sky-100 bg-sky-50/40">
+                          <div className="flex flex-col gap-3 border-b border-sky-100 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs font-semibold text-sky-800">Waitlist ({waitlistCount})</p>
+                              <p className="mt-1 text-[11px] text-sky-700">Promote a player with a payment link or as a free comp.</p>
+                            </div>
+                            <label className="text-xs font-medium text-sky-800" htmlFor="waitlist-promotion-payment-method">
+                              Promotion payment
+                              <select
+                                id="waitlist-promotion-payment-method"
+                                value={promotionPaymentMethod}
+                                onChange={(event) => setPromotionPaymentMethod(event.target.value)}
+                                disabled={Boolean(pendingWaitlistPlayerId)}
+                                className="ml-2 rounded-md border border-sky-200 bg-white px-2 py-1 text-xs text-slate-800 disabled:cursor-not-allowed"
+                              >
+                                <option value="payment_link">Send payment link</option>
+                                <option value="comped">Comped (free)</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div className="bg-white p-2">
+                            {waitlistParticipantListOrdered.map((participant, index) =>
+                              renderWaitlistRow(participant, activeParticipantList.length + otherParticipantList.length + index)
+                            )}
+                          </div>
+                          {waitlistActionError ? (
+                            <p role="alert" className="border-t border-sky-100 px-3 py-2 text-xs font-medium text-rose-700">
+                              {waitlistActionError}
+                            </p>
+                          ) : null}
+                        </div>
                       )}
                       {pendingParticipantList.length > 0 && (
                         <div className="mt-2 overflow-hidden rounded-xl border border-amber-100 bg-amber-50/40">

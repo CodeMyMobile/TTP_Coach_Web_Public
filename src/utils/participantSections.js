@@ -5,8 +5,14 @@ export const splitParticipantsByBookingState = (participants = []) => {
   const active = [];
   const pending = [];
   const other = [];
+  const waitlist = [];
 
   participants.forEach((participant) => {
+    if (participant?.isWaitlisted) {
+      waitlist.push(participant);
+      return;
+    }
+
     if (participant?.holdsSpot) {
       active.push(participant);
       return;
@@ -20,5 +26,5 @@ export const splitParticipantsByBookingState = (participants = []) => {
     other.push(participant);
   });
 
-  return { active, pending, other };
+  return { active, pending, other, waitlist };
 };

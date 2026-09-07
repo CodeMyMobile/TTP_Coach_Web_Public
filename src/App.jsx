@@ -24,6 +24,7 @@ import {
   addPlayerToLesson,
   deleteCoachLocation,
   getCoachLocations,
+  removePlayerFromLessonWaitlist,
   scheduleCoachLesson
 } from './api/coach';
 import CreateLessonModal from './components/modals/CreateLessonModal';
@@ -47,7 +48,6 @@ import {
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
 import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
-import { findRosterCapableLesson } from './utils/scheduleLesson';
 
 const resolvePackagesFromPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -77,6 +77,12 @@ const resolvePackagesFromPayload = (payload) => {
   }
 
   return [];
+};
+
+const getResponseErrorDetail = async (response, fallbackMessage) => {
+  const errorBody = await response?.json?.().catch(() => null);
+  const detail = errorBody?.detail || errorBody?.error || errorBody?.message;
+  return typeof detail === 'string' && detail ? detail : fallbackMessage;
 };
 
 const resolvePackageFromPayload = (payload) => {
@@ -642,6 +648,17 @@ function App() {
     dates: visibleCalendarDates
   });
 
+  const refreshSelectedLessonDetail = async (lessonId) => {
+    const payload = await getCoachLessonById({ lessonId });
+    const refreshedLesson = payload?.lesson || payload?.data?.lesson || payload?.data || payload;
+
+    if (refreshedLesson && typeof refreshedLesson === 'object') {
+      setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
+    }
+
+    await refreshSchedule();
+  };
+
   // Derive Google Calendar connection state ONCE for the header sync pill.
   // Only a definitive 404 ("not connected") flips to false; any transient failure
   // (network/timeout/non-404) leaves the last-known/optimistic state so a blip never
@@ -1140,11 +1157,55 @@ function App() {
       throw new Error(typeof detail === 'string' && detail ? detail : 'Unable to add this player without charging them.');
     }
 
-    const refreshedSchedule = await refreshSchedule();
-    const refreshedLesson = findRosterCapableLesson(refreshedSchedule, lessonId);
-    if (refreshedLesson) {
-      setSelectedLessonDetail((previousLesson) => ({ ...previousLesson, ...refreshedLesson }));
+    await refreshSelectedLessonDetail(lessonId);
+  };
+
+  const handleRemoveLessonWaitlistPlayer = async (participant) => {
+    const lessonId = selectedLessonDetail?.id ?? selectedLessonDetail?.lesson_id ?? selectedLessonDetail?.lessonId;
+    const playerId = Number(participant?.playerId ?? participant?.player_id);
+
+    if (!lessonId || !Number.isFinite(playerId) || playerId <= 0) {
+      throw new Error('This waitlist player is unavailable.');
     }
+
+    const playerName = participant?.name || 'this player';
+    if (!window.confirm(`Remove ${playerName} from this lesson waitlist?`)) {
+      return;
+    }
+
+    const response = await removePlayerFromLessonWaitlist({
+      coachAccessToken: user?.session?.access_token,
+      lessonId,
+      playerId
+    });
+
+    if (!response?.ok) {
+      throw new Error(await getResponseErrorDetail(response, 'Unable to remove this player from the waitlist.'));
+    }
+
+    await refreshSelectedLessonDetail(lessonId);
+  };
+
+  const handlePromoteLessonWaitlistPlayer = async (participant, paymentMethod) => {
+    const lessonId = selectedLessonDetail?.id ?? selectedLessonDetail?.lesson_id ?? selectedLessonDetail?.lessonId;
+    const playerId = Number(participant?.playerId ?? participant?.player_id);
+
+    if (!lessonId || !Number.isFinite(playerId) || playerId <= 0) {
+      throw new Error('This waitlist player is unavailable.');
+    }
+
+    const response = await addPlayerToLesson({
+      coachAccessToken: user?.session?.access_token,
+      lessonId,
+      playerId,
+      paymentMethod
+    });
+
+    if (!response?.ok) {
+      throw new Error(await getResponseErrorDetail(response, 'Unable to promote this player from the waitlist.'));
+    }
+
+    await refreshSelectedLessonDetail(lessonId);
   };
 
 
@@ -2197,6 +2258,8 @@ function App() {
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
         onRemoveParticipant={handleRemoveLessonParticipant}
+        onRemoveWaitlistPlayer={handleRemoveLessonWaitlistPlayer}
+        onPromoteWaitlistPlayer={handlePromoteLessonWaitlistPlayer}
         onPayOnCourtMarkedPaid={refreshSchedule}
         onAddCompedPlayer={handleAddCompedGroupPlayer}
         compedPlayerSearch={compedPlayerSearchQuery}

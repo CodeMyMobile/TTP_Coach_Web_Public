@@ -243,6 +243,23 @@ export const addPlayerToLesson = async ({
   });
 };
 
+export const removePlayerFromLessonWaitlist = async ({
+  coachAccessToken = null,
+  lessonId = null,
+  playerId = null
+}) => {
+  if (!coachAccessToken || lessonId === null || playerId === null) {
+    return null;
+  }
+
+  return fetch(`${API_URL}/coach/lessons/${lessonId}/waitlist/${playerId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `token ${coachAccessToken}`
+    }
+  });
+};
+
 export const getCoachLocations = async (coachAccessToken = null) => {
   if (!coachAccessToken) {
     return null;
@@ -329,6 +346,7 @@ export default {
   updateCoachLessons,
   coachStripePaymentIntent,
   addPlayerToLesson,
+  removePlayerFromLessonWaitlist,
   getCoachLocations,
   addCoachLocation,
   addCoachCustomLocation,
