@@ -462,7 +462,10 @@ const DashboardPage = ({
   onViewGroup = async () => null,
   onOpenUpcomingLessons = () => {},
   onOpenTransactionsHistory = () => {},
-  onOpenPayoutHistory = () => {}
+  onOpenPayoutHistory = () => {},
+  isPlayerBlocked = () => false,
+  playerBlockActionId = null,
+  onTogglePlayerBlock = null
 }) => {
   const bookedLessons = Array.isArray(lessonsData)
     ? lessonsData
@@ -1740,6 +1743,9 @@ const DashboardPage = ({
             studentsHasMore={studentsHasMore}
             studentsLoadingMore={studentsLoadingMore}
             onLoadMoreStudents={onLoadMoreStudents}
+            isPlayerBlocked={isPlayerBlocked}
+            playerBlockActionId={playerBlockActionId}
+            onTogglePlayerBlock={onTogglePlayerBlock}
           />
         )}
 

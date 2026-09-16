@@ -45,7 +45,11 @@ const StudentDetailModal = ({
   error = null,
   hasMore = false,
   onClose,
-  onLoadMore
+  onLoadMore,
+  isBlocked = false,
+  blockActionPending = false,
+  blockError = null,
+  onToggleBlock
 }) => {
   if (!student) {
     return null;
@@ -59,6 +63,36 @@ const StudentDetailModal = ({
         onClose={onClose}
       />
       <ModalBody className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              {isBlocked ? 'Blocked from your classes' : 'Class access'}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {isBlocked
+                ? 'This player cannot see or book your classes.'
+                : 'This player can see and book your classes.'}
+            </p>
+            {blockError ? (
+              <p role="alert" className="mt-2 text-xs font-medium text-red-600">{blockError}</p>
+            ) : null}
+          </div>
+          {onToggleBlock ? (
+            <button
+              type="button"
+              onClick={() => onToggleBlock(!isBlocked)}
+              disabled={blockActionPending}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60 ${
+                isBlocked
+                  ? 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  : 'bg-rose-600 text-white hover:bg-rose-700'
+              }`}
+            >
+              {blockActionPending ? 'Saving...' : isBlocked ? 'Unblock' : 'Block from my classes'}
+            </button>
+          ) : null}
+        </div>
+
         <div className="rounded-lg bg-gray-50 p-4">
           <div className="flex flex-wrap gap-6 text-sm text-gray-600">
             <div>
