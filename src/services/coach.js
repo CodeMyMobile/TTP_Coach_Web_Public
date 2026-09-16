@@ -246,6 +246,32 @@ export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) 
   return request(path);
 };
 
+export const getCoachPlayerBlocks = () => request('/coach/player-blocks');
+
+export const blockCoachPlayer = ({ playerId, reason } = {}) => {
+  if (!playerId) {
+    throw new Error('A player id is required to block a player.');
+  }
+
+  return request('/coach/player-blocks', {
+    method: 'POST',
+    body: {
+      player_id: playerId,
+      ...(reason ? { reason } : {})
+    }
+  });
+};
+
+export const unblockCoachPlayer = ({ playerId } = {}) => {
+  if (!playerId) {
+    throw new Error('A player id is required to unblock a player.');
+  }
+
+  return request(`/coach/player-blocks/${playerId}`, {
+    method: 'DELETE'
+  });
+};
+
 export const getActivePlayerPackages = ({ playerId, player_id, search, perPage, page } = {}) => {
   const params = new URLSearchParams();
   const resolvedPlayerId = playerId ?? player_id;

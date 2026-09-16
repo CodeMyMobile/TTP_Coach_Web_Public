@@ -39,11 +39,14 @@ import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet
 import {
   createCoachPlayerGroup,
   deleteCoachPlayerGroup,
+  blockCoachPlayer,
   getCoachLessonById,
   getCoachPlayerById,
+  getCoachPlayerBlocks,
   getCoachPlayerGroupById,
   getCoachPlayerPreviousLessons,
   getCoachPlayerGroups,
+  unblockCoachPlayer,
   updateCoachPlayerGroup
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
@@ -244,6 +247,9 @@ function App() {
   const [studentLessonsLoading, setStudentLessonsLoading] = useState(false);
   const [studentLessonsLoadingMore, setStudentLessonsLoadingMore] = useState(false);
   const [studentLessonsError, setStudentLessonsError] = useState(null);
+  const [blockedPlayerIds, setBlockedPlayerIds] = useState(() => new Set());
+  const [playerBlockActionId, setPlayerBlockActionId] = useState(null);
+  const [playerBlockError, setPlayerBlockError] = useState(null);
   const [adHocSlot, setAdHocSlot] = useState({
     date: '',
     start: '09:00',
@@ -665,6 +671,86 @@ function App() {
     });
     await refreshSchedule();
   };
+
+  const refreshPlayerBlocks = useCallback(async () => {
+    if (!isAuthenticated || shouldShowOnboarding) {
+      setBlockedPlayerIds(new Set());
+      return;
+    }
+
+    try {
+      const payload = await getCoachPlayerBlocks();
+      const rows =
+        (Array.isArray(payload?.blocks) && payload.blocks) ||
+        (Array.isArray(payload?.data?.blocks) && payload.data.blocks) ||
+        (Array.isArray(payload?.data) && payload.data) ||
+        (Array.isArray(payload) && payload) ||
+        [];
+      setBlockedPlayerIds(new Set(rows
+        .map((row) => row?.player_id ?? row?.playerId ?? row?.id)
+        .filter((id) => id !== undefined && id !== null)
+        .map((id) => String(id))));
+      setPlayerBlockError(null);
+    } catch (error) {
+      console.error('Failed to load blocked players', error);
+      setPlayerBlockError(error instanceof Error ? error.message : 'Unable to load blocked players.');
+    }
+  }, [isAuthenticated, shouldShowOnboarding]);
+
+  useEffect(() => {
+    refreshPlayerBlocks();
+  }, [refreshPlayerBlocks]);
+
+  const isPlayerBlocked = useCallback(
+    (playerId) => blockedPlayerIds.has(String(playerId)),
+    [blockedPlayerIds]
+  );
+
+  const handleTogglePlayerBlock = useCallback(
+    async (player, nextBlocked) => {
+      const playerId = player?.playerId ?? player?.player_id ?? player?.id;
+      if (!playerId) {
+        return;
+      }
+
+      const playerName = player?.name || player?.full_name || 'this player';
+      const confirmed = window.confirm(
+        nextBlocked
+          ? `Block ${playerName} from your classes? They will not see your classes or book new spots.`
+          : `Unblock ${playerName}? They will be able to see and book your classes again.`
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      setPlayerBlockActionId(String(playerId));
+      setPlayerBlockError(null);
+      try {
+        if (nextBlocked) {
+          await blockCoachPlayer({ playerId });
+        } else {
+          await unblockCoachPlayer({ playerId });
+        }
+        setBlockedPlayerIds((current) => {
+          const next = new Set(current);
+          if (nextBlocked) {
+            next.add(String(playerId));
+          } else {
+            next.delete(String(playerId));
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error('Failed to update player block', error);
+        const message = error instanceof Error ? error.message : 'Unable to update this player block.';
+        setPlayerBlockError(message);
+        window.alert(message);
+      } finally {
+        setPlayerBlockActionId(null);
+      }
+    },
+    []
+  );
 
   // Derive Google Calendar connection state ONCE for the header sync pill.
   // Only a definitive 404 ("not connected") flips to false; any transient failure
@@ -2188,6 +2274,9 @@ function App() {
           onUpdateGroup={handleUpdateGroup}
           onDeleteGroup={handleDeleteGroup}
           onViewGroup={handleViewGroup}
+          isPlayerBlocked={isPlayerBlocked}
+          playerBlockActionId={playerBlockActionId}
+          onTogglePlayerBlock={handleTogglePlayerBlock}
         />
       )}
 
@@ -2201,6 +2290,10 @@ function App() {
         hasMore={studentLessonsHasMore}
         onClose={handleCloseStudentDetail}
         onLoadMore={handleLoadMoreStudentLessons}
+        isBlocked={selectedStudent?.playerId ? isPlayerBlocked(selectedStudent.playerId) : false}
+        blockActionPending={selectedStudent?.playerId ? playerBlockActionId === String(selectedStudent.playerId) : false}
+        blockError={playerBlockError}
+        onToggleBlock={(nextBlocked) => handleTogglePlayerBlock(selectedStudent, nextBlocked)}
       />
 
       <LessonDetailModal
@@ -2223,6 +2316,9 @@ function App() {
         onDeclineRequest={handleDeclineRequest}
         onCreateLesson={handleCreateLessonFromAvailability}
         onRemoveParticipant={handleRemoveLessonParticipant}
+        isPlayerBlocked={isPlayerBlocked}
+        playerBlockActionId={playerBlockActionId}
+        onTogglePlayerBlock={handleTogglePlayerBlock}
         onRemoveWaitlistPlayer={handleRemoveLessonWaitlistPlayer}
         onPromoteWaitlistPlayer={handlePromoteLessonWaitlistPlayer}
         onPayOnCourtMarkedPaid={refreshSchedule}

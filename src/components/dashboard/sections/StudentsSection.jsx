@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Filter, MoreVertical, RefreshCw, Search, UserPlus } from 'lucide-react';
+import { Check, Filter, RefreshCw, Search, UserPlus } from 'lucide-react';
 
 const StudentsSection = ({
   studentSearchQuery,
@@ -13,8 +13,14 @@ const StudentsSection = ({
   onStudentSelect,
   studentsHasMore,
   studentsLoadingMore,
-  onLoadMoreStudents
-}) => (
+  onLoadMoreStudents,
+  isPlayerBlocked = () => false,
+  playerBlockActionId = null,
+  onTogglePlayerBlock = null
+}) => {
+  const blockedStudents = filteredStudents.filter((student) => isPlayerBlocked(student.playerId));
+
+  return (
   <section className="mt-6 space-y-6">
     <div className="rounded-2xl bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -42,6 +48,35 @@ const StudentsSection = ({
             <span>Add Student</span>
           </button>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Blocked players</p>
+            <p className="text-xs text-gray-500">Players here cannot see or book your classes.</p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+            {blockedStudents.length}
+          </span>
+        </div>
+        {blockedStudents.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {blockedStudents.map((student) => (
+              <button
+                key={student.id}
+                type="button"
+                onClick={() => onTogglePlayerBlock?.(student, false)}
+                disabled={playerBlockActionId === String(student.playerId)}
+                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-wait disabled:opacity-60"
+              >
+                {playerBlockActionId === String(student.playerId) ? 'Saving...' : `Unblock ${student.name || 'player'}`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-gray-500">No blocked players.</p>
+        )}
       </div>
 
       <div className="mt-6 space-y-4">
@@ -110,6 +145,11 @@ const StudentsSection = ({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
+                  {isPlayerBlocked(student.playerId) ? (
+                    <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-700">
+                      Blocked
+                    </span>
+                  ) : null}
                   {student.isConfirmed ? (
                     <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Active</span>
                   ) : student.isPlayerRequest ? (
@@ -123,10 +163,22 @@ const StudentsSection = ({
                   )}
                   <button
                     type="button"
-                    onClick={(event) => event.stopPropagation()}
-                    className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:text-gray-700"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onTogglePlayerBlock?.(student, !isPlayerBlocked(student.playerId));
+                    }}
+                    disabled={!onTogglePlayerBlock || playerBlockActionId === String(student.playerId)}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${
+                      isPlayerBlocked(student.playerId)
+                        ? 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
+                    }`}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    {playerBlockActionId === String(student.playerId)
+                      ? 'Saving...'
+                      : isPlayerBlocked(student.playerId)
+                        ? 'Unblock'
+                        : 'Block'}
                   </button>
                 </div>
               </div>
@@ -205,6 +257,7 @@ const StudentsSection = ({
       </div>
     </div>
   </section>
-);
+  );
+};
 
 export default StudentsSection;

@@ -133,6 +133,9 @@ const LessonDetailModal = ({
   onDeclineRequest,
   onCreateLesson,
   onRemoveParticipant,
+  isPlayerBlocked,
+  playerBlockActionId = null,
+  onTogglePlayerBlock,
   onRemoveWaitlistPlayer,
   onPromoteWaitlistPlayer,
   onPayOnCourtMarkedPaid,
@@ -895,6 +898,14 @@ const LessonDetailModal = ({
     }
   };
 
+  const handleToggleParticipantBlock = async (participant) => {
+    if (!onTogglePlayerBlock || !participant?.playerId) {
+      return;
+    }
+
+    await onTogglePlayerBlock(participant, !isPlayerBlocked?.(participant.playerId));
+  };
+
   const renderParticipantRow = (participant, index) => (
     <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
       <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
@@ -919,6 +930,34 @@ const LessonDetailModal = ({
         )}
       </div>
       <div className="flex gap-1">
+        {onTogglePlayerBlock && participant.playerId ? (
+          <button
+            type="button"
+            onClick={() => handleToggleParticipantBlock(participant)}
+            disabled={playerBlockActionId === String(participant.playerId)}
+            title={
+              isPlayerBlocked?.(participant.playerId)
+                ? `Unblock ${participant.name}`
+                : `Block ${participant.name} from my classes`
+            }
+            aria-label={
+              isPlayerBlocked?.(participant.playerId)
+                ? `Unblock ${participant.name}`
+                : `Block ${participant.name} from my classes`
+            }
+            className={`flex h-9 min-w-[84px] items-center justify-center rounded-lg px-2 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${
+              isPlayerBlocked?.(participant.playerId)
+                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+            }`}
+          >
+            {playerBlockActionId === String(participant.playerId)
+              ? 'Saving'
+              : isPlayerBlocked?.(participant.playerId)
+                ? 'Unblock'
+                : 'Block'}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => openSmsComposer({ playerId: participant.playerId, phone: participant.phone })}
