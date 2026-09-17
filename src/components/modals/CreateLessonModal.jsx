@@ -829,6 +829,20 @@ const CreateLessonModal = ({
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
+            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+              <input
+                type="checkbox"
+                checked={resolvedForm.is_public !== false}
+                onChange={(event) => handleChange('is_public', event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">Show publicly</span>
+                <span className="block text-xs text-slate-500">
+                  When off, players can still book from a direct link, but this lesson will not appear in public listings.
+                </span>
+              </span>
+            </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence</label>
