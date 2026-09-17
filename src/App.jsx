@@ -1331,7 +1331,8 @@ function App() {
         }
       },
       price_per_person: '',
-      player_limit: ''
+      player_limit: '',
+      is_public: true
     });
     setShowLessonDetailModal(false);
     setShowCreateLessonModal(true);
@@ -1359,7 +1360,8 @@ function App() {
         }
       },
       price_per_person: '',
-      player_limit: ''
+      player_limit: '',
+      is_public: true
     });
     setShowLessonDetailModal(false);
     setShowCreateLessonModal(true);
@@ -1707,6 +1709,7 @@ function App() {
       }
       payload.price_per_person = Number(form.price_per_person);
       payload.player_limit = Number(form.player_limit);
+      payload.is_public = form.is_public !== false;
       const dedupedSelectedPlayers = getUniqueSelectedPlayerIds({
         playerIds: selectedPlayerIds,
         groupIds: selectedGroupIds,
