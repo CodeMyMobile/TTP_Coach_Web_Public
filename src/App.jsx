@@ -47,6 +47,7 @@ import {
   getCoachPlayerPreviousLessons,
   getCoachPlayerGroups,
   unblockCoachPlayer,
+  updateCoachRequest,
   updateCoachPlayerGroup
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
@@ -98,11 +99,24 @@ const resolvePackageFromPayload = (payload) => {
 const getApiErrorMessage = (errorBody, fallbackMessage) =>
   errorBody?.message ||
   errorBody?.error ||
+  errorBody?.detail ||
   errorBody?.errors?.[0] ||
   fallbackMessage;
 
 const getLessonConfirmErrorMessage = (errorBody, fallbackMessage) => {
   const code = errorBody?.code || errorBody?.error;
+  const detail = String(errorBody?.detail || errorBody?.message || '').toLowerCase();
+
+  if (
+    code === 'card_declined' ||
+    code === 'payment_declined' ||
+    code === 'blocked_by_stripe' ||
+    detail.includes('card was declined') ||
+    detail.includes('blocked by stripe')
+  ) {
+    return "The player's card was declined by Stripe, so this lesson wasn't confirmed. Ask the player to update their card or contact their bank, then try confirming again.";
+  }
+
   if (code === 'package_charge_failed' || errorBody?.requires_action) {
     return 'Package charge failed. Lesson was not confirmed. Ask the player to update their card or complete payment authentication, then confirm again.';
   }
@@ -2072,12 +2086,24 @@ function App() {
       return;
     }
 
-    if (selectedLessonDetail.status === 1) {
+    if (selectedLessonStatus === 'confirmed') {
       setShowLessonDetailModal(false);
       return;
     }
 
     try {
+      if (shouldUseDeclineFlowForSelectedLesson) {
+        await updateCoachRequest({
+          requestType: 'lesson_request',
+          requestId: selectedLessonDetail.id,
+          endpoint: selectedLessonDetail.actions?.confirm || selectedLessonDetail.actions?.endpoint,
+          action: 'confirm'
+        });
+        await refreshSchedule();
+        openLessonConfirmedSheet(selectedLessonDetail);
+        return;
+      }
+
       const response = await coachStripePaymentIntent({
         coachAccessToken: user?.session?.access_token,
         lessonId: selectedLessonDetail.id
@@ -2092,7 +2118,7 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to accept lesson request', error);
-      window.alert('Unable to confirm lesson.');
+      window.alert(getLessonConfirmErrorMessage(error?.body, error?.message || 'Unable to confirm lesson.'));
     } finally {
       setShowLessonDetailModal(false);
     }
