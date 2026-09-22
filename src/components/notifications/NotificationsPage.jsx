@@ -28,6 +28,27 @@ const resolveNotifications = (payload) => {
   return [];
 };
 
+const getLessonConfirmErrorMessage = (errorBody, fallbackMessage) => {
+  const code = errorBody?.code || errorBody?.error;
+  const detail = String(errorBody?.detail || errorBody?.message || '').toLowerCase();
+
+  if (
+    code === 'card_declined' ||
+    code === 'payment_declined' ||
+    code === 'blocked_by_stripe' ||
+    detail.includes('card was declined') ||
+    detail.includes('blocked by stripe')
+  ) {
+    return "The player's card was declined by Stripe, so this lesson wasn't confirmed. Ask the player to update their card or contact their bank, then try confirming again.";
+  }
+
+  if (code === 'package_charge_failed' || errorBody?.requires_action) {
+    return 'Package charge failed. Lesson was not confirmed. Ask the player to update their card or complete payment authentication, then confirm again.';
+  }
+
+  return errorBody?.message || errorBody?.error || errorBody?.detail || fallbackMessage;
+};
+
 const resolveCount = (payload) => {
   if (typeof payload === 'number') {
     return payload;
@@ -201,10 +222,11 @@ const NotificationsPage = ({ onBack, onOpenLesson = () => {}, onOpenPlayer = () 
       if (response?.status === 200 || response?.status === 201) {
         await fetchNotifications({ pageToLoad: 1, replace: true });
       } else {
-        window.alert('Failed to confirm lesson.');
+        const errorBody = await response?.json?.().catch(() => null);
+        window.alert(getLessonConfirmErrorMessage(errorBody, 'Failed to confirm lesson.'));
       }
     } catch (err) {
-      window.alert('Something went wrong!');
+      window.alert(getLessonConfirmErrorMessage(err?.body, err?.message || 'Something went wrong!'));
     } finally {
       setActionLoading(null);
     }
