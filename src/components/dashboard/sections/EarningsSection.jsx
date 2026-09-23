@@ -138,14 +138,14 @@ const EarningsSection = ({ onOpenTransactionsHistory, onOpenPayoutHistory }) => 
     {
       label: 'Available Balance',
       value: currency(apiBalances?.available ?? 0),
-      sub: 'Ready for payout',
+      sub: 'Released after completed lessons',
       icon: CircleDollarSign,
       accent: 'green'
     },
     {
       label: 'Pending',
       value: currency(apiBalances?.pending ?? 0),
-      sub: 'Clearing in 2-3 days',
+      sub: 'Lesson payouts release after completion',
       icon: Clock3,
       accent: 'default'
     },
