@@ -11,6 +11,7 @@ export const newRestringingOrderItem = () => ({
 
 export const initialRestringingForm = {
   player_mode: 'roster',
+  contact_party: 'player',
   player_user_id: '',
   new_player_name: '',
   new_player_phone: '',
@@ -114,6 +115,9 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
 
   const payload = {
     vendor_id: Number(vendorId),
+    // Who the shop deals with about the rackets. The pay link goes to the
+    // player either way.
+    contact_party: form.contact_party === 'coach' ? 'coach' : 'player',
     items
   };
 

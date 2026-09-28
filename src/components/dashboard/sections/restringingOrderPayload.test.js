@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildCoachRestringingOrderPayload,
   coachCommissionStatusText,
+  initialRestringingForm,
   filterRosterPlayers,
   normalizeRestringingEarnings,
   vendorImageUrl,
@@ -29,6 +30,7 @@ test('buildCoachRestringingOrderPayload sends new player details instead of a ro
       phone: '+1 512 555 0123'
     },
     vendor_id: 1,
+    contact_party: 'player',
     items: [
       {
         service_tier_id: 3,
@@ -55,6 +57,7 @@ test('buildCoachRestringingOrderPayload sends selected roster player id by defau
   assert.deepEqual(payload, {
     player_user_id: 501,
     vendor_id: 1,
+    contact_party: 'player',
     items: [
       {
         service_tier_id: 3,
@@ -169,6 +172,38 @@ test('buildCoachRestringingOrderPayload sends shop choice independently from adv
 
   assert.equal(payload.items[0].string_selection, 'shop_choice');
   assert.equal('string_id' in payload.items[0], false);
+});
+
+test('buildCoachRestringingOrderPayload marks an order the coach drops off', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster',
+      player_user_id: '501',
+      contact_party: 'coach',
+      items: [{ service_tier_id: '3', racket_make_model: 'Blade 98', advice_requested: true }]
+    },
+    vendorId: 1
+  });
+
+  assert.equal(payload.contact_party, 'coach');
+});
+
+test('buildCoachRestringingOrderPayload falls back to the player as the contact', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster',
+      player_user_id: '501',
+      contact_party: 'someone_else',
+      items: [{ service_tier_id: '3', racket_make_model: 'Blade 98', advice_requested: true }]
+    },
+    vendorId: 1
+  });
+
+  assert.equal(payload.contact_party, 'player');
+});
+
+test('initialRestringingForm starts with the player dropping off', () => {
+  assert.equal(initialRestringingForm.contact_party, 'player');
 });
 
 test('serviceTierRequiresOwnString detects player supplied string tiers', () => {

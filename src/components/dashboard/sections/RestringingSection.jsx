@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleDot, Loader2, Plus, Send, UserPlus, Users, XCircle } from 'lucide-react';
+import { CircleDot, Hand, Loader2, Plus, Send, User, UserPlus, Users, XCircle } from 'lucide-react';
 import {
   createCoachRestringingOrder,
   cancelCoachRestringingOrder,
@@ -78,6 +78,7 @@ const RestringingSection = () => {
   const selectedRosterPlayer = data.players.find(
     player => String(player.player_user_id || player.id) === String(form.player_user_id)
   );
+  const coachDropOff = form.contact_party === 'coach';
   const enabled =
     data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
@@ -312,7 +313,9 @@ const RestringingSection = () => {
 
                   <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
                     <input type="checkbox" checked={item.advice_requested} onChange={event => updateRacket(index, { advice_requested: event.target.checked })} />
-                    Let the stringer advise at drop-off
+                    {coachDropOff
+                      ? 'Let the stringer advise you at drop-off'
+                      : 'Let the stringer advise at drop-off'}
                   </label>
                   <label className="mt-3 block text-sm font-medium text-gray-700">
                     Note for vendor
@@ -326,6 +329,37 @@ const RestringingSection = () => {
           <button type="button" onClick={addRacket} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
             <Plus className="h-4 w-4" /> Add another racket
           </button>
+
+          <div className="mt-5">
+            <p className="text-sm font-medium text-gray-700">Who brings the rackets in?</p>
+            <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+              {[
+                { value: 'player', label: 'Player drops off', Icon: User },
+                { value: 'coach', label: 'I drop off', Icon: Hand }
+              ].map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={form.contact_party === value}
+                  onClick={() => updateForm({ contact_party: value })}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
+                    form.contact_party === value
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {coachDropOff
+                ? 'The shop deals with you: drop-off, ready and pickup all come to you. The invoice still goes to your player.'
+                : 'The shop deals with your player directly, invoice included.'}
+            </p>
+          </div>
+
           <button
             disabled={creating || (form.player_mode === 'roster' && !form.player_user_id)}
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
@@ -359,6 +393,12 @@ const RestringingSection = () => {
                     {order.service_tier_name || order.items?.[0]?.service_tier_name || 'Restringing'} ·{' '}
                     {order.fulfillment_status?.replaceAll('_', ' ')}
                   </p>
+                  {order.contact_party === 'coach' && (
+                    <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                      <Hand className="h-3 w-3" />
+                      You drop off and collect
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-emerald-700">
