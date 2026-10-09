@@ -27,6 +27,7 @@ import { splitParticipantsByBookingState } from '../../utils/participantSections
 import { filterCompedPlayerOptions } from '../../utils/compedPlayerSearch';
 import { getExpectedGroupRevenue } from '../../utils/lessonRevenue';
 import { getWaitlistPromotionPaymentMethod } from '../../utils/waitlistActions';
+import { formatParticipantCreditLabel, mapCreditUsageByPlayer } from '../../utils/lessonCreditUsage';
 
 const typeStyles = {
   private: 'bg-[#FEE2E2] text-[#DC2626]',
@@ -153,6 +154,7 @@ const LessonDetailModal = ({
   const [creditUsageLoading, setCreditUsageLoading] = useState(false);
   const [creditUsageError, setCreditUsageError] = useState('');
   const [creditUsage, setCreditUsage] = useState(null);
+  const [creditUsageRows, setCreditUsageRows] = useState([]);
   const [shareCopied, setShareCopied] = useState(false);
   const [editPlayerSearch, setEditPlayerSearch] = useState('');
   const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState(null);
@@ -352,6 +354,7 @@ const LessonDetailModal = ({
 
     if (!lessonId && !playerId) {
       setCreditUsage(null);
+      setCreditUsageRows([]);
       setCreditUsageError('');
       return;
     }
@@ -363,7 +366,11 @@ const LessonDetailModal = ({
       setCreditUsageError('');
 
       try {
-        const response = await getCoachPlayerPackageUsage({ lessonId, playerId, perPage: 25, page: 1 });
+        // A class has one usage row per player, so the lesson alone is the
+        // filter; adding the player would hide everyone else on the roster.
+        const response = await getCoachPlayerPackageUsage(
+          lessonId ? { lessonId, perPage: 100, page: 1 } : { playerId, perPage: 25, page: 1 }
+        );
         const rows = Array.isArray(response)
           ? response
           : response?.usages || response?.data || response?.rows || response?.records || response?.results || response?.items || [];
@@ -372,10 +379,12 @@ const LessonDetailModal = ({
 
         if (isMounted) {
           setCreditUsage(matchedUsage);
+          setCreditUsageRows(Array.isArray(rows) ? rows : []);
         }
       } catch (error) {
         if (isMounted) {
           setCreditUsage(null);
+          setCreditUsageRows([]);
           setCreditUsageError(error instanceof Error ? error.message : 'Unable to load credit usage.');
         }
       } finally {
@@ -670,6 +679,7 @@ const LessonDetailModal = ({
     return Number.isFinite(parsed) ? parsed : null;
   };
 
+  const creditUsageByPlayer = mapCreditUsageByPlayer(creditUsageRows);
   const creditUsageStatusRaw =
     creditUsage?.usage_status ??
     creditUsage?.usageStatus ??
@@ -906,7 +916,12 @@ const LessonDetailModal = ({
     await onTogglePlayerBlock(participant, !isPlayerBlocked?.(participant.playerId));
   };
 
-  const renderParticipantRow = (participant, index) => (
+  const renderParticipantRow = (participant, index) => {
+    const creditLabel = isGroupOrSemiPrivate
+      ? formatParticipantCreditLabel(creditUsageByPlayer.get(String(participant.playerId)))
+      : '';
+
+    return (
     <div key={participant.id} className="flex items-center gap-3 rounded-xl p-2">
       <div className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${avatarGradients[index % avatarGradients.length]} text-sm font-bold text-white`}>
         {participant.initials}
@@ -915,6 +930,12 @@ const LessonDetailModal = ({
         <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
         <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
         <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
+        {creditLabel && (
+          <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-purple-600">
+            <Tag className="h-3 w-3" />
+            {creditLabel}
+          </p>
+        )}
         {participant.paymentDue && !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:participant:${participant.playerId}`) && (
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <p className="text-[11px] font-semibold text-emerald-700">Collect on lesson day</p>
@@ -986,7 +1007,8 @@ const LessonDetailModal = ({
         )}
       </div>
     </div>
-  );
+    );
+  };
 
   const renderWaitlistRow = (participant, index) => {
     const joinedMoment = parseDisplayMoment(participant.joinedAt);
