@@ -286,10 +286,13 @@ const LessonDetailModal = ({
     const endWithTimezone = lesson.end_date_time_tz || lesson.endDateTimeTz || lesson.endDateTime;
     const startRaw = startWithTimezone || lesson.start_date_time;
     const endRaw = endWithTimezone || lesson.end_date_time;
-    const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
-    const start = parseDisplayMoment(startRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal });
+    // Both fields hold the court's wall clock stamped with a `Z`; the `_tz`
+    // column is a copy of the other, not an instant. Reading the `Z` as UTC
+    // shifts the time by the viewer's offset (9:00 am shows as 2:00 am in PDT).
+    const wallClock = { treatUtcAsLocal: true };
+    const start = parseDisplayMoment(startRaw, wallClock);
     const end = endRaw
-      ? parseDisplayMoment(endRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal })
+      ? parseDisplayMoment(endRaw, wallClock)
       : start?.isValid()
         ? start.clone().add(1, 'hour')
         : null;

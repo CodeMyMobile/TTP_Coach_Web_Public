@@ -34,7 +34,7 @@ const parseDisplayMoment = (dateInput, { treatUtcAsLocal = false } = {}) => {
 };
 
 // Returns { start, end } as moment objects (or null), mirroring LessonDetailModal's
-// timezone handling: prefer the *_tz fields, otherwise treat a bare UTC string as local.
+// time handling: prefer the *_tz fields, and read a UTC-stamped string as a wall clock.
 export const getLessonMoments = (lesson) => {
   if (!lesson) {
     return { start: null, end: null };
@@ -44,11 +44,14 @@ export const getLessonMoments = (lesson) => {
   const endWithTimezone = lesson.end_date_time_tz || lesson.endDateTimeTz || lesson.endDateTime;
   const startRaw = startWithTimezone || lesson.start_date_time || lesson.start;
   const endRaw = endWithTimezone || lesson.end_date_time || lesson.end;
-  const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
+  // Both fields hold the court's wall clock stamped with a `Z`; the `_tz`
+  // column is a copy of the other, not an instant. Reading the `Z` as UTC
+  // shifts the time by the viewer's offset (9:00 am shows as 2:00 am in PDT).
+  const wallClock = { treatUtcAsLocal: true };
 
-  const start = parseDisplayMoment(startRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal });
+  const start = parseDisplayMoment(startRaw, wallClock);
   const end = endRaw
-    ? parseDisplayMoment(endRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal })
+    ? parseDisplayMoment(endRaw, wallClock)
     : start?.isValid()
       ? start.clone().add(1, 'hour')
       : null;
