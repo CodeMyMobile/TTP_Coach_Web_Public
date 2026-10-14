@@ -12,6 +12,9 @@ export const newRestringingOrderItem = () => ({
 export const initialRestringingForm = {
   player_mode: 'roster',
   contact_party: 'player',
+  // 'keep': the coach earns the commission. 'player': the player gets it as
+  // a discount instead.
+  commission_choice: 'keep',
   player_user_id: '',
   new_player_name: '',
   new_player_phone: '',
@@ -60,6 +63,12 @@ export const formatCoachCommission = cents =>
   );
 
 export const coachCommissionStatusText = order => {
+  if (order?.coach_commission_choice === 'player') {
+    const saved = formatCoachCommission(order?.coach_discount_cents);
+    return order?.payment_status === 'paid'
+      ? `Player saved ${saved}`
+      : `Player gets ${saved} off`;
+  }
   const amount = formatCoachCommission(order?.coach_commission_cents);
   if (order?.payment_status === 'paid') {
     return order?.coach_transfer_id
@@ -118,6 +127,7 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
     // Who the shop deals with about the rackets. The pay link goes to the
     // player either way.
     contact_party: form.contact_party === 'coach' ? 'coach' : 'player',
+    commission_choice: form.commission_choice === 'player' ? 'player' : 'keep',
     items
   };
 

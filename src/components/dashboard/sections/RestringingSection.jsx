@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleDot, Hand, Loader2, Plus, Send, User, UserPlus, Users, XCircle } from 'lucide-react';
+import { CircleDot, Gift, Hand, Loader2, Plus, Send, User, UserPlus, Users, Wallet, XCircle } from 'lucide-react';
 import {
   createCoachRestringingOrder,
   cancelCoachRestringingOrder,
@@ -38,7 +38,7 @@ const RestringingSection = () => {
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [form, setForm] = useState(initialRestringingForm);
 
-  const load = async () => {
+  const load = async ({ initial = false } = {}) => {
     setLoading(true);
     setError('');
 
@@ -56,6 +56,11 @@ const RestringingSection = () => {
         orders: orders.orders || orders || [],
         earnings
       });
+      if (initial) {
+        // Start from what the coach chose on their last order.
+        const lastChoice = catalog?.commission?.last_choice === 'player' ? 'player' : 'keep';
+        setForm(current => ({ ...current, commission_choice: lastChoice }));
+      }
     } catch (err) {
       setError(err.message || 'Unable to load restringing.');
     } finally {
@@ -64,7 +69,7 @@ const RestringingSection = () => {
   };
 
   useEffect(() => {
-    load();
+    load({ initial: true });
   }, []);
 
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
@@ -79,6 +84,8 @@ const RestringingSection = () => {
     player => String(player.player_user_id || player.id) === String(form.player_user_id)
   );
   const coachDropOff = form.contact_party === 'coach';
+  const commissionPct = Number(data.catalog?.commission?.pct ?? 10);
+  const givingCommission = form.commission_choice === 'player';
   const enabled =
     data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
@@ -120,7 +127,8 @@ const RestringingSection = () => {
       await createCoachRestringingOrder(
         buildCoachRestringingOrderPayload({ form, vendorId })
       );
-      setForm(initialRestringingForm);
+      // The next order starts from the choice the coach just made.
+      setForm({ ...initialRestringingForm, commission_choice: form.commission_choice });
       await load();
     } catch (err) {
       setError(err.message || 'Unable to send order.');
@@ -357,6 +365,36 @@ const RestringingSection = () => {
               {coachDropOff
                 ? 'The shop deals with you: drop-off, ready and pickup all come to you. The invoice still goes to your player.'
                 : 'The shop deals with your player directly, invoice included.'}
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-sm font-medium text-gray-700">Your {commissionPct}% commission</p>
+            <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+              {[
+                { value: 'keep', label: 'Keep it', Icon: Wallet },
+                { value: 'player', label: 'Give it to my player', Icon: Gift }
+              ].map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={form.commission_choice === value}
+                  onClick={() => updateForm({ commission_choice: value })}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
+                    form.commission_choice === value
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {givingCommission
+                ? `Your player gets ${commissionPct}% off this order, and you earn nothing on it.`
+                : `You earn ${commissionPct}% of the order, before tax, when your player pays.`}
             </p>
           </div>
 

@@ -31,6 +31,7 @@ test('buildCoachRestringingOrderPayload sends new player details instead of a ro
     },
     vendor_id: 1,
     contact_party: 'player',
+    commission_choice: 'keep',
     items: [
       {
         service_tier_id: 3,
@@ -58,6 +59,7 @@ test('buildCoachRestringingOrderPayload sends selected roster player id by defau
     player_user_id: 501,
     vendor_id: 1,
     contact_party: 'player',
+    commission_choice: 'keep',
     items: [
       {
         service_tier_id: 3,
@@ -200,6 +202,49 @@ test('buildCoachRestringingOrderPayload falls back to the player as the contact'
   });
 
   assert.equal(payload.contact_party, 'player');
+});
+
+test('buildCoachRestringingOrderPayload sends a coach giving their commission to the player', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster',
+      player_user_id: '501',
+      commission_choice: 'player',
+      items: [{ service_tier_id: '3', racket_make_model: 'Blade 98', advice_requested: true }]
+    },
+    vendorId: 1
+  });
+
+  assert.equal(payload.commission_choice, 'player');
+});
+
+test('buildCoachRestringingOrderPayload keeps the commission unless the coach gives it away', () => {
+  const payload = buildCoachRestringingOrderPayload({
+    form: {
+      player_mode: 'roster',
+      player_user_id: '501',
+      commission_choice: 'something_else',
+      items: [{ service_tier_id: '3', racket_make_model: 'Blade 98', advice_requested: true }]
+    },
+    vendorId: 1
+  });
+
+  assert.equal(payload.commission_choice, 'keep');
+});
+
+test('initialRestringingForm starts with the coach keeping the commission', () => {
+  assert.equal(initialRestringingForm.commission_choice, 'keep');
+});
+
+test('coachCommissionStatusText shows what the player saves when the coach gives the commission', () => {
+  assert.equal(
+    coachCommissionStatusText({ coach_commission_choice: 'player', coach_discount_cents: 450, payment_status: 'unpaid' }),
+    'Player gets $4.50 off'
+  );
+  assert.equal(
+    coachCommissionStatusText({ coach_commission_choice: 'player', coach_discount_cents: 450, payment_status: 'paid' }),
+    'Player saved $4.50'
+  );
 });
 
 test('initialRestringingForm starts with the player dropping off', () => {
