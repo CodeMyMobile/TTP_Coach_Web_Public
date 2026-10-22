@@ -1,4 +1,5 @@
 import { redirectToSignInOnForbidden } from '../utils/authRedirect.js';
+import { googleCalendarErrorMessage, readGoogleConnected } from '../utils/googleCalendarStatus.js';
 
 const resolveBaseUrl = () => {
   const meta = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
@@ -48,9 +49,7 @@ const request = async (path, token, method = 'GET') => {
   const data = await parseJsonSafely(response);
   await redirectToSignInOnForbidden(response);
   if (!response.ok) {
-    const message =
-      data?.message || data?.error || response.statusText || 'Request failed.';
-    const error = new Error(message);
+    const error = new Error(googleCalendarErrorMessage(data, response.statusText));
     error.status = response.status;
     error.code = data?.code || null;
     error.data = data;
@@ -66,6 +65,14 @@ export const useGoogleCalendarSync = () => {
       throw new Error('Auth token is required.');
     }
     return request('/api/coach/google-calendar/auth-url', token);
+  };
+
+  // true / false, or null when unknown (see readGoogleConnected).
+  const getConnectionStatus = async ({ token }) => {
+    if (!token) {
+      throw new Error('Auth token is required.');
+    }
+    return readGoogleConnected(await request('/api/coach/google-calendar/status', token));
   };
 
   const syncEvents = async ({ token, timeMin, timeMax }) => {
@@ -124,6 +131,7 @@ export const useGoogleCalendarSync = () => {
 
   return {
     getAuthUrl,
+    getConnectionStatus,
     syncEvents,
     getSyncedEvents,
     disconnectGoogleCalendar

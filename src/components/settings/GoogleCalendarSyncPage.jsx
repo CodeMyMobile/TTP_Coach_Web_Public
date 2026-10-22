@@ -61,7 +61,8 @@ const extractEvents = (payload) => {
 const GoogleCalendarSyncPage = ({ onBack }) => {
   const { user } = useAuth();
   const authToken = user?.session?.access_token || localStorage.getItem('token') || '';
-  const { getAuthUrl, syncEvents, getSyncedEvents, disconnectGoogleCalendar } = useGoogleCalendarSync();
+  const { getAuthUrl, getConnectionStatus, syncEvents, getSyncedEvents, disconnectGoogleCalendar } =
+    useGoogleCalendarSync();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -117,7 +118,8 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
     try {
       const payload = await getSyncedEvents({ token: authToken, ...timeRange });
       setEvents(extractEvents(payload));
-      setGoogleStatus('connected');
+      // Saved events stay after Google is disconnected, so they don't prove a connection.
+      setGoogleStatus((current) => (current === 'not_connected' ? current : 'connected'));
     } catch (err) {
       const status = err?.status;
       const code = err?.code || err?.data?.code;
@@ -138,6 +140,27 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
       setLoading(false);
     }
   }, [authToken, getSyncedEvents, handleGoogleReconnect, timeRange.timeMax, timeRange.timeMin]);
+
+  // Ask up front whether Google is connected, so a new coach is offered "Connect"
+  // instead of finding out from a failed sync. Unknown (null or an error) changes nothing.
+  useEffect(() => {
+    if (!authToken) {
+      return undefined;
+    }
+    let cancelled = false;
+    getConnectionStatus({ token: authToken })
+      .then((connected) => {
+        if (!cancelled && connected !== null) {
+          setGoogleStatus(connected ? 'connected' : 'not_connected');
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // getConnectionStatus is a new function each render; check once per sign-in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
 
   useEffect(() => {
     if (lastSyncedAt) {
@@ -336,7 +359,13 @@ const GoogleCalendarSyncPage = ({ onBack }) => {
             </div>
           )}
 
-          {error === 'Google Calendar not connected.' && (
+          {googleStatus === 'not_connected' && !error && (
+            <p className="mt-4 text-sm text-slate-600">
+              Connect your Google Calendar to see your events here and keep those times off your availability.
+            </p>
+          )}
+
+          {googleStatus === 'not_connected' && (
             <button
               type="button"
               onClick={handleConnect}

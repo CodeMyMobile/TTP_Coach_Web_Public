@@ -767,10 +767,11 @@ function App() {
   );
 
   // Derive Google Calendar connection state ONCE for the header sync pill.
-  // Only a definitive 404 ("not connected") flips to false; any transient failure
-  // (network/timeout/non-404) leaves the last-known/optimistic state so a blip never
-  // nags a genuinely-synced coach. null = unknown ⇒ treated as synced (optimistic).
-  const { getSyncedEvents } = useGoogleCalendarSync();
+  // Only a definitive answer flips it: the status endpoint saying connected or not, or
+  // Google asking to reconnect. A transient failure (network/5xx) or an unknown answer
+  // keeps the optimistic state so a blip never nags a genuinely-synced coach.
+  // null = unknown ⇒ treated as synced (optimistic).
+  const { getConnectionStatus } = useGoogleCalendarSync();
   const [calendarConnected, setCalendarConnected] = useState(null);
   const calendarConnectionCheckedRef = useRef(false);
 
@@ -785,26 +786,16 @@ function App() {
     calendarConnectionCheckedRef.current = true;
 
     let cancelled = false;
-    const now = new Date();
-    const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
-    const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
     (async () => {
       try {
-        await getSyncedEvents({ token, timeMin, timeMax });
-        if (!cancelled) {
-          setCalendarConnected(true);
+        const connected = await getConnectionStatus({ token });
+        if (!cancelled && connected !== null) {
+          setCalendarConnected(connected);
         }
       } catch (error) {
-        // Definitive "not connected" signals only (mirrors GoogleCalendarSyncPage):
-        // a 404 or a not-connected/reconnect error code. Anything else (network/5xx/
-        // transient) keeps the last-known/optimistic state so a blip never nags a
-        // genuinely-connected coach.
-        const status = error?.status;
         const code = error?.code || error?.data?.code;
-        const notConnected =
-          status === 404 || code === 'google_reconnect_required' || code === 'google_not_connected';
-        if (!cancelled && notConnected) {
+        if (!cancelled && (code === 'google_reconnect_required' || code === 'google_not_connected')) {
           setCalendarConnected(false);
         }
       }
@@ -813,7 +804,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isProfileComplete, user?.session?.access_token, getSyncedEvents]);
+  }, [isAuthenticated, isProfileComplete, user?.session?.access_token, getConnectionStatus]);
 
   const handleCalendarRangeChange = useCallback((range) => {
     if (!range) {
