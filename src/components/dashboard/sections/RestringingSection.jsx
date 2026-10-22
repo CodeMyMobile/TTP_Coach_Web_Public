@@ -16,6 +16,7 @@ import {
   playerLabel,
   serviceTierRequiresOwnString,
   initialRestringingForm,
+  isTextablePhone,
   newRestringingOrderItem,
   vendorImageUrl
 } from './restringingOrderPayload';
@@ -37,6 +38,9 @@ const RestringingSection = () => {
   const [creating, setCreating] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [form, setForm] = useState(initialRestringingForm);
+  // Set once the coach leaves the phone field or tries to send, so the hint
+  // doesn't appear while they're still typing.
+  const [phoneChecked, setPhoneChecked] = useState(false);
 
   const load = async ({ initial = false } = {}) => {
     setLoading(true);
@@ -89,6 +93,8 @@ const RestringingSection = () => {
   const enabled =
     data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
+  const newPlayerPhoneInvalid =
+    form.player_mode === 'new' && !isTextablePhone(form.new_player_phone);
 
   const updateForm = patch => setForm(current => ({ ...current, ...patch }));
   const updateRacket = (index, patch) => {
@@ -120,6 +126,10 @@ const RestringingSection = () => {
 
   const submit = async event => {
     event.preventDefault();
+    if (newPlayerPhoneInvalid) {
+      setPhoneChecked(true);
+      return;
+    }
     setCreating(true);
     setError('');
 
@@ -129,6 +139,7 @@ const RestringingSection = () => {
       );
       // The next order starts from the choice the coach just made.
       setForm({ ...initialRestringingForm, commission_choice: form.commission_choice });
+      setPhoneChecked(false);
       await load();
     } catch (err) {
       setError(err.message || 'Unable to send order.');
@@ -232,7 +243,10 @@ const RestringingSection = () => {
               <button
                 type="button"
                 aria-pressed={form.player_mode === 'new'}
-                onClick={() => updateForm({ player_mode: 'new', player_user_id: '' })}
+                onClick={() => {
+                  updateForm({ player_mode: 'new', player_user_id: '' });
+                  setPhoneChecked(false);
+                }}
                 className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
                   form.player_mode === 'new'
                     ? 'bg-white text-purple-700 shadow-sm'
@@ -269,14 +283,26 @@ const RestringingSection = () => {
                 placeholder="Player name"
                 className="rounded-lg border border-gray-200 p-3 text-sm"
               />
-              <input
-                required
-                type="tel"
-                value={form.new_player_phone}
-                onChange={event => updateForm({ new_player_phone: event.target.value })}
-                placeholder="Mobile number"
-                className="rounded-lg border border-gray-200 p-3 text-sm"
-              />
+              <div>
+                <input
+                  required
+                  type="tel"
+                  value={form.new_player_phone}
+                  onChange={event => updateForm({ new_player_phone: event.target.value })}
+                  onBlur={() => setPhoneChecked(true)}
+                  placeholder="Mobile number"
+                  aria-invalid={phoneChecked && newPlayerPhoneInvalid}
+                  aria-describedby={phoneChecked && newPlayerPhoneInvalid ? 'restring-phone-hint' : undefined}
+                  className={`w-full rounded-lg border p-3 text-sm ${
+                    phoneChecked && newPlayerPhoneInvalid ? 'border-red-400' : 'border-gray-200'
+                  }`}
+                />
+                {phoneChecked && newPlayerPhoneInvalid && (
+                  <p id="restring-phone-hint" className="mt-1 text-xs text-red-600">
+                    Enter a 10-digit mobile number. The pay link is sent by text.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

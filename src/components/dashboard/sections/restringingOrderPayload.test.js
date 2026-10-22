@@ -4,6 +4,7 @@ import {
   buildCoachRestringingOrderPayload,
   coachCommissionStatusText,
   initialRestringingForm,
+  isTextablePhone,
   filterRosterPlayers,
   normalizeRestringingEarnings,
   vendorImageUrl,
@@ -350,4 +351,16 @@ test('vendorImageUrl returns the saved vendor profile image', () => {
     'https://images.example.test/tennis-garage.png'
   );
   assert.equal(vendorImageUrl({ vendor: { image_url: '' } }), '');
+});
+
+test('isTextablePhone accepts numbers the pay link text can reach', () => {
+  for (const phone of ['(310) 709-6545', '310.709.6545', '1 310 709 6545', '+1 310 709 6545', '+44 7911 123456']) {
+    assert.equal(isTextablePhone(phone), true, phone);
+  }
+});
+
+test('isTextablePhone rejects numbers the API would refuse as player_phone_invalid', () => {
+  for (const phone of ['', '   ', '555 1234', '310 709 654', '+1 555 1234', '2 310 709 6545', '+12']) {
+    assert.equal(isTextablePhone(phone), false, phone);
+  }
 });

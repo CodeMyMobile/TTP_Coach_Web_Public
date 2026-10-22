@@ -93,6 +93,16 @@ export const getRestringingOrderSummary = (orders = []) =>
     { awaitingDropOff: 0, ready: 0 }
   );
 
+// The pay link is texted to this number, so it has to be one a text can reach.
+// Same rule as the API's player_phone_invalid: a US number (10 digits, or 11
+// starting with 1) or an international one written with "+".
+export const isTextablePhone = value => {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10 || (digits.length === 11 && digits.startsWith('1'))) return true;
+  return raw.startsWith('+') && !digits.startsWith('1') && digits.length >= 8 && digits.length <= 15;
+};
+
 export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
   const formItems = Array.isArray(form.items) && form.items.length ? form.items : [form];
   const items = formItems.map(formItem => {
