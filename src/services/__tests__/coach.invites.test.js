@@ -105,7 +105,37 @@ test('cancelCoachRestringingOrder posts to the authenticated coach order endpoin
   await removeTokens();
 });
 
-test('coach service redirects to sign in and clears tokens on forbidden response', async () => {
+test('coach service redirects to sign in and clears tokens on unauthorized response', async () => {
+  await storeTokens('coach-token', 'refresh-token');
+
+  let assignedPath = '';
+  global.window = {
+    location: {
+      pathname: '/dashboard',
+      assign: (path) => {
+        assignedPath = path;
+      }
+    }
+  };
+
+  global.fetch = async () => ({
+    ok: false,
+    status: 401,
+    statusText: 'Unauthorized',
+    text: async () => JSON.stringify({ detail: 'failed to authenticate token' })
+  });
+
+  const { getCoachStudents } = await import('../coach.js');
+
+  await assert.rejects(() => getCoachStudents(), /failed to authenticate token/i);
+  assert.equal(assignedPath, '/');
+  assert.equal(await getAccessToken(), null);
+
+  delete global.window;
+  await removeTokens();
+});
+
+test('coach service keeps the coach signed in and surfaces the error when an action is refused', async () => {
   await storeTokens('coach-token', 'refresh-token');
 
   let assignedPath = '';
@@ -122,14 +152,14 @@ test('coach service redirects to sign in and clears tokens on forbidden response
     ok: false,
     status: 403,
     statusText: 'Forbidden',
-    text: async () => JSON.stringify({ error: 'forbidden' })
+    text: async () => JSON.stringify({ detail: 'coach_restringing_not_enabled' })
   });
 
-  const { getCoachStudents } = await import('../coach.js');
+  const { createCoachRestringingOrder } = await import('../coach.js');
 
-  await assert.rejects(() => getCoachStudents(), /forbidden/i);
-  assert.equal(assignedPath, '/');
-  assert.equal(await getAccessToken(), null);
+  await assert.rejects(() => createCoachRestringingOrder(), /coach_restringing_not_enabled/);
+  assert.equal(assignedPath, '');
+  assert.equal(await getAccessToken(), 'coach-token');
 
   delete global.window;
   await removeTokens();
