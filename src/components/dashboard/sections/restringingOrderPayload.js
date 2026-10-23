@@ -6,8 +6,23 @@ export const newRestringingOrderItem = () => ({
   string_id: '',
   gauge: '',
   advice_requested: true,
+  tension_lbs: '',
+  split_tension: false,
+  tension_lbs_crosses: '',
   notes: ''
 });
+
+// Same range the API accepts (validateTensionLbs).
+export const MIN_TENSION_LBS = 40;
+export const MAX_TENSION_LBS = 70;
+
+export const parseTensionLbs = value => {
+  if (value === '' || value === null || value === undefined) return null;
+  const tension = Number(value);
+  return Number.isFinite(tension) && tension >= MIN_TENSION_LBS && tension <= MAX_TENSION_LBS
+    ? tension
+    : null;
+};
 
 export const initialRestringingForm = {
   player_mode: 'roster',
@@ -126,6 +141,14 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
       if (Number.isInteger(stringId) && stringId > 0) item.string_id = stringId;
       const gauge = String(formItem.gauge || '').trim();
       if (gauge) item.gauge = gauge;
+    }
+    // The stringer sets the tension at drop-off when advice is requested, and
+    // the API ignores any tension sent with it.
+    const mains = item.advice_requested ? null : parseTensionLbs(formItem.tension_lbs);
+    if (mains !== null) {
+      const crosses = formItem.split_tension ? parseTensionLbs(formItem.tension_lbs_crosses) : null;
+      item.tension_lbs_mains = mains;
+      item.tension_lbs_crosses = crosses ?? mains;
     }
     const notes = String(formItem.notes || '').trim();
     if (notes) item.notes = notes;
