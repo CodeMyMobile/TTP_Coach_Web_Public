@@ -17,6 +17,8 @@ import {
   serviceTierRequiresOwnString,
   initialRestringingForm,
   isTextablePhone,
+  MAX_TENSION_LBS,
+  MIN_TENSION_LBS,
   newRestringingOrderItem,
   vendorImageUrl
 } from './restringingOrderPayload';
@@ -345,6 +347,8 @@ const RestringingSection = () => {
                     <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={patch => updateRacket(index, patch)} />
                   )}
 
+                  <TensionInput item={item} onChange={patch => updateRacket(index, patch)} />
+
                   <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
                     <input type="checkbox" checked={item.advice_requested} onChange={event => updateRacket(index, { advice_requested: event.target.checked })} />
                     {coachDropOff
@@ -562,6 +566,54 @@ const RacketInput = ({ value, onChange }) => (
     className="rounded-lg border border-gray-200 p-3 text-sm"
   />
 );
+
+// Typing a tension means the coach knows the setup, so it turns off "let the
+// stringer advise". Ticking that box again greys the tension out instead of
+// clearing it, so nothing typed is lost.
+const TensionInput = ({ item, onChange }) => {
+  const disabled = item.advice_requested;
+  const setTension = (key, value) => onChange({ [key]: value, ...(value ? { advice_requested: false } : {}) });
+  const tensionField = (key, label) => (
+    <label className="block text-sm font-medium text-gray-700">
+      {label}
+      <input
+        type="number"
+        inputMode="decimal"
+        min={MIN_TENSION_LBS}
+        max={MAX_TENSION_LBS}
+        step="0.5"
+        required={!disabled}
+        disabled={disabled}
+        value={disabled ? '' : item[key]}
+        onChange={event => setTension(key, event.target.value)}
+        placeholder={disabled ? 'Set at drop-off' : 'e.g. 52'}
+        className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+      />
+    </label>
+  );
+
+  return (
+    <div className="mt-3">
+      <div className="grid gap-3 md:grid-cols-2">
+        {tensionField('tension_lbs', item.split_tension ? 'Tension, mains (lbs)' : 'Tension (lbs)')}
+        {item.split_tension && !disabled && tensionField('tension_lbs_crosses', 'Tension, crosses (lbs)')}
+      </div>
+      {!disabled && (
+        <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={item.split_tension}
+            onChange={event => onChange({
+              split_tension: event.target.checked,
+              tension_lbs_crosses: item.tension_lbs_crosses || item.tension_lbs
+            })}
+          />
+          Different mains / crosses tension
+        </label>
+      )}
+    </div>
+  );
+};
 
 const StringSelection = ({ value, strings, selectedString, gauge, onChange }) => (
   <fieldset className="mt-3 rounded-lg border border-gray-200 p-3">

@@ -364,3 +364,48 @@ test('isTextablePhone rejects numbers the API would refuse as player_phone_inval
     assert.equal(isTextablePhone(phone), false, phone);
   }
 });
+
+const tensionForm = item => ({
+  player_mode: 'roster',
+  player_user_id: '7',
+  items: [{ service_tier_id: '3', racket_make_model: 'Blade 98', ...item }]
+});
+
+test('buildCoachRestringingOrderPayload sends the coach-entered tension for mains and crosses', () => {
+  const [item] = buildCoachRestringingOrderPayload({
+    form: tensionForm({ advice_requested: false, tension_lbs: '52' }),
+    vendorId: 1
+  }).items;
+
+  assert.equal(item.tension_lbs_mains, 52);
+  assert.equal(item.tension_lbs_crosses, 52);
+});
+
+test('buildCoachRestringingOrderPayload sends a separate crosses tension when split', () => {
+  const [item] = buildCoachRestringingOrderPayload({
+    form: tensionForm({ advice_requested: false, tension_lbs: '55', split_tension: true, tension_lbs_crosses: '52.5' }),
+    vendorId: 1
+  }).items;
+
+  assert.equal(item.tension_lbs_mains, 55);
+  assert.equal(item.tension_lbs_crosses, 52.5);
+});
+
+test('buildCoachRestringingOrderPayload leaves tension to the stringer when advice is requested', () => {
+  const [item] = buildCoachRestringingOrderPayload({
+    form: tensionForm({ advice_requested: true, tension_lbs: '52' }),
+    vendorId: 1
+  }).items;
+
+  assert.equal('tension_lbs_mains' in item, false);
+  assert.equal('tension_lbs_crosses' in item, false);
+});
+
+test('buildCoachRestringingOrderPayload drops tension outside the 40-70 lbs range', () => {
+  const [item] = buildCoachRestringingOrderPayload({
+    form: tensionForm({ advice_requested: false, tension_lbs: '90' }),
+    vendorId: 1
+  }).items;
+
+  assert.equal('tension_lbs_mains' in item, false);
+});
