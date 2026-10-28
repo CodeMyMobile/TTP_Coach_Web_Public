@@ -517,12 +517,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  min-height: 44px;
   padding: 14px;
   background: #f8fafc;
+  border: 0;
   border-bottom: 1px solid #e2e8f0;
+  font: inherit;
   font-size: 13px;
   color: #64748b;
   font-weight: 500;
+  cursor: pointer;
+}
+
+.availability-empty:hover,
+.availability-empty:focus-visible {
+  color: #334155;
+  background: #f1f5f9;
 }
 
 .day-card-lessons {
