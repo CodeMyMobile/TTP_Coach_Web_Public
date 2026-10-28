@@ -5,6 +5,7 @@ import {
   Bell,
   Calendar,
   CalendarPlus,
+  Clock,
   DollarSign,
   LogOut,
   Package,
@@ -1942,11 +1943,22 @@ const DashboardPage = ({
                 className="dashboard-add-menu-item"
                 onClick={() => {
                   setShowAddMenu(false);
-                  onOpenAddAvailability?.();
+                  onRequestAvailabilityOnboarding?.();
                 }}
               >
                 <Edit className="h-4 w-4" />
                 <span>Set availability</span>
+              </button>
+              <button
+                type="button"
+                className="dashboard-add-menu-item"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  onOpenAddAvailability?.();
+                }}
+              >
+                <Clock className="h-4 w-4" />
+                <span>Add one-off hours</span>
               </button>
             </div>
           )}

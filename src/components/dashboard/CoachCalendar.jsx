@@ -770,7 +770,13 @@ const CoachCalendar = ({
                     </div>
                   ))
                 ) : (
-                  <div className="availability-empty">+ Set availability</div>
+                  <button
+                    type="button"
+                    className="availability-empty"
+                    onClick={() => onEditAvailabilityDay?.(moment(day).format('dddd'))}
+                  >
+                    + Set availability
+                  </button>
                 )}
 
                 <div className="day-card-lessons">
