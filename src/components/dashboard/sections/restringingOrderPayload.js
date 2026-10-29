@@ -118,9 +118,9 @@ export const isTextablePhone = value => {
   return raw.startsWith('+') && !digits.startsWith('1') && digits.length >= 8 && digits.length <= 15;
 };
 
-export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
-  const formItems = Array.isArray(form.items) && form.items.length ? form.items : [form];
-  const items = formItems.map(formItem => {
+// The API's restring items for the rackets on a form.
+export const buildRestringItems = formItems =>
+  formItems.map(formItem => {
     const item = {
       service_tier_id: Number(formItem.service_tier_id),
       racket_make_model: String(formItem.racket_make_model || '').trim(),
@@ -155,6 +155,10 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
     return item;
   });
 
+export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
+  const formItems = Array.isArray(form.items) && form.items.length ? form.items : [form];
+  const items = buildRestringItems(formItems);
+
   const payload = {
     vendor_id: Number(vendorId),
     // Who the shop deals with about the rackets. The pay link goes to the
@@ -175,3 +179,51 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
   payload.player_user_id = Number(form.player_user_id);
   return payload;
 };
+
+// ─── A coach buying for themselves ──────────────────────────────────────
+
+// Add-ons cost their bundle price in an order with a restring, and their
+// regular price on their own: the API's rule.
+export const addOnUnitCents = (offer, withRestring) => {
+  const regular = Number(offer?.regular_price_cents);
+  const bundle = Number(offer?.bundle_price_cents);
+  if (!withRestring && Number.isInteger(regular) && regular > 0) return regular;
+  return Number.isFinite(bundle) ? bundle : 0;
+};
+
+// What the coach pays before sales tax, which the checkout adds: tier prices
+// for the rackets, add-ons as above, less the shop's coach discount.
+export const estimateCoachPurchase = ({ rackets = [], tiers = [], addOns = [], quantities = {}, coachDiscountPct = 0 }) => {
+  const withRestring = rackets.length > 0;
+  const racketCents = rackets.reduce((sum, racket) => {
+    const tier = tiers.find(entry => String(entry.id) === String(racket.service_tier_id));
+    return sum + Number(tier?.price_cents || 0);
+  }, 0);
+  const addOnCents = addOns.reduce(
+    (sum, offer) => sum + addOnUnitCents(offer, withRestring) * Number(quantities[offer.id] || 0),
+    0
+  );
+  const subtotalCents = racketCents + addOnCents;
+  const pct = Math.min(Math.max(Number(coachDiscountPct) || 0, 0), 100);
+  // Same rounding as the API: half up.
+  const discountCents = Math.floor(subtotalCents * pct / 100 + 0.5);
+  return { subtotalCents, discountCents, totalBeforeTaxCents: subtotalCents - discountCents, pct };
+};
+
+export const buildCoachSelfPurchasePayload = ({ rackets = [], addOns = [], quantities = {}, vendorId }) => ({
+  for_self: true,
+  vendor_id: Number(vendorId),
+  items: [
+    ...buildRestringItems(rackets),
+    ...addOns
+      .filter(offer => Number(quantities[offer.id] || 0) > 0)
+      .map(offer => ({
+        item_type: 'add_on',
+        add_on_offer_id: Number(offer.id),
+        item_qty: Number(quantities[offer.id])
+      }))
+  ]
+});
+
+// A coach's own purchases, apart from the orders they placed for players.
+export const isCoachPurchase = order => order?.is_coach_purchase === true;

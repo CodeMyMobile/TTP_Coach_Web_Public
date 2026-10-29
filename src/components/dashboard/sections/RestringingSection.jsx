@@ -16,6 +16,7 @@ import {
   playerLabel,
   serviceTierRequiresOwnString,
   initialRestringingForm,
+  isCoachPurchase,
   isTextablePhone,
   MAX_TENSION_LBS,
   MIN_TENSION_LBS,
@@ -81,7 +82,8 @@ const RestringingSection = () => {
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
   const vendorImage = vendorImageUrl(data.catalog);
   const earnings = normalizeRestringingEarnings(data.earnings);
-  const orderRows = useMemo(() => data.orders, [data.orders]);
+  // A coach's own purchases live under Coach supplies, not with their players' orders.
+  const orderRows = useMemo(() => data.orders.filter(order => !isCoachPurchase(order)), [data.orders]);
   const filteredPlayers = useMemo(
     () => filterRosterPlayers(data.players, form.player_query),
     [data.players, form.player_query]
@@ -541,7 +543,7 @@ const RosterPlayerPicker = ({
   </div>
 );
 
-const ServiceSelect = ({ tiers, value, onChange }) => (
+export const ServiceSelect = ({ tiers, value, onChange }) => (
   <select
     required
     value={value}
@@ -557,7 +559,7 @@ const ServiceSelect = ({ tiers, value, onChange }) => (
   </select>
 );
 
-const RacketInput = ({ value, onChange }) => (
+export const RacketInput = ({ value, onChange }) => (
   <input
     required
     value={value}
@@ -570,7 +572,7 @@ const RacketInput = ({ value, onChange }) => (
 // Typing a tension means the coach knows the setup, so it turns off "let the
 // stringer advise". Ticking that box again greys the tension out instead of
 // clearing it, so nothing typed is lost.
-const TensionInput = ({ item, onChange }) => {
+export const TensionInput = ({ item, onChange }) => {
   const disabled = item.advice_requested;
   const setTension = (key, value) => onChange({ [key]: value, ...(value ? { advice_requested: false } : {}) });
   const tensionField = (key, label) => (
@@ -615,7 +617,7 @@ const TensionInput = ({ item, onChange }) => {
   );
 };
 
-const StringSelection = ({ value, strings, selectedString, gauge, onChange }) => (
+export const StringSelection = ({ value, strings, selectedString, gauge, onChange }) => (
   <fieldset className="mt-3 rounded-lg border border-gray-200 p-3">
     <legend className="px-1 text-sm font-medium text-gray-700">String choice</legend>
     <div className="flex flex-wrap gap-4 text-sm text-gray-700">

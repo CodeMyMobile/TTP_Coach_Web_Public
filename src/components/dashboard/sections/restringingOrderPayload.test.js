@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  addOnUnitCents,
   buildCoachRestringingOrderPayload,
+  buildCoachSelfPurchasePayload,
+  estimateCoachPurchase,
+  isCoachPurchase,
   coachCommissionStatusText,
   initialRestringingForm,
   isTextablePhone,
@@ -408,4 +412,52 @@ test('buildCoachRestringingOrderPayload drops tension outside the 40-70 lbs rang
   }).items;
 
   assert.equal('tension_lbs_mains' in item, false);
+});
+
+// ─── A coach buying for themselves ──────────────────────────────────────
+
+const balls = { id: 5, name: 'Case of balls', regular_price_cents: 9000, bundle_price_cents: 8000 };
+const tiers = [{ id: 2, price_cents: 3000 }];
+
+test('a coach purchase sends for_self with restrings and add-on quantities, and no player', () => {
+  const payload = buildCoachSelfPurchasePayload({
+    rackets: [{ service_tier_id: '2', racket_make_model: ' Blade 98 ', advice_requested: true, string_selection: 'shop_choice' }],
+    addOns: [balls, { id: 6, name: 'Grips' }],
+    quantities: { 5: 2, 6: 0 },
+    vendorId: '1'
+  });
+  assert.deepEqual(payload, {
+    for_self: true,
+    vendor_id: 1,
+    items: [
+      { service_tier_id: 2, racket_make_model: 'Blade 98', advice_requested: true, string_selection: 'shop_choice' },
+      { item_type: 'add_on', add_on_offer_id: 5, item_qty: 2 }
+    ]
+  });
+  assert.equal('player_user_id' in payload, false);
+  assert.equal('commission_choice' in payload, false);
+});
+
+test('add-ons cost the bundle price with a restring and the regular price without', () => {
+  assert.equal(addOnUnitCents(balls, true), 8000);
+  assert.equal(addOnUnitCents(balls, false), 9000);
+  assert.equal(addOnUnitCents({ bundle_price_cents: 700 }, false), 700);
+});
+
+test('the estimate takes the coach discount off everything, rounding half up', () => {
+  assert.deepEqual(
+    estimateCoachPurchase({ rackets: [{ service_tier_id: 2 }], tiers, addOns: [balls], quantities: { 5: 1 }, coachDiscountPct: 15 }),
+    { subtotalCents: 11000, discountCents: 1650, totalBeforeTaxCents: 9350, pct: 15 }
+  );
+  assert.deepEqual(
+    estimateCoachPurchase({ addOns: [balls], quantities: { 5: 1 }, coachDiscountPct: '12.5' }),
+    { subtotalCents: 9000, discountCents: 1125, totalBeforeTaxCents: 7875, pct: 12.5 }
+  );
+  assert.equal(estimateCoachPurchase({ rackets: [], addOns: [balls], quantities: {} }).subtotalCents, 0);
+});
+
+test("a coach's own purchases are told apart from orders for players", () => {
+  assert.equal(isCoachPurchase({ is_coach_purchase: true }), true);
+  assert.equal(isCoachPurchase({ is_coach_purchase: false }), false);
+  assert.equal(isCoachPurchase({}), false);
 });
