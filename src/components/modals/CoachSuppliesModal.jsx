@@ -268,11 +268,14 @@ const CoachSuppliesModal = ({ isOpen, onClose }) => {
                         <div key={offer.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-3">
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900">{offer.name}</p>
+                            {offer.description && <p className="text-xs text-gray-500">{offer.description}</p>}
                             <p className="text-xs text-gray-500">
                               {money(addOnUnitCents(offer, rackets.length > 0))}
-                              {rackets.length > 0 && Number(offer.regular_price_cents) > Number(offer.bundle_price_cents)
-                                ? ' with a restring'
-                                : ''}
+                              {offer.coaches_only
+                                ? ' coach price'
+                                : rackets.length > 0 && Number(offer.regular_price_cents) > Number(offer.bundle_price_cents)
+                                  ? ' with a restring'
+                                  : ''}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
