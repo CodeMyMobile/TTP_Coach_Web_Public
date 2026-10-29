@@ -230,5 +230,17 @@ export const buildCoachSelfPurchasePayload = ({ rackets = [], addOns = [], quant
   ]
 });
 
+// A coach buying for themselves knows their tension, so their racket starts
+// with the tension box open rather than left to the stringer.
+export const newCoachSupplyRacket = () => ({ ...newRestringingOrderItem(), advice_requested: false });
+
+// A racket with neither a tension nor the stringer asked to advise. The API
+// would take it, leaving the shop with no tension to string at.
+export const racketNeedsTension = racket => {
+  if (!racket || racket.advice_requested) return false;
+  if (parseTensionLbs(racket.tension_lbs) === null) return true;
+  return Boolean(racket.split_tension) && parseTensionLbs(racket.tension_lbs_crosses) === null;
+};
+
 // A coach's own purchases, apart from the orders they placed for players.
 export const isCoachPurchase = order => order?.is_coach_purchase === true;
