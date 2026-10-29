@@ -12,7 +12,10 @@ import {
   buildCoachSelfPurchasePayload,
   estimateCoachPurchase,
   isCoachPurchase,
-  newRestringingOrderItem,
+  MAX_TENSION_LBS,
+  MIN_TENSION_LBS,
+  newCoachSupplyRacket,
+  racketNeedsTension,
   serviceTierRequiresOwnString
 } from '../dashboard/sections/restringingOrderPayload';
 import {
@@ -85,6 +88,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
   const coachDiscountPct = Number(catalog?.coach_discount_pct || 0);
   const estimate = estimateCoachPurchase({ rackets, tiers, addOns, quantities, coachDiscountPct });
   const hasSelection = rackets.length > 0 || addOns.some(offer => Number(quantities[offer.id] || 0) > 0);
+  const missingTension = rackets.some(racketNeedsTension);
 
   const updateRacket = (index, patch) =>
     setRackets(current => current.map((racket, i) => (i === index ? { ...racket, ...patch } : racket)));
@@ -103,7 +107,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
 
   const submit = async event => {
     event.preventDefault();
-    if (!hasSelection) return;
+    if (!hasSelection || missingTension) return;
     // Opened now, while the tap still counts, so the browser doesn't block it;
     // pointed at the pay link once the order exists.
     const payWindow = window.open('', '_blank');
@@ -244,6 +248,11 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                       />
                       Let the stringer advise you at drop-off
                     </label>
+                    {racketNeedsTension(racket) && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Enter a tension from {MIN_TENSION_LBS} to {MAX_TENSION_LBS} lbs, or let the stringer advise you.
+                      </p>
+                    )}
                     <label className="mt-3 block text-sm font-medium text-gray-700">
                       Note for the shop
                       <textarea
@@ -259,7 +268,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
             </div>
             <button
               type="button"
-              onClick={() => setRackets(current => [...current, newRestringingOrderItem()])}
+              onClick={() => setRackets(current => [...current, newCoachSupplyRacket()])}
               className="mt-3 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700"
             >
               <Plus className="h-4 w-4" /> {rackets.length ? 'Add another racket' : 'Add a racket'}
@@ -389,7 +398,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
         <div className="mt-5 space-y-5">{content}</div>
         <button
           type="submit"
-          disabled={!hasSelection || submitting || !catalog}
+          disabled={!hasSelection || missingTension || submitting || !catalog}
           className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-purple-600 px-4 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           {submitting ? 'Placing order...' : 'Checkout'}
@@ -408,7 +417,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
         <ModalFooter>
           <button
             type="submit"
-            disabled={!hasSelection || submitting || !catalog}
+            disabled={!hasSelection || missingTension || submitting || !catalog}
             className="w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             {submitting ? 'Placing order...' : 'Order & pay'}
