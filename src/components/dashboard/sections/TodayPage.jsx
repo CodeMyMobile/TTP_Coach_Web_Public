@@ -11,7 +11,7 @@ import {
   ShoppingBag,
   Users
 } from 'lucide-react';
-import SuppliesSelectorModal from '../../modals/SuppliesSelectorModal';
+import CoachSuppliesModal from '../../modals/CoachSuppliesModal';
 import { getCoachRestringingOrders } from '../../../services/coach';
 import { getRestringingOrderSummary } from './restringingOrderPayload';
 import {
@@ -276,7 +276,7 @@ const SuppliesCard = ({ onOpen }) => (
     </span>
     <span className="min-w-0 flex-1">
       <span className="block text-sm font-semibold text-gray-900">Coach supplies</span>
-      <span className="block truncate text-xs text-gray-500">Gear &amp; essentials for your sessions</span>
+      <span className="block truncate text-xs text-gray-500">Restrings &amp; balls at your coach price</span>
     </span>
     <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
   </button>
@@ -475,7 +475,7 @@ const TodayPage = ({
       </header>
 
       <SuppliesCard onOpen={() => setSuppliesOpen(true)} />
-      <SuppliesSelectorModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
+      <CoachSuppliesModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
       <RestringingCard summary={restringingSummary} onOpen={onOpenRestringing} />
 
       {(requests.length > 0 || cancelledLessons.length > 0) && (

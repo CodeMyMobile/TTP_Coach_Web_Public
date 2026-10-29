@@ -30,7 +30,7 @@ import AvailabilityReminderSheet from '../modals/AvailabilityReminderSheet';
 import { hasReviewedRecently, markAvailabilityReviewed } from '../../utils/availabilityReview';
 import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
 import { resolveBookingPaymentState } from '../../utils/bookingPaymentState';
-import { COACH_SUPPLIES_URL } from '../../constants/urls';
+import CoachSuppliesModal from '../modals/CoachSuppliesModal';
 import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
@@ -600,6 +600,7 @@ const DashboardPage = ({
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [suppliesOpen, setSuppliesOpen] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showAvailabilityReminder, setShowAvailabilityReminder] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -1439,7 +1440,7 @@ const DashboardPage = ({
                       className="dashboard-settings-menu-item"
                       onClick={() => {
                         setShowSettingsMenu(false);
-                        window.open(COACH_SUPPLIES_URL, '_blank', 'noopener,noreferrer');
+                        setSuppliesOpen(true);
                       }}
                     >
                       <ShoppingBag className="h-4 w-4" />
@@ -1995,6 +1996,7 @@ const DashboardPage = ({
         }}
         onClose={() => setShowAvailabilityReminder(false)}
       />
+      <CoachSuppliesModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
     </div>
   );
 };
