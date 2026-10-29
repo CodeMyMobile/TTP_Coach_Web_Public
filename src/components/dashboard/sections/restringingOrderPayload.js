@@ -187,12 +187,14 @@ export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
 export const addOnUnitCents = (offer, withRestring) => {
   const regular = Number(offer?.regular_price_cents);
   const bundle = Number(offer?.bundle_price_cents);
-  if (!withRestring && Number.isInteger(regular) && regular > 0) return regular;
+  // A coaches-only offer has one price, the coach's.
+  if ((!withRestring || offer?.coaches_only) && Number.isInteger(regular) && regular > 0) return regular;
   return Number.isFinite(bundle) ? bundle : 0;
 };
 
 // What the coach pays before sales tax, which the checkout adds: tier prices
-// for the rackets, add-ons as above, less the shop's coach discount.
+// for the rackets, add-ons as above, less the shop's coach discount. The
+// discount doesn't come off coaches-only offers, whose price is already the coach's.
 export const estimateCoachPurchase = ({ rackets = [], tiers = [], addOns = [], quantities = {}, coachDiscountPct = 0 }) => {
   const withRestring = rackets.length > 0;
   const racketCents = rackets.reduce((sum, racket) => {
@@ -203,10 +205,13 @@ export const estimateCoachPurchase = ({ rackets = [], tiers = [], addOns = [], q
     (sum, offer) => sum + addOnUnitCents(offer, withRestring) * Number(quantities[offer.id] || 0),
     0
   );
+  const coachPricedCents = addOns
+    .filter(offer => offer.coaches_only)
+    .reduce((sum, offer) => sum + addOnUnitCents(offer, withRestring) * Number(quantities[offer.id] || 0), 0);
   const subtotalCents = racketCents + addOnCents;
   const pct = Math.min(Math.max(Number(coachDiscountPct) || 0, 0), 100);
   // Same rounding as the API: half up.
-  const discountCents = Math.floor(subtotalCents * pct / 100 + 0.5);
+  const discountCents = Math.floor((subtotalCents - coachPricedCents) * pct / 100 + 0.5);
   return { subtotalCents, discountCents, totalBeforeTaxCents: subtotalCents - discountCents, pct };
 };
 

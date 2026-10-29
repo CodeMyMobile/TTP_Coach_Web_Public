@@ -456,6 +456,16 @@ test('the estimate takes the coach discount off everything, rounding half up', (
   assert.equal(estimateCoachPurchase({ rackets: [], addOns: [balls], quantities: {} }).subtotalCents, 0);
 });
 
+test('a coaches-only offer costs its one price, with no coach discount off it', () => {
+  const coachCase = { id: 7, name: 'Dunlop Grand Prix', regular_price_cents: 8000, bundle_price_cents: 8000, coaches_only: true };
+  assert.equal(addOnUnitCents({ ...coachCase, bundle_price_cents: 7000 }, true), 8000);
+  // A $30 restring at 20% off, plus two $80 cases at their price.
+  assert.deepEqual(
+    estimateCoachPurchase({ rackets: [{ service_tier_id: 2 }], tiers, addOns: [coachCase], quantities: { 7: 2 }, coachDiscountPct: 20 }),
+    { subtotalCents: 19000, discountCents: 600, totalBeforeTaxCents: 18400, pct: 20 }
+  );
+});
+
 test("a coach's own purchases are told apart from orders for players", () => {
   assert.equal(isCoachPurchase({ is_coach_purchase: true }), true);
   assert.equal(isCoachPurchase({ is_coach_purchase: false }), false);
