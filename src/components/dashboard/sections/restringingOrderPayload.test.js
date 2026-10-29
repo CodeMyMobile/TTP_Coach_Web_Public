@@ -5,6 +5,8 @@ import {
   buildCoachRestringingOrderPayload,
   buildCoachSelfPurchasePayload,
   estimateCoachPurchase,
+  newCoachSupplyRacket,
+  racketNeedsTension,
   isCoachPurchase,
   coachCommissionStatusText,
   initialRestringingForm,
@@ -470,4 +472,20 @@ test("a coach's own purchases are told apart from orders for players", () => {
   assert.equal(isCoachPurchase({ is_coach_purchase: true }), true);
   assert.equal(isCoachPurchase({ is_coach_purchase: false }), false);
   assert.equal(isCoachPurchase({}), false);
+});
+
+test('a coach supply racket starts asking for a tension, not left to the stringer', () => {
+  const racket = newCoachSupplyRacket();
+  assert.equal(racket.advice_requested, false);
+  assert.equal(racket.tension_lbs, '');
+  assert.equal(racketNeedsTension(racket), true);
+});
+
+test('a racket needs a tension in range unless the stringer advises', () => {
+  const racket = newCoachSupplyRacket();
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52' }), false);
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '90' }), true);
+  assert.equal(racketNeedsTension({ ...racket, advice_requested: true }), false);
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52', split_tension: true, tension_lbs_crosses: '' }), true);
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52', split_tension: true, tension_lbs_crosses: '50' }), false);
 });
