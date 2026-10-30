@@ -13,7 +13,12 @@ import {
   normalizeRestringingEarnings,
   vendorImageUrl,
   getRestringingOrderSummary,
-  serviceTierRequiresOwnString
+  serviceTierRequiresOwnString,
+  serviceTierForCategory,
+  serviceTierStringsText,
+  STRING_QUIZ_QUESTIONS,
+  stringQuizComplete,
+  stringsForServiceTier
 } from './restringingOrderPayload.js';
 
 test('buildCoachRestringingOrderPayload sends new player details instead of a roster id', () => {
@@ -470,4 +475,53 @@ test("a coach's own purchases are told apart from orders for players", () => {
   assert.equal(isCoachPurchase({ is_coach_purchase: true }), true);
   assert.equal(isCoachPurchase({ is_coach_purchase: false }), false);
   assert.equal(isCoachPurchase({}), false);
+});
+
+const tierStrings = [
+  { id: 1, brand: 'Luxilon', name: 'ALU Power', category: 'premium_poly', gauge: '16L' },
+  { id: 2, brand: 'Luxilon', name: 'ALU Power', category: 'premium_poly', gauge: '17' },
+  { id: 3, brand: 'Solinco', name: 'Hyper-G', category: 'premium_poly' },
+  { id: 4, brand: 'Gamma', name: 'Moto', category: 'standard_poly' }
+];
+
+test('stringsForServiceTier lists a category once per string, not per gauge', () => {
+  const premium = stringsForServiceTier({ string_category: 'premium_poly' }, tierStrings);
+  assert.deepEqual(premium.map(string => string.id), [1, 3]);
+  assert.deepEqual(stringsForServiceTier({ string_category: 'standard_poly' }, tierStrings).map(s => s.id), [4]);
+  assert.deepEqual(stringsForServiceTier({ string_category: null }, tierStrings), []);
+  assert.deepEqual(stringsForServiceTier(undefined, tierStrings), []);
+});
+
+test('serviceTierStringsText describes what a service strings with', () => {
+  assert.equal(
+    serviceTierStringsText({ string_category: 'premium_poly' }, tierStrings),
+    'Luxilon ALU Power, Solinco Hyper-G'
+  );
+  assert.equal(serviceTierStringsText({ string_category: null }, tierStrings), 'You supply the string.');
+  assert.equal(
+    serviceTierStringsText({ string_category: 'premium_poly', string_composition: 'hybrid' }, tierStrings),
+    "Shop's choice of string."
+  );
+  assert.equal(serviceTierStringsText({ string_category: 'multifilament' }, tierStrings), null);
+  assert.equal(serviceTierStringsText(null, tierStrings), null);
+});
+
+test('serviceTierForCategory picks the plain service for a recommended category', () => {
+  const tiers = [
+    { id: 1, string_category: null },
+    { id: 2, string_category: 'prem_poly', string_composition: 'hybrid' },
+    { id: 3, string_category: 'prem_poly', string_composition: null },
+    { id: 4, string_category: 'std_poly' }
+  ];
+  assert.equal(serviceTierForCategory(tiers, 'prem_poly')?.id, 3);
+  assert.equal(serviceTierForCategory(tiers, 'std_poly')?.id, 4);
+  assert.equal(serviceTierForCategory(tiers, 'nat_gut'), null);
+});
+
+test('stringQuizComplete needs an answer to every question', () => {
+  const answers = Object.fromEntries(STRING_QUIZ_QUESTIONS.map(question => [question.key, question.options[0].value]));
+  assert.equal(stringQuizComplete(answers), true);
+  assert.equal(stringQuizComplete({ ...answers, priority: '' }), false);
+  assert.equal(stringQuizComplete(undefined), false);
+  assert.deepEqual(STRING_QUIZ_QUESTIONS.map(question => question.key), ['armDiscomfort', 'breakFrequency', 'priority', 'premiumPreference']);
 });

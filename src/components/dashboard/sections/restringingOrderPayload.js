@@ -72,6 +72,74 @@ export const normalizeRestringingEarnings = (earnings = {}) => {
 export const serviceTierRequiresOwnString = tier =>
   tier?.string_category === null && !tier?.string_composition;
 
+// The stocked strings a service covers, so a coach can tell "Standard polyester"
+// from "Premium polyester" by what is in them. The catalog has a row per gauge,
+// so a string stocked in two gauges is listed once.
+export const stringsForServiceTier = (tier, strings = []) => {
+  if (!tier?.string_category) return [];
+  const seen = new Set();
+  return strings.filter(string => {
+    if (string.category !== tier.string_category) return false;
+    const key = `${string.brand || ''} ${string.name || ''}`.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+// The same four questions as the player string quiz, with the values
+// POST /restringing/wizard/recommend expects.
+export const STRING_QUIZ_QUESTIONS = [
+  {
+    key: 'armDiscomfort',
+    label: 'Arm, elbow or shoulder discomfort?',
+    options: [{ value: 'yes', label: 'Yes' }, { value: 'sometimes', label: 'Sometimes' }, { value: 'no', label: 'No' }]
+  },
+  {
+    key: 'breakFrequency',
+    label: 'How often do they break strings?',
+    options: [
+      { value: 'rarely', label: 'Rarely' },
+      { value: 'every_2_3_months', label: 'Every couple of months' },
+      { value: 'monthly_or_more', label: 'Monthly or more' }
+    ]
+  },
+  {
+    key: 'priority',
+    label: 'What matters most?',
+    options: [
+      { value: 'spin_control', label: 'Spin & control' },
+      { value: 'comfort_power', label: 'Power & comfort' },
+      { value: 'reliable_affordable', label: 'Reliable & affordable' }
+    ]
+  },
+  {
+    key: 'premiumPreference',
+    label: 'Premium or standard?',
+    options: [{ value: 'premium', label: 'Best performance' }, { value: 'standard', label: 'Good value' }]
+  }
+];
+
+export const stringQuizComplete = answers =>
+  STRING_QUIZ_QUESTIONS.every(question => Boolean(answers?.[question.key]));
+
+// The shop's service for a recommended category (e.g. prem_poly), skipping
+// hybrids, which share a category name space but are a different setup.
+export const serviceTierForCategory = (tiers = [], category) =>
+  tiers.find(tier => tier.string_category === category && !tier.string_composition) || null;
+
+export const stringDisplayName = string =>
+  `${string.brand || ''} ${string.name || ''}`.trim();
+
+// One line for what a service strings with. Null when there is nothing to say.
+export const serviceTierStringsText = (tier, strings = []) => {
+  if (!tier) return null;
+  if (serviceTierRequiresOwnString(tier)) return 'You supply the string.';
+  if (tier.string_composition) return "Shop's choice of string.";
+  const names = stringsForServiceTier(tier, strings).map(stringDisplayName);
+  return names.length ? names.join(', ') : null;
+};
+
 export const formatCoachCommission = cents =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
     Number(cents || 0) / 100
