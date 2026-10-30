@@ -178,10 +178,10 @@ const RestringingSection = () => {
     <section className="mt-6 space-y-5">
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-      <div className="rounded-2xl bg-gradient-to-br from-violet-700 to-purple-600 p-6 text-white shadow-sm">
+      <div className="rounded-2xl bg-gradient-to-br from-violet-700 to-purple-600 p-4 text-white shadow-sm sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold">Restringing</h2>
+            <h2 className="text-xl font-bold sm:text-2xl">Restringing</h2>
             <p className="mt-1 text-sm text-violet-100">
               Order from The Tennis Garage for your players.
             </p>
@@ -190,28 +190,28 @@ const RestringingSection = () => {
             <img
               src={vendorImage}
               alt={`${data.catalog?.vendor?.name || 'Vendor'} profile`}
-              className="h-12 w-12 rounded-xl object-cover"
+              className="h-10 w-10 shrink-0 rounded-xl object-cover sm:h-12 sm:w-12"
             />
           ) : (
-            <CircleDot className="h-8 w-8" />
+            <CircleDot className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />
           )}
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-3 gap-3 sm:mt-5">
           <div>
-            <p className="text-2xl font-bold">
+            <p className="text-lg font-bold sm:text-2xl">
               {money(earnings.earned_cents)}
             </p>
             <p className="text-xs text-violet-100">Earned</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">
+            <p className="text-lg font-bold sm:text-2xl">
               {money(earnings.pending_cents)}
             </p>
             <p className="text-xs text-violet-100">Awaiting payment</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">{orderRows.length}</p>
+            <p className="text-lg font-bold sm:text-2xl">{orderRows.length}</p>
             <p className="text-xs text-violet-100">Orders</p>
           </div>
         </div>
@@ -506,49 +506,81 @@ const RosterPlayerPicker = ({
   selectedPlayer,
   onQueryChange,
   onSelect
-}) => (
-  <div className="relative">
-    <input
-      value={query}
-      onChange={event => onQueryChange(event.target.value)}
-      placeholder="Search roster player"
-      className="w-full rounded-lg border border-gray-200 p-3 text-sm"
-    />
-    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-      {players.length ? (
-        players.slice(0, 8).map(player => {
-          const playerId = player.player_user_id || player.id;
-          const selected = String(selectedPlayer?.player_user_id || selectedPlayer?.id || '') === String(playerId);
+}) => {
+  // Suggestion popover, not a permanent list: it opens while the coach types and
+  // closes on selection. Rendered unconditionally it covers the fields below it.
+  const [isOpen, setIsOpen] = useState(false);
+  const showSuggestions = isOpen && Boolean(String(query || '').trim());
 
-          return (
-            <button
-              key={playerId}
-              type="button"
-              onClick={() => onSelect(player)}
-              className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-purple-50 ${
-                selected ? 'bg-purple-50 text-purple-800' : 'text-gray-800'
-              }`}
-            >
-              <span className="font-medium">{playerLabel(player)}</span>
-              {player.status === 'invited' && (
-                <span className="text-xs text-gray-500">Invited</span>
-              )}
-            </button>
-          );
-        })
-      ) : (
-        <p className="px-3 py-3 text-sm text-gray-500">No roster matches</p>
+  const selectPlayer = player => {
+    onSelect(player);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={event => {
+          onQueryChange(event.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setIsOpen(false)}
+        onKeyDown={event => {
+          if (event.key === 'Escape') setIsOpen(false);
+        }}
+        role="combobox"
+        aria-expanded={showSuggestions}
+        aria-autocomplete="list"
+        placeholder="Search roster player"
+        className="w-full rounded-lg border border-gray-200 p-3 text-sm"
+      />
+      {showSuggestions && (
+        <div
+          role="listbox"
+          className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+        >
+          {players.length ? (
+            players.slice(0, 8).map(player => {
+              const playerId = player.player_user_id || player.id;
+              const selected = String(selectedPlayer?.player_user_id || selectedPlayer?.id || '') === String(playerId);
+
+              return (
+                <button
+                  key={playerId}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  // Hold focus so onBlur does not close the list before the click lands.
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={() => selectPlayer(player)}
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-purple-50 ${
+                    selected ? 'bg-purple-50 text-purple-800' : 'text-gray-800'
+                  }`}
+                >
+                  <span className="font-medium">{playerLabel(player)}</span>
+                  {player.status === 'invited' && (
+                    <span className="text-xs text-gray-500">Invited</span>
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            <p className="px-3 py-3 text-sm text-gray-500">No roster matches</p>
+          )}
+        </div>
       )}
     </div>
-  </div>
-);
+  );
+};
 
 export const ServiceSelect = ({ tiers, value, onChange }) => (
   <select
     required
     value={value}
     onChange={event => onChange(event.target.value)}
-    className="rounded-lg border border-gray-200 p-3 text-sm"
+    className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
   >
     <option value="">Choose a service</option>
     {tiers.map(tier => (
@@ -565,7 +597,7 @@ export const RacketInput = ({ value, onChange }) => (
     value={value}
     onChange={event => onChange({ racket_make_model: event.target.value })}
     placeholder="Racket, e.g. Blade 98"
-    className="rounded-lg border border-gray-200 p-3 text-sm"
+    className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
   />
 );
 
@@ -644,7 +676,7 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
           required
           value={selectedString ? selectedString.id : ''}
           onChange={event => onChange({ string_id: event.target.value, gauge: '' })}
-          className="rounded-lg border border-gray-200 p-3 text-sm"
+          className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
         >
           <option value="">Choose a stocked string</option>
           {strings.map(string => (
@@ -655,7 +687,7 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
           <select
             value={gauge}
             onChange={event => onChange({ gauge: event.target.value })}
-            className="rounded-lg border border-gray-200 p-3 text-sm"
+            className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
           >
             <option value="">Gauge (stringer can advise)</option>
             {selectedString.gauges_stocked.map(option => <option key={option} value={option}>{option}</option>)}
