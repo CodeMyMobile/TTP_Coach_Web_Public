@@ -18,6 +18,7 @@ import {
 import {
   RacketInput,
   ServiceSelect,
+  ServiceTierStrings,
   StringSelection,
   TensionInput
 } from '../dashboard/sections/RestringingSection';
@@ -201,6 +202,7 @@ const CoachSuppliesModal = ({ isOpen, onClose }) => {
                           <ServiceSelect tiers={tiers} value={racket.service_tier_id} onChange={value => updateServiceTier(index, value)} />
                           <RacketInput value={racket.racket_make_model} onChange={patch => updateRacket(index, patch)} />
                         </div>
+                        <ServiceTierStrings tiers={tiers} strings={strings} selectedTier={tier} />
                         {ownStringRequired && (
                           <div className="mt-3">
                             <label className="block text-sm font-medium text-gray-700">Your string</label>

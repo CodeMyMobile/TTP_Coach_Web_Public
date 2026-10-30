@@ -15,6 +15,7 @@ import {
   normalizeRestringingEarnings,
   playerLabel,
   serviceTierRequiresOwnString,
+  serviceTierStringsText,
   initialRestringingForm,
   isCoachPurchase,
   isTextablePhone,
@@ -333,6 +334,11 @@ const RestringingSection = () => {
                     <ServiceSelect tiers={tiers} value={item.service_tier_id} onChange={value => updateServiceTier(index, value)} />
                     <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
                   </div>
+                  <ServiceTierStrings
+                    tiers={tiers}
+                    strings={data.catalog?.catalog || data.catalog?.strings || []}
+                    selectedTier={selectedServiceTier}
+                  />
 
                   {ownStringRequired && (
                     <div className="mt-3">
@@ -590,6 +596,51 @@ export const ServiceSelect = ({ tiers, value, onChange }) => (
     ))}
   </select>
 );
+
+// Service names like "Standard polyester" don't say which strings they mean, so
+// show the chosen service's strings, and every service side by side on request.
+// Own-string and shop's-choice services already explain themselves below.
+export const ServiceTierStrings = ({ tiers, strings, selectedTier }) => {
+  const [comparing, setComparing] = useState(false);
+  const selectedText =
+    selectedTier && !selectedTier.string_composition && !serviceTierRequiresOwnString(selectedTier)
+      ? serviceTierStringsText(selectedTier, strings)
+      : null;
+
+  return (
+    <div className="mt-2 text-xs text-gray-600">
+      {selectedText && (
+        <p>
+          <span className="font-medium text-gray-700">{selectedTier.name} strings:</span> {selectedText}
+        </p>
+      )}
+      {tiers.length > 1 && (
+        <button
+          type="button"
+          aria-expanded={comparing}
+          onClick={() => setComparing(current => !current)}
+          className="mt-1 font-medium text-purple-700"
+        >
+          {comparing ? 'Hide services' : 'Compare services'}
+        </button>
+      )}
+      {comparing && (
+        <dl className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200 bg-gray-50">
+          {tiers.map(tier => (
+            <div key={tier.id} className="px-3 py-2">
+              <dt className="font-medium text-gray-900">
+                {tier.name} · {money(tier.price_cents)}
+              </dt>
+              <dd className="mt-0.5">
+                {serviceTierStringsText(tier, strings) || 'Ask the shop which strings this includes.'}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+};
 
 export const RacketInput = ({ value, onChange }) => (
   <input

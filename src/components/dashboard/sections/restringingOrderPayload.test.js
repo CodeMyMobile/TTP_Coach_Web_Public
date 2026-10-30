@@ -13,7 +13,9 @@ import {
   normalizeRestringingEarnings,
   vendorImageUrl,
   getRestringingOrderSummary,
-  serviceTierRequiresOwnString
+  serviceTierRequiresOwnString,
+  serviceTierStringsText,
+  stringsForServiceTier
 } from './restringingOrderPayload.js';
 
 test('buildCoachRestringingOrderPayload sends new player details instead of a roster id', () => {
@@ -470,4 +472,33 @@ test("a coach's own purchases are told apart from orders for players", () => {
   assert.equal(isCoachPurchase({ is_coach_purchase: true }), true);
   assert.equal(isCoachPurchase({ is_coach_purchase: false }), false);
   assert.equal(isCoachPurchase({}), false);
+});
+
+const tierStrings = [
+  { id: 1, brand: 'Luxilon', name: 'ALU Power', category: 'premium_poly', gauge: '16L' },
+  { id: 2, brand: 'Luxilon', name: 'ALU Power', category: 'premium_poly', gauge: '17' },
+  { id: 3, brand: 'Solinco', name: 'Hyper-G', category: 'premium_poly' },
+  { id: 4, brand: 'Gamma', name: 'Moto', category: 'standard_poly' }
+];
+
+test('stringsForServiceTier lists a category once per string, not per gauge', () => {
+  const premium = stringsForServiceTier({ string_category: 'premium_poly' }, tierStrings);
+  assert.deepEqual(premium.map(string => string.id), [1, 3]);
+  assert.deepEqual(stringsForServiceTier({ string_category: 'standard_poly' }, tierStrings).map(s => s.id), [4]);
+  assert.deepEqual(stringsForServiceTier({ string_category: null }, tierStrings), []);
+  assert.deepEqual(stringsForServiceTier(undefined, tierStrings), []);
+});
+
+test('serviceTierStringsText describes what a service strings with', () => {
+  assert.equal(
+    serviceTierStringsText({ string_category: 'premium_poly' }, tierStrings),
+    'Luxilon ALU Power, Solinco Hyper-G'
+  );
+  assert.equal(serviceTierStringsText({ string_category: null }, tierStrings), 'You supply the string.');
+  assert.equal(
+    serviceTierStringsText({ string_category: 'premium_poly', string_composition: 'hybrid' }, tierStrings),
+    "Shop's choice of string."
+  );
+  assert.equal(serviceTierStringsText({ string_category: 'multifilament' }, tierStrings), null);
+  assert.equal(serviceTierStringsText(null, tierStrings), null);
 });

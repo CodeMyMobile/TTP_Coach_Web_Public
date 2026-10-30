@@ -72,6 +72,33 @@ export const normalizeRestringingEarnings = (earnings = {}) => {
 export const serviceTierRequiresOwnString = tier =>
   tier?.string_category === null && !tier?.string_composition;
 
+// The stocked strings a service covers, so a coach can tell "Standard polyester"
+// from "Premium polyester" by what is in them. The catalog has a row per gauge,
+// so a string stocked in two gauges is listed once.
+export const stringsForServiceTier = (tier, strings = []) => {
+  if (!tier?.string_category) return [];
+  const seen = new Set();
+  return strings.filter(string => {
+    if (string.category !== tier.string_category) return false;
+    const key = `${string.brand || ''} ${string.name || ''}`.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+export const stringDisplayName = string =>
+  `${string.brand || ''} ${string.name || ''}`.trim();
+
+// One line for what a service strings with. Null when there is nothing to say.
+export const serviceTierStringsText = (tier, strings = []) => {
+  if (!tier) return null;
+  if (serviceTierRequiresOwnString(tier)) return 'You supply the string.';
+  if (tier.string_composition) return "Shop's choice of string.";
+  const names = stringsForServiceTier(tier, strings).map(stringDisplayName);
+  return names.length ? names.join(', ') : null;
+};
+
 export const formatCoachCommission = cents =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
     Number(cents || 0) / 100
