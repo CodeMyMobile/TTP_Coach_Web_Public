@@ -14,7 +14,10 @@ import {
   vendorImageUrl,
   getRestringingOrderSummary,
   serviceTierRequiresOwnString,
+  serviceTierForCategory,
   serviceTierStringsText,
+  STRING_QUIZ_QUESTIONS,
+  stringQuizComplete,
   stringsForServiceTier
 } from './restringingOrderPayload.js';
 
@@ -501,4 +504,24 @@ test('serviceTierStringsText describes what a service strings with', () => {
   );
   assert.equal(serviceTierStringsText({ string_category: 'multifilament' }, tierStrings), null);
   assert.equal(serviceTierStringsText(null, tierStrings), null);
+});
+
+test('serviceTierForCategory picks the plain service for a recommended category', () => {
+  const tiers = [
+    { id: 1, string_category: null },
+    { id: 2, string_category: 'prem_poly', string_composition: 'hybrid' },
+    { id: 3, string_category: 'prem_poly', string_composition: null },
+    { id: 4, string_category: 'std_poly' }
+  ];
+  assert.equal(serviceTierForCategory(tiers, 'prem_poly')?.id, 3);
+  assert.equal(serviceTierForCategory(tiers, 'std_poly')?.id, 4);
+  assert.equal(serviceTierForCategory(tiers, 'nat_gut'), null);
+});
+
+test('stringQuizComplete needs an answer to every question', () => {
+  const answers = Object.fromEntries(STRING_QUIZ_QUESTIONS.map(question => [question.key, question.options[0].value]));
+  assert.equal(stringQuizComplete(answers), true);
+  assert.equal(stringQuizComplete({ ...answers, priority: '' }), false);
+  assert.equal(stringQuizComplete(undefined), false);
+  assert.deepEqual(STRING_QUIZ_QUESTIONS.map(question => question.key), ['armDiscomfort', 'breakFrequency', 'priority', 'premiumPreference']);
 });

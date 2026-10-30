@@ -729,6 +729,11 @@ export const createLessonShareLink = (lessonId, payload = {}) => {
 };
 
 export const getCoachRestringingCatalog = () => request('/coach/restringing/catalog');
+// The string questionnaire players get on the vendor page; answers use the API's values.
+export const getRestringingStringRecommendation = (answers = {}) => request('/restringing/wizard/recommend', {
+  method: 'POST',
+  body: answers
+});
 export const getCoachRestringingPlayers = () => request('/coach/restringing/players');
 export const getCoachRestringingOrders = () => request('/coach/restringing/orders');
 export const getCoachRestringingEarnings = () => request('/coach/restringing/earnings');

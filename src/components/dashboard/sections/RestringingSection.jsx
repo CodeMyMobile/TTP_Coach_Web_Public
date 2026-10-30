@@ -6,7 +6,8 @@ import {
   getCoachRestringingCatalog,
   getCoachRestringingEarnings,
   getCoachRestringingOrders,
-  getCoachRestringingPlayers
+  getCoachRestringingPlayers,
+  getRestringingStringRecommendation
 } from '../../../services/coach';
 import {
   buildCoachRestringingOrderPayload,
@@ -15,7 +16,10 @@ import {
   normalizeRestringingEarnings,
   playerLabel,
   serviceTierRequiresOwnString,
+  serviceTierForCategory,
   serviceTierStringsText,
+  STRING_QUIZ_QUESTIONS,
+  stringQuizComplete,
   initialRestringingForm,
   isCoachPurchase,
   isTextablePhone,
@@ -338,6 +342,10 @@ const RestringingSection = () => {
                     tiers={tiers}
                     strings={data.catalog?.catalog || data.catalog?.strings || []}
                     selectedTier={selectedServiceTier}
+                    onUseRecommendation={({ tierId, tensionLbs }) => {
+                      updateServiceTier(index, String(tierId));
+                      if (tensionLbs) updateRacket(index, { tension_lbs: String(tensionLbs), advice_requested: false });
+                    }}
                   />
 
                   {ownStringRequired && (
@@ -600,8 +608,9 @@ export const ServiceSelect = ({ tiers, value, onChange }) => (
 // Service names like "Standard polyester" don't say which strings they mean, so
 // show the chosen service's strings, and every service side by side on request.
 // Own-string and shop's-choice services already explain themselves below.
-export const ServiceTierStrings = ({ tiers, strings, selectedTier }) => {
+export const ServiceTierStrings = ({ tiers, strings, selectedTier, onUseRecommendation }) => {
   const [comparing, setComparing] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
   const selectedText =
     selectedTier && !selectedTier.string_composition && !serviceTierRequiresOwnString(selectedTier)
       ? serviceTierStringsText(selectedTier, strings)
@@ -614,15 +623,37 @@ export const ServiceTierStrings = ({ tiers, strings, selectedTier }) => {
           <span className="font-medium text-gray-700">{selectedTier.name} strings:</span> {selectedText}
         </p>
       )}
-      {tiers.length > 1 && (
-        <button
-          type="button"
-          aria-expanded={comparing}
-          onClick={() => setComparing(current => !current)}
-          className="mt-1 font-medium text-purple-700"
-        >
-          {comparing ? 'Hide services' : 'Compare services'}
-        </button>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        {tiers.length > 1 && (
+          <button
+            type="button"
+            aria-expanded={comparing}
+            onClick={() => setComparing(current => !current)}
+            className="font-medium text-purple-700"
+          >
+            {comparing ? 'Hide services' : 'Compare services'}
+          </button>
+        )}
+        {onUseRecommendation && (
+          <button
+            type="button"
+            aria-expanded={quizOpen}
+            onClick={() => setQuizOpen(current => !current)}
+            className="font-medium text-purple-700"
+          >
+            {quizOpen ? 'Close questions' : 'Help me choose'}
+          </button>
+        )}
+      </div>
+      {quizOpen && (
+        <StringQuiz
+          tiers={tiers}
+          strings={strings}
+          onUse={recommendation => {
+            onUseRecommendation(recommendation);
+            setQuizOpen(false);
+          }}
+        />
       )}
       {comparing && (
         <dl className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200 bg-gray-50">
@@ -637,6 +668,103 @@ export const ServiceTierStrings = ({ tiers, strings, selectedTier }) => {
             </div>
           ))}
         </dl>
+      )}
+    </div>
+  );
+};
+
+// The player string questionnaire, answered by the coach. Its recommendation
+// fills in the matching service and a suggested tension, both still editable.
+const StringQuiz = ({ tiers, strings, onUse }) => {
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const complete = stringQuizComplete(answers);
+  const tier = result ? serviceTierForCategory(tiers, result.category) : null;
+  const tierStrings = tier ? serviceTierStringsText(tier, strings) : null;
+
+  const answer = (key, value) => {
+    setAnswers(current => ({ ...current, [key]: value }));
+    setResult(null);
+  };
+
+  const recommend = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setResult(await getRestringingStringRecommendation(answers));
+    } catch (err) {
+      setError(err.message || 'Unable to get a recommendation.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-3 rounded-lg border border-purple-100 bg-purple-50/40 p-3">
+      {STRING_QUIZ_QUESTIONS.map(question => (
+        <div key={question.key} role="radiogroup" aria-label={question.label}>
+          <p className="font-medium text-gray-800">{question.label}</p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {question.options.map(option => {
+              const selected = answers[question.key] === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => answer(question.key, option.value)}
+                  className={`rounded-full border px-3 py-1 ${
+                    selected ? 'border-purple-600 bg-purple-600 text-white' : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {!result && (
+        <button
+          type="button"
+          disabled={!complete || loading}
+          onClick={recommend}
+          className="rounded-lg bg-purple-600 px-3 py-2 font-semibold text-white disabled:opacity-50"
+        >
+          {loading ? 'Finding a string...' : 'Recommend a string'}
+        </button>
+      )}
+      {error && <p className="text-red-600">{error}</p>}
+
+      {result && (
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-sm font-semibold text-gray-900">
+            {result.categoryLabel || result.category}
+            {result.defaultTensionLbs ? ` · ${result.defaultTensionLbs} lbs` : ''}
+          </p>
+          {result.rationale && <p className="mt-1">{result.rationale}</p>}
+          {result.warning && <p className="mt-1 text-amber-700">{result.warning}</p>}
+          {tier ? (
+            <>
+              {tierStrings && <p className="mt-1">{tier.name} strings: {tierStrings}</p>}
+              <button
+                type="button"
+                onClick={() => onUse({ tierId: tier.id, tensionLbs: result.defaultTensionLbs })}
+                className="mt-2 rounded-lg bg-purple-600 px-3 py-2 font-semibold text-white"
+              >
+                Use {tier.name}
+              </button>
+            </>
+          ) : (
+            <p className="mt-1 text-amber-700">
+              The shop has no {result.categoryLabel || 'matching'} service. Pick the closest one above.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

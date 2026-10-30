@@ -87,6 +87,47 @@ export const stringsForServiceTier = (tier, strings = []) => {
   });
 };
 
+// The same four questions as the player string quiz, with the values
+// POST /restringing/wizard/recommend expects.
+export const STRING_QUIZ_QUESTIONS = [
+  {
+    key: 'armDiscomfort',
+    label: 'Arm, elbow or shoulder discomfort?',
+    options: [{ value: 'yes', label: 'Yes' }, { value: 'sometimes', label: 'Sometimes' }, { value: 'no', label: 'No' }]
+  },
+  {
+    key: 'breakFrequency',
+    label: 'How often do they break strings?',
+    options: [
+      { value: 'rarely', label: 'Rarely' },
+      { value: 'every_2_3_months', label: 'Every couple of months' },
+      { value: 'monthly_or_more', label: 'Monthly or more' }
+    ]
+  },
+  {
+    key: 'priority',
+    label: 'What matters most?',
+    options: [
+      { value: 'spin_control', label: 'Spin & control' },
+      { value: 'comfort_power', label: 'Power & comfort' },
+      { value: 'reliable_affordable', label: 'Reliable & affordable' }
+    ]
+  },
+  {
+    key: 'premiumPreference',
+    label: 'Premium or standard?',
+    options: [{ value: 'premium', label: 'Best performance' }, { value: 'standard', label: 'Good value' }]
+  }
+];
+
+export const stringQuizComplete = answers =>
+  STRING_QUIZ_QUESTIONS.every(question => Boolean(answers?.[question.key]));
+
+// The shop's service for a recommended category (e.g. prem_poly), skipping
+// hybrids, which share a category name space but are a different setup.
+export const serviceTierForCategory = (tiers = [], category) =>
+  tiers.find(tier => tier.string_category === category && !tier.string_composition) || null;
+
 export const stringDisplayName = string =>
   `${string.brand || ''} ${string.name || ''}`.trim();
 
