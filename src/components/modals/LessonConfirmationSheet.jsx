@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { isComped, isPayOnCourt } from '../../utils/bookingPaymentState';
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -133,6 +134,8 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
       || lesson.paymentType === 'credits'
       || lesson.payment_type === 'credits'
     );
+    const paymentMethod =
+      lesson.payment_method ?? lesson.paymentMethod ?? lesson.payment_method_id ?? lesson.paymentMethodId;
 
     return {
       studentName,
@@ -146,7 +149,9 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
       lessonFee,
       startDate,
       endDate,
-      isCreditLesson
+      isCreditLesson,
+      isPayOnCourt: isPayOnCourt(paymentMethod),
+      isComped: isComped(paymentMethod)
     };
   }, [lesson, coachHourlyRate]);
 
@@ -351,21 +356,35 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
               </div>
             </div>
 
+            {detail.isPayOnCourt ? (
+              <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">
+                <p>
+                  <strong>💵 Pay on court:</strong>{' '}
+                  {studentFirstName} will pay you in person. Collect{' '}
+                  {detail.lessonFee !== null ? <strong>${detail.lessonFee}</strong> : 'payment'} on lesson day. No card charge or service fee applies.
+                </p>
+              </div>
+            ) : (
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
               <p>
                 <strong>💰</strong>{' '}
-                {detail.isCreditLesson
+                {detail.isComped
+                  ? 'This lesson is complimentary. There is no charge to the player.'
+                  : detail.isCreditLesson
                   ? 'This lesson is covered by package credits. If this was the first confirmed lesson from a reserved package, the package charge and transfer happen now; later package lessons do not create a new charge.'
                   : detail.lessonFee !== null
                     ? <><strong>${detail.lessonFee} will be deposited</strong> to your connected account after the lesson is completed.</>
                     : 'Funds will be deposited to your connected account after the lesson is completed.'}
               </p>
             </div>
+            )}
 
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-100 p-3 text-sm text-amber-900">
               <p>
                 <strong>⏰ 24-hour cancellation policy:</strong> {cancellationText}
-                <span className="hidden sm:inline"> After that, you&apos;ll be compensated for late cancellations.</span>
+                {!detail.isPayOnCourt && (
+                  <span className="hidden sm:inline"> After that, you&apos;ll be compensated for late cancellations.</span>
+                )}
               </p>
             </div>
 
