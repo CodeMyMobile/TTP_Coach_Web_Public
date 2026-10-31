@@ -119,9 +119,12 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
       ?? parseMoney(lesson.price)
       ?? parseMoney(coachHourlyRate);
 
-    const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
-    const startDate = parseDisplayDate(start, { treatUtcAsLocal: shouldTreatUtcAsLocal });
-    const endDate = parseDisplayDate(end, { treatUtcAsLocal: shouldTreatUtcAsLocal });
+    // Both fields hold the court's wall clock stamped with a `Z`; the `_tz`
+    // column is a copy of the other, not an instant. Reading the `Z` as UTC
+    // shifts the time by the viewer's offset (7:00 am Fri shows as 11:00 pm Thu in PST).
+    const wallClock = { treatUtcAsLocal: true };
+    const startDate = parseDisplayDate(start, wallClock);
+    const endDate = parseDisplayDate(end, wallClock);
     const isCreditLesson = Boolean(
       lesson.creditUsageStatus
       || lesson.credit_usage_status
@@ -192,8 +195,9 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
   const eventLocation = `${detail.locationName}${detail.locationAddress ? `, ${detail.locationAddress}` : ''}`;
 
   const openGoogleCalendar = () => {
-    const startValue = formatDateTimeForGoogle(detail.start);
-    const endValue = formatDateTimeForGoogle(detail.end);
+    // No trailing Z, so Google places the lesson at the court's wall clock in the coach's calendar.
+    const startValue = toLocalIcsDate(detail.startDate);
+    const endValue = toLocalIcsDate(detail.endDate);
     const query = new URLSearchParams({
       action: 'TEMPLATE',
       text: eventTitle,
@@ -210,8 +214,8 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
       title: eventTitle,
       description: eventDescription,
       location: eventLocation,
-      start: detail.start,
-      end: detail.end
+      start: detail.startDate,
+      end: detail.endDate
     });
 
     downloadIcs(ics, 'lesson-apple.ics');
@@ -222,8 +226,8 @@ function LessonConfirmationSheet({ isOpen, lesson, onDone, coachHourlyRate = nul
       title: eventTitle,
       description: eventDescription,
       location: eventLocation,
-      start: detail.start,
-      end: detail.end
+      start: detail.startDate,
+      end: detail.endDate
     });
 
     downloadIcs(ics, 'lesson-outlook.ics');
