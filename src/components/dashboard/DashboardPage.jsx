@@ -234,10 +234,12 @@ const formatLessonInfo = (lesson) => {
   const endWithTimezone = lesson.end_date_time_tz || lesson.endDateTimeTz || lesson.endDateTime;
   const startRaw = startWithTimezone || lesson.start_date_time || lesson.start_time;
   const endRaw = endWithTimezone || lesson.end_date_time || lesson.end_time;
-  const shouldTreatUtcAsLocal = !startWithTimezone && !endWithTimezone;
-  const startMoment = parseLessonDisplayMoment(startRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal });
+  // Both fields hold the court's wall clock stamped with a `Z`; the `_tz`
+  // column is a copy of the other, not an instant, so never convert it.
+  const wallClock = { treatUtcAsLocal: true };
+  const startMoment = parseLessonDisplayMoment(startRaw, wallClock);
   const endMoment = endRaw
-    ? parseLessonDisplayMoment(endRaw, { treatUtcAsLocal: shouldTreatUtcAsLocal })
+    ? parseLessonDisplayMoment(endRaw, wallClock)
     : startMoment?.isValid()
       ? startMoment.clone().add(1, 'hour')
       : null;
