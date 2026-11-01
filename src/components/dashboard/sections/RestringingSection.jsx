@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleDot, Gift, Hand, Loader2, Package, Plus, Send, User, UserPlus, Users, Wallet, Wrench, XCircle } from 'lucide-react';
+import { CircleDot, Gift, Hand, Loader2, Maximize2, Package, Plus, Send, User, UserPlus, Users, Wallet, Wrench, X, XCircle } from 'lucide-react';
 import {
   createCoachRestringingOrder,
   cancelCoachRestringingOrder,
@@ -7,7 +7,8 @@ import {
   getCoachRestringingEarnings,
   getCoachRestringingOrders,
   getCoachRestringingPlayers,
-  getRestringingStringRecommendation
+  getRestringingStringRecommendation,
+  quoteCoachRacketOrder
 } from '../../../services/coach';
 import {
   buildCoachRestringingOrderPayload,
@@ -113,6 +114,39 @@ const RestringingSection = () => {
   const enabled =
     data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
+  const [racketQuote, setRacketQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState('');
+  const racketOrderReady = sellingRacket && racketSaleReady(form.rackets);
+  // What the order comes to, as the API will price it: asked again whenever the
+  // rackets, string jobs or commission choice change, once the order is complete.
+  const quotePayload = racketOrderReady
+    ? JSON.stringify(buildCoachRestringingOrderPayload({ form: { ...form, player_user_id: '0' }, vendorId, catalogRackets }))
+    : '';
+  useEffect(() => {
+    if (!quotePayload) {
+      setRacketQuote(null);
+      setQuoteError('');
+      return undefined;
+    }
+    let current = true;
+    const timer = setTimeout(async () => {
+      try {
+        const { vendor_id, items, commission_choice } = JSON.parse(quotePayload);
+        const response = await quoteCoachRacketOrder({ vendor_id, items, commission_choice });
+        if (!current) return;
+        setRacketQuote(response?.quote || null);
+        setQuoteError('');
+      } catch (err) {
+        if (!current) return;
+        setRacketQuote(null);
+        setQuoteError(err.message || 'Unable to price this order.');
+      }
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [quotePayload]);
   const newPlayerPhoneInvalid =
     form.player_mode === 'new' && !isTextablePhone(form.new_player_phone);
 
@@ -387,6 +421,7 @@ const RestringingSection = () => {
               <button type="button" onClick={() => setForm(current => ({ ...current, rackets: [...current.rackets, newRacketSaleItem()] }))} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
                 <Plus className="h-4 w-4" /> Add another racket
               </button>
+              <RacketQuoteSummary quote={racketQuote} error={quoteError} ready={racketOrderReady} />
             </>
           ) : (
           <>
@@ -521,8 +556,8 @@ const RestringingSection = () => {
             <p className="mt-1 text-xs text-gray-500">
               {sellingRacket
                 ? givingCommission
-                  ? `Your player gets about ${money(racketEstimateCents)} off, and you earn nothing on it.`
-                  : `You earn about ${money(racketEstimateCents)} when your player pays and picks up: ${racketCommissionPct}% of the profit after the racket's cost and the card fee. A string job adds about half its price.`
+                  ? `Your player gets ${racketQuote ? money(racketQuote.coach_discount_cents) : `about ${money(racketEstimateCents)}`} off, and you earn nothing on it.`
+                  : `You earn ${racketQuote ? money(racketQuote.coach_commission_cents) : `about ${money(racketEstimateCents)}`} when your player pays and picks up: ${racketCommissionPct}% of the profit after the racket's cost and the card fee.`
                 : givingCommission
                   ? `Your player gets ${commissionPct}% off this order, and you earn nothing on it.`
                   : `You earn ${commissionPct}% of the order, before tax, when your player pays.`}
@@ -682,6 +717,83 @@ const RosterPlayerPicker = ({
   );
 };
 
+// The order as the player will pay for it, from the API's quote: each line,
+// sales tax, the total, and what the coach earns or gives away.
+const RacketQuoteSummary = ({ quote, error, ready }) => {
+  if (!ready) return null;
+  if (error) return <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>;
+  if (!quote) {
+    return (
+      <p className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Working out the total...
+      </p>
+    );
+  }
+  const row = (label, value, className = '') => (
+    <div className={`flex justify-between gap-3 ${className}`}>
+      <span>{label}</span>
+      <span className="tabular-nums">{value}</span>
+    </div>
+  );
+  return (
+    <div className="mt-4 space-y-1.5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+      <p className="mb-2 font-semibold text-gray-900">What your player pays</p>
+      {quote.items.map((item, index) => (
+        <React.Fragment key={index}>
+          {row(
+            item.item_type === 'racket'
+              ? `${item.label}${item.item_qty > 1 ? ` × ${item.item_qty}` : ''}`
+              : `String for ${item.racket_make_model}${item.labor_waived ? ' (labor free)' : ''}`,
+            money(item.unit_price_cents * item.item_qty)
+          )}
+        </React.Fragment>
+      ))}
+      {quote.coach_discount_cents > 0 && row('Your commission, given to them', `-${money(quote.coach_discount_cents)}`, 'text-emerald-700')}
+      {row('Sales tax', money(quote.tax_cents))}
+      {row('Total', money(quote.total_cents), 'border-t border-gray-200 pt-2 text-base font-semibold text-gray-900')}
+      {quote.commission_choice === 'player'
+        ? row('You earn', money(0), 'pt-1 font-medium text-gray-500')
+        : row('You earn', money(quote.coach_commission_cents), 'pt-1 font-semibold text-emerald-700')}
+    </div>
+  );
+};
+
+// The racket's photo filling the screen, so the coach can show it to a player.
+const RacketPhotoViewer = ({ racket, onClose }) => {
+  useEffect(() => {
+    const onKey = event => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const specs = racketSpecSummary(racket.specs);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={racketName(racket)}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4"
+    >
+      <button type="button" onClick={onClose} aria-label="Close photo" className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white">
+        <X className="h-6 w-6" />
+      </button>
+      <img
+        src={racket.image_url}
+        alt={racketName(racket)}
+        onClick={event => event.stopPropagation()}
+        className="max-h-[75vh] w-full max-w-xl rounded-2xl bg-white object-contain"
+      />
+      <div className="mt-4 text-center text-white">
+        <p className="text-lg font-semibold">{racketName(racket)} · {money(racket.price_cents)}</p>
+        {specs && <p className="text-sm text-white/70">{specs}</p>}
+        {racket.description && <p className="mx-auto mt-1 max-w-md text-sm text-white/70">{racket.description}</p>}
+      </div>
+    </div>
+  );
+};
+
 // One racket the coach is selling: which racket and grip, and an optional string
 // job at the string price only, since labor is free with a new racket.
 const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onChange, onTierChange, onRemove }) => {
@@ -691,6 +803,7 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
   const stockedStrings = strings.filter(string => !tier?.string_category || string.category === tier.string_category);
   const selectedString = stockedStrings.find(string => String(string.id) === String(item.string_id));
   const specs = racket ? racketSpecSummary(racket.specs) : '';
+  const [viewingPhoto, setViewingPhoto] = useState(false);
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -731,7 +844,17 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
       {racket && (
         <div className="mt-3 flex gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
           {racket.image_url ? (
-            <img src={racket.image_url} alt={racketName(racket)} className="h-20 w-20 shrink-0 rounded-lg bg-white object-contain" />
+            <button
+              type="button"
+              onClick={() => setViewingPhoto(true)}
+              aria-label={`Show ${racketName(racket)} full screen`}
+              className="relative shrink-0"
+            >
+              <img src={racket.image_url} alt={racketName(racket)} className="h-32 w-32 rounded-lg bg-white object-contain" />
+              <span className="absolute bottom-1 right-1 rounded-md bg-black/60 p-1 text-white">
+                <Maximize2 className="h-3.5 w-3.5" />
+              </span>
+            </button>
           ) : null}
           <div className="min-w-0 text-sm">
             <p className="font-semibold text-gray-900">{racketName(racket)} · {money(racket.price_cents)}</p>
@@ -740,8 +863,16 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
             <p className="mt-1 text-xs font-medium text-emerald-700">
               You earn about {money(racket.estimated_commission_cents)} on this racket
             </p>
+            {racket.image_url && (
+              <button type="button" onClick={() => setViewingPhoto(true)} className="mt-2 text-xs font-medium text-purple-700">
+                Show your player
+              </button>
+            )}
           </div>
         </div>
+      )}
+      {viewingPhoto && racket?.image_url && (
+        <RacketPhotoViewer racket={racket} onClose={() => setViewingPhoto(false)} />
       )}
 
       <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">

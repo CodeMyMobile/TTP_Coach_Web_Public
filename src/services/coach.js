@@ -742,6 +742,12 @@ export const createCoachRestringingOrder = (payload = {}) => request('/coach/res
   authType: 'token',
   body: payload
 });
+// The player's total and the coach's earnings for a racket order, before it's sent.
+export const quoteCoachRacketOrder = (payload = {}) => request('/coach/restringing/racket-quote', {
+  method: 'POST',
+  authType: 'token',
+  body: payload
+});
 export const cancelCoachRestringingOrder = orderId => request(`/coach/restringing/orders/${orderId}/cancel`, {
   method: 'POST',
   authType: 'token'
