@@ -58,7 +58,7 @@ const RestringingSection = () => {
   // doesn't appear while they're still typing.
   const [phoneChecked, setPhoneChecked] = useState(false);
 
-  const load = async ({ initial = false } = {}) => {
+  const load = async () => {
     setLoading(true);
     setError('');
 
@@ -76,11 +76,6 @@ const RestringingSection = () => {
         orders: orders.orders || orders || [],
         earnings
       });
-      if (initial) {
-        // Start from what the coach chose on their last order.
-        const lastChoice = catalog?.commission?.last_choice === 'player' ? 'player' : 'keep';
-        setForm(current => ({ ...current, commission_choice: lastChoice }));
-      }
     } catch (err) {
       setError(err.message || 'Unable to load restringing.');
     } finally {
@@ -89,7 +84,7 @@ const RestringingSection = () => {
   };
 
   useEffect(() => {
-    load({ initial: true });
+    load();
   }, []);
 
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
@@ -205,8 +200,8 @@ const RestringingSection = () => {
       await createCoachRestringingOrder(
         buildCoachRestringingOrderPayload({ form, vendorId, catalogRackets })
       );
-      // The next order starts from the choices the coach just made.
-      setForm({ ...initialRestringingForm, order_kind: form.order_kind, commission_choice: form.commission_choice });
+      // Every order starts with the coach keeping their commission ("Keep it").
+      setForm({ ...initialRestringingForm, order_kind: form.order_kind });
       setPhoneChecked(false);
       await load();
     } catch (err) {
