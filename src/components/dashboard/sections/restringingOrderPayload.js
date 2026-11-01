@@ -24,7 +24,19 @@ export const parseTensionLbs = value => {
     : null;
 };
 
+// A racket the coach sells a player, optionally strung. The string job's fields
+// are a restring item's; its labor is free.
+export const newRacketSaleItem = () => ({
+  ...newRestringingOrderItem(),
+  racket_product_id: '',
+  grip_size: '',
+  with_string: false
+});
+
 export const initialRestringingForm = {
+  // 'restring': the player's own rackets. 'racket': selling the player a new one.
+  order_kind: 'restring',
+  rackets: [newRacketSaleItem()],
   player_mode: 'roster',
   contact_party: 'player',
   // 'keep': the coach earns the commission. 'player': the player gets it as
@@ -223,9 +235,11 @@ export const buildRestringItems = formItems =>
     return item;
   });
 
-export const buildCoachRestringingOrderPayload = ({ form, vendorId }) => {
+export const buildCoachRestringingOrderPayload = ({ form, vendorId, catalogRackets = [] }) => {
   const formItems = Array.isArray(form.items) && form.items.length ? form.items : [form];
-  const items = buildRestringItems(formItems);
+  const items = form.order_kind === 'racket'
+    ? buildRacketSaleItems(form.rackets, catalogRackets)
+    : buildRestringItems(formItems);
 
   const payload = {
     vendor_id: Number(vendorId),
@@ -300,3 +314,65 @@ export const buildCoachSelfPurchasePayload = ({ rackets = [], addOns = [], quant
 
 // A coach's own purchases, apart from the orders they placed for players.
 export const isCoachPurchase = order => order?.is_coach_purchase === true;
+
+// ─── Selling a player a racket ──────────────────────────────────────────
+
+export const racketName = racket =>
+  `${racket?.brand || ''} ${racket?.name || ''}`.trim();
+
+// "Head 98 · 305 g · 18x20": the specs coaches compare rackets on.
+export const racketSpecSummary = (specs = {}) =>
+  [
+    specs?.head_size_sq_in ? `Head ${specs.head_size_sq_in}` : null,
+    specs?.unstrung_weight_g ? `${specs.unstrung_weight_g} g` : null,
+    specs?.string_pattern || null
+  ].filter(Boolean).join(' · ');
+
+// What a string job costs with a new racket: labor is free, so the string only.
+// Labor is the cheapest service with no string in it, the API's rule; a service
+// with no string costs nothing. With no labor-only service, the whole price.
+export const stringOnlyCents = (tier, tiers = []) => {
+  if (!tier) return 0;
+  const price = Number(tier.price_cents || 0);
+  if (!tier.string_category && !tier.string_composition) return 0;
+  const laborPrices = tiers
+    .filter(entry => !entry.string_category && !entry.string_composition)
+    .map(entry => Number(entry.price_cents));
+  if (!laborPrices.length) return price;
+  return Math.max(0, price - Math.min(...laborPrices));
+};
+
+// What the coach earns on the rackets at list price, from the API's estimates.
+// A string job adds about half its price; a discount code takes some off.
+export const estimateRacketCommission = (formRackets = [], catalogRackets = []) =>
+  formRackets.reduce((sum, item) => {
+    const racket = catalogRackets.find(entry => String(entry.id) === String(item.racket_product_id));
+    return sum + Number(racket?.estimated_commission_cents || 0);
+  }, 0);
+
+export const racketSaleReady = (formRackets = []) =>
+  formRackets.length > 0 &&
+  formRackets.every(item => item.racket_product_id && item.grip_size && (!item.with_string || item.service_tier_id));
+
+// The API's items for a racket order: each racket, then its string job.
+export const buildRacketSaleItems = (formRackets = [], catalogRackets = []) =>
+  formRackets.flatMap(item => {
+    const racket = catalogRackets.find(entry => String(entry.id) === String(item.racket_product_id));
+    const racketItem = {
+      item_type: 'racket',
+      racket_product_id: Number(item.racket_product_id),
+      grip_size: String(item.grip_size || '').trim(),
+      item_qty: 1
+    };
+    if (!item.with_string) return [racketItem];
+    const [stringJob] = buildRestringItems([{ ...item, racket_make_model: racketName(racket) }]);
+    return [racketItem, { item_type: 'restring', ...stringJob }];
+  });
+
+// "1 new racket · Solinco Whiteout 305 (grip 4 3/8)" for a racket order on the
+// coach's list; null for a restring order.
+export const racketSaleSummary = order => {
+  const count = Number(order?.racket_sale_count || 0);
+  if (!count || !order?.racket_sale_label) return null;
+  return `${count} new racket${count === 1 ? '' : 's'} · ${order.racket_sale_label}`;
+};

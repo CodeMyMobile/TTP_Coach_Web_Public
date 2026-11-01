@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleDot, Gift, Hand, Loader2, Plus, Send, User, UserPlus, Users, Wallet, XCircle } from 'lucide-react';
+import { CircleDot, Gift, Hand, Loader2, Package, Plus, Send, User, UserPlus, Users, Wallet, Wrench, XCircle } from 'lucide-react';
 import {
   createCoachRestringingOrder,
   cancelCoachRestringingOrder,
@@ -25,7 +25,14 @@ import {
   isTextablePhone,
   MAX_TENSION_LBS,
   MIN_TENSION_LBS,
+  newRacketSaleItem,
   newRestringingOrderItem,
+  estimateRacketCommission,
+  racketName,
+  racketSaleReady,
+  racketSaleSummary,
+  racketSpecSummary,
+  stringOnlyCents,
   vendorImageUrl
 } from './restringingOrderPayload';
 
@@ -85,6 +92,8 @@ const RestringingSection = () => {
   }, []);
 
   const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
+  const catalogRackets = data.catalog?.rackets || [];
+  const sellingRacket = form.order_kind === 'racket';
   const vendorImage = vendorImageUrl(data.catalog);
   const earnings = normalizeRestringingEarnings(data.earnings);
   // A coach's own purchases live under Coach supplies, not with their players' orders.
@@ -98,7 +107,9 @@ const RestringingSection = () => {
   );
   const coachDropOff = form.contact_party === 'coach';
   const commissionPct = Number(data.catalog?.commission?.pct ?? 10);
+  const racketCommissionPct = Number(data.catalog?.racket_commission_pct ?? 50);
   const givingCommission = form.commission_choice === 'player';
+  const racketEstimateCents = estimateRacketCommission(form.rackets, catalogRackets);
   const enabled =
     data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
   const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
@@ -132,6 +143,20 @@ const RestringingSection = () => {
     ...current,
     items: current.items.filter((_, itemIndex) => itemIndex !== index)
   }));
+  const updateRacketSale = (index, patch) => setForm(current => ({
+    ...current,
+    rackets: current.rackets.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item)
+  }));
+  const updateRacketSaleTier = (index, service_tier_id) => {
+    const tier = tiers.find(entry => String(entry.id) === String(service_tier_id));
+    updateRacketSale(index, {
+      service_tier_id,
+      own_string_text: '',
+      string_id: '',
+      gauge: '',
+      string_selection: serviceTierRequiresOwnString(tier) ? 'player_supplied' : 'shop_choice'
+    });
+  };
 
   const submit = async event => {
     event.preventDefault();
@@ -144,10 +169,10 @@ const RestringingSection = () => {
 
     try {
       await createCoachRestringingOrder(
-        buildCoachRestringingOrderPayload({ form, vendorId })
+        buildCoachRestringingOrderPayload({ form, vendorId, catalogRackets })
       );
-      // The next order starts from the choice the coach just made.
-      setForm({ ...initialRestringingForm, commission_choice: form.commission_choice });
+      // The next order starts from the choices the coach just made.
+      setForm({ ...initialRestringingForm, order_kind: form.order_kind, commission_choice: form.commission_choice });
       setPhoneChecked(false);
       await load();
     } catch (err) {
@@ -225,9 +250,32 @@ const RestringingSection = () => {
       {enabled ? (
         <form onSubmit={submit} className="rounded-2xl bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-gray-900">New restring order</h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Plus className="h-5 w-5 text-purple-600" />
+                <h3 className="font-semibold text-gray-900">{sellingRacket ? 'New racket order' : 'New restring order'}</h3>
+              </div>
+              {catalogRackets.length > 0 && (
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+                  {[
+                    { value: 'restring', label: 'Restring', Icon: Wrench },
+                    { value: 'racket', label: 'New racket', Icon: Package }
+                  ].map(({ value, label, Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={form.order_kind === value}
+                      onClick={() => updateForm({ order_kind: value })}
+                      className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
+                        form.order_kind === value ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
               <button
@@ -315,6 +363,33 @@ const RestringingSection = () => {
             </div>
           )}
 
+          {sellingRacket ? (
+            <>
+              <div className="mt-5 space-y-4">
+                {form.rackets.map((item, index) => (
+                  <RacketSaleFields
+                    key={index}
+                    index={index}
+                    item={item}
+                    rackets={catalogRackets}
+                    tiers={tiers}
+                    strings={data.catalog?.catalog || data.catalog?.strings || []}
+                    removable={form.rackets.length > 1}
+                    onChange={patch => updateRacketSale(index, patch)}
+                    onTierChange={value => updateRacketSaleTier(index, value)}
+                    onRemove={() => setForm(current => ({
+                      ...current,
+                      rackets: current.rackets.filter((_, itemIndex) => itemIndex !== index)
+                    }))}
+                  />
+                ))}
+              </div>
+              <button type="button" onClick={() => setForm(current => ({ ...current, rackets: [...current.rackets, newRacketSaleItem()] }))} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
+                <Plus className="h-4 w-4" /> Add another racket
+              </button>
+            </>
+          ) : (
+          <>
           <div className="mt-5 space-y-4">
             {form.items.map((item, index) => {
               const selectedServiceTier = tiers.find(tier => String(tier.id) === String(item.service_tier_id));
@@ -383,13 +458,15 @@ const RestringingSection = () => {
           <button type="button" onClick={addRacket} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
             <Plus className="h-4 w-4" /> Add another racket
           </button>
+          </>
+          )}
 
           <div className="mt-5">
-            <p className="text-sm font-medium text-gray-700">Who brings the rackets in?</p>
+            <p className="text-sm font-medium text-gray-700">{sellingRacket ? 'Who picks it up?' : 'Who brings the rackets in?'}</p>
             <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
               {[
-                { value: 'player', label: 'Player drops off', Icon: User },
-                { value: 'coach', label: 'I drop off', Icon: Hand }
+                { value: 'player', label: sellingRacket ? 'Player picks up' : 'Player drops off', Icon: User },
+                { value: 'coach', label: sellingRacket ? 'I pick up' : 'I drop off', Icon: Hand }
               ].map(({ value, label, Icon }) => (
                 <button
                   key={value}
@@ -409,13 +486,17 @@ const RestringingSection = () => {
             </div>
             <p className="mt-1 text-xs text-gray-500">
               {coachDropOff
-                ? 'The shop deals with you: drop-off, ready and pickup all come to you. The invoice still goes to your player.'
+                ? sellingRacket
+                  ? 'The shop tells you when it is ready, and you collect it. The invoice still goes to your player.'
+                  : 'The shop deals with you: drop-off, ready and pickup all come to you. The invoice still goes to your player.'
                 : 'The shop deals with your player directly, invoice included.'}
             </p>
           </div>
 
           <div className="mt-5">
-            <p className="text-sm font-medium text-gray-700">Your {commissionPct}% commission</p>
+            <p className="text-sm font-medium text-gray-700">
+              {sellingRacket ? `Your commission: ${racketCommissionPct}% of the profit` : `Your ${commissionPct}% commission`}
+            </p>
             <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
               {[
                 { value: 'keep', label: 'Keep it', Icon: Wallet },
@@ -438,14 +519,22 @@ const RestringingSection = () => {
               ))}
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              {givingCommission
-                ? `Your player gets ${commissionPct}% off this order, and you earn nothing on it.`
-                : `You earn ${commissionPct}% of the order, before tax, when your player pays.`}
+              {sellingRacket
+                ? givingCommission
+                  ? `Your player gets about ${money(racketEstimateCents)} off, and you earn nothing on it.`
+                  : `You earn about ${money(racketEstimateCents)} when your player pays and picks up: ${racketCommissionPct}% of the profit after the racket's cost and the card fee. A string job adds about half its price.`
+                : givingCommission
+                  ? `Your player gets ${commissionPct}% off this order, and you earn nothing on it.`
+                  : `You earn ${commissionPct}% of the order, before tax, when your player pays.`}
             </p>
           </div>
 
           <button
-            disabled={creating || (form.player_mode === 'roster' && !form.player_user_id)}
+            disabled={
+              creating ||
+              (form.player_mode === 'roster' && !form.player_user_id) ||
+              (sellingRacket && !racketSaleReady(form.rackets))
+            }
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             <Send className="h-4 w-4" />
@@ -473,8 +562,12 @@ const RestringingSection = () => {
                     <span className="text-xs font-normal text-gray-500">#{order.id}</span>
                   </p>
                   <p className="text-sm text-gray-500">
-                    {Number(order.item_count || order.items?.length || 1)} racket{Number(order.item_count || order.items?.length || 1) === 1 ? '' : 's'} ·{' '}
-                    {order.service_tier_name || order.items?.[0]?.service_tier_name || 'Restringing'} ·{' '}
+                    {racketSaleSummary(order) || (
+                      <>
+                        {Number(order.item_count || order.items?.length || 1)} racket{Number(order.item_count || order.items?.length || 1) === 1 ? '' : 's'} ·{' '}
+                        {order.service_tier_name || order.items?.[0]?.service_tier_name || 'Restringing'}
+                      </>
+                    )}{' '}·{' '}
                     {order.fulfillment_status?.replaceAll('_', ' ')}
                   </p>
                   {order.contact_party === 'coach' && (
@@ -586,6 +679,114 @@ const RosterPlayerPicker = ({
         </div>
       )}
     </div>
+  );
+};
+
+// One racket the coach is selling: which racket and grip, and an optional string
+// job at the string price only, since labor is free with a new racket.
+const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onChange, onTierChange, onRemove }) => {
+  const racket = rackets.find(entry => String(entry.id) === String(item.racket_product_id));
+  const tier = tiers.find(entry => String(entry.id) === String(item.service_tier_id));
+  const ownStringRequired = serviceTierRequiresOwnString(tier);
+  const stockedStrings = strings.filter(string => !tier?.string_category || string.category === tier.string_category);
+  const selectedString = stockedStrings.find(string => String(string.id) === String(item.string_id));
+  const specs = racket ? racketSpecSummary(racket.specs) : '';
+
+  return (
+    <fieldset className="rounded-xl border border-gray-200 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <legend className="font-semibold text-gray-900">Racket {index + 1}</legend>
+        {removable && (
+          <button type="button" onClick={onRemove} className="text-sm font-medium text-red-600">
+            Remove
+          </button>
+        )}
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <select
+          required
+          value={item.racket_product_id}
+          onChange={event => onChange({ racket_product_id: event.target.value, grip_size: '' })}
+          className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
+        >
+          <option value="">Choose a racket</option>
+          {rackets.map(entry => (
+            <option key={entry.id} value={entry.id}>
+              {racketName(entry)} - {money(entry.price_cents)}
+            </option>
+          ))}
+        </select>
+        <select
+          required
+          disabled={!racket}
+          value={item.grip_size}
+          onChange={event => onChange({ grip_size: event.target.value })}
+          className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm disabled:bg-gray-50"
+        >
+          <option value="">Grip size</option>
+          {(racket?.grip_sizes || []).map(size => <option key={size} value={size}>{size}</option>)}
+        </select>
+      </div>
+
+      {racket && (
+        <div className="mt-3 flex gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+          {racket.image_url ? (
+            <img src={racket.image_url} alt={racketName(racket)} className="h-20 w-20 shrink-0 rounded-lg bg-white object-contain" />
+          ) : null}
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-gray-900">{racketName(racket)} · {money(racket.price_cents)}</p>
+            {specs && <p className="text-xs text-gray-600">{specs}</p>}
+            {racket.description && <p className="mt-1 text-xs text-gray-600">{racket.description}</p>}
+            <p className="mt-1 text-xs font-medium text-emerald-700">
+              You earn about {money(racket.estimated_commission_cents)} on this racket
+            </p>
+          </div>
+        </div>
+      )}
+
+      <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={item.with_string}
+          onChange={event => onChange({ with_string: event.target.checked })}
+        />
+        String it before pickup (labor is free, they pay for the string)
+      </label>
+
+      {item.with_string && (
+        <>
+          <select
+            required
+            value={item.service_tier_id}
+            onChange={event => onTierChange(event.target.value)}
+            className="mt-3 w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
+          >
+            <option value="">Choose a string service</option>
+            {tiers.map(entry => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name} - {stringOnlyCents(entry, tiers) ? `${money(stringOnlyCents(entry, tiers))} for the string` : 'free'}
+              </option>
+            ))}
+          </select>
+          <ServiceTierStrings tiers={tiers} strings={strings} selectedTier={tier} />
+
+          {ownStringRequired && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700">Player&apos;s string</label>
+              <input required value={item.own_string_text} onChange={event => onChange({ own_string_text: event.target.value })} placeholder="e.g. Solinco Hyper-G 16L" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm" />
+            </div>
+          )}
+          {!ownStringRequired && tier && !tier.string_composition && (
+            <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={onChange} />
+          )}
+          <TensionInput item={item} onChange={onChange} advisePlaceholder="The stringer sets it" />
+          <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" checked={item.advice_requested} onChange={event => onChange({ advice_requested: event.target.checked })} />
+            Let the stringer choose the tension
+          </label>
+        </>
+      )}
+    </fieldset>
   );
 };
 
@@ -783,7 +984,7 @@ export const RacketInput = ({ value, onChange }) => (
 // Typing a tension means the coach knows the setup, so it turns off "let the
 // stringer advise". Ticking that box again greys the tension out instead of
 // clearing it, so nothing typed is lost.
-export const TensionInput = ({ item, onChange }) => {
+export const TensionInput = ({ item, onChange, advisePlaceholder = 'Set at drop-off' }) => {
   const disabled = item.advice_requested;
   const setTension = (key, value) => onChange({ [key]: value, ...(value ? { advice_requested: false } : {}) });
   const tensionField = (key, label) => (
@@ -799,7 +1000,7 @@ export const TensionInput = ({ item, onChange }) => {
         disabled={disabled}
         value={disabled ? '' : item[key]}
         onChange={event => setTension(key, event.target.value)}
-        placeholder={disabled ? 'Set at drop-off' : 'e.g. 52'}
+        placeholder={disabled ? advisePlaceholder : 'e.g. 52'}
         className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm disabled:bg-gray-50 disabled:text-gray-400"
       />
     </label>
