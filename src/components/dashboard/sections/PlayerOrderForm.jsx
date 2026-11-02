@@ -1,20 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleDot, Gift, Hand, Loader2, Maximize2, Package, Plus, Send, User, UserPlus, Users, Wallet, Wrench, X, XCircle } from 'lucide-react';
+import { Gift, Hand, Loader2, Maximize2, Plus, Send, User, UserPlus, Users, Wallet, X } from 'lucide-react';
 import {
   createCoachRestringingOrder,
-  cancelCoachRestringingOrder,
-  getCoachRestringingCatalog,
-  getCoachRestringingEarnings,
-  getCoachRestringingOrders,
-  getCoachRestringingPlayers,
   getRestringingStringRecommendation,
   quoteCoachRacketOrder
 } from '../../../services/coach';
 import {
   buildCoachRestringingOrderPayload,
-  coachCommissionStatusText,
   filterRosterPlayers,
-  normalizeRestringingEarnings,
   playerLabel,
   serviceTierRequiresOwnString,
   serviceTierForCategory,
@@ -22,7 +15,6 @@ import {
   STRING_QUIZ_QUESTIONS,
   stringQuizComplete,
   initialRestringingForm,
-  isCoachPurchase,
   isTextablePhone,
   MAX_TENSION_LBS,
   MIN_TENSION_LBS,
@@ -31,10 +23,8 @@ import {
   estimateRacketCommission,
   racketName,
   racketSaleReady,
-  racketSaleSummary,
   racketSpecSummary,
-  stringOnlyCents,
-  vendorImageUrl
+  stringOnlyCents
 } from './restringingOrderPayload';
 
 const money = cents =>
@@ -42,73 +32,40 @@ const money = cents =>
     Number(cents || 0) / 100
   );
 
-const RestringingSection = () => {
-  const [data, setData] = useState({
-    catalog: null,
-    players: [],
-    orders: [],
-    earnings: null
-  });
-  const [loading, setLoading] = useState(true);
+// The order a coach places for a player: a restring, or a new racket from the shop's
+// catalog (strung before pickup if they like). Both are one restringing order with one
+// payload builder; `orderKind` picks which, and comes from the Pro Shop tab.
+const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCreated = () => {} }) => {
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [cancellingOrderId, setCancellingOrderId] = useState(null);
-  const [form, setForm] = useState(initialRestringingForm);
+  const [form, setForm] = useState(() => ({ ...initialRestringingForm, order_kind: orderKind }));
   // Set once the coach leaves the phone field or tries to send, so the hint
   // doesn't appear while they're still typing.
   const [phoneChecked, setPhoneChecked] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const [catalog, players, orders, earnings] = await Promise.all([
-        getCoachRestringingCatalog(),
-        getCoachRestringingPlayers(),
-        getCoachRestringingOrders(),
-        getCoachRestringingEarnings()
-      ]);
-
-      setData({
-        catalog,
-        players: players.players || players || [],
-        orders: orders.orders || orders || [],
-        earnings
-      });
-    } catch (err) {
-      setError(err.message || 'Unable to load restringing.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Switching tabs keeps the player picked, as the old Restring / New racket toggle did.
   useEffect(() => {
-    load();
-  }, []);
+    setForm(current => (current.order_kind === orderKind ? current : { ...current, order_kind: orderKind }));
+  }, [orderKind]);
 
-  const tiers = data.catalog?.service_tiers || data.catalog?.tiers || [];
-  const catalogRackets = data.catalog?.rackets || [];
+  const tiers = catalog?.service_tiers || catalog?.tiers || [];
+  const catalogRackets = catalog?.rackets || [];
   const sellingRacket = form.order_kind === 'racket';
-  const vendorImage = vendorImageUrl(data.catalog);
-  const earnings = normalizeRestringingEarnings(data.earnings);
-  // A coach's own purchases live under Coach supplies, not with their players' orders.
-  const orderRows = useMemo(() => data.orders.filter(order => !isCoachPurchase(order)), [data.orders]);
   const filteredPlayers = useMemo(
-    () => filterRosterPlayers(data.players, form.player_query),
-    [data.players, form.player_query]
+    () => filterRosterPlayers(players, form.player_query),
+    [players, form.player_query]
   );
-  const selectedRosterPlayer = data.players.find(
+  const selectedRosterPlayer = players.find(
     player => String(player.player_user_id || player.id) === String(form.player_user_id)
   );
   const coachDropOff = form.contact_party === 'coach';
-  const commissionPct = Number(data.catalog?.commission?.pct ?? 10);
-  const racketCommissionPct = Number(data.catalog?.racket_commission_pct ?? 50);
+  const commissionPct = Number(catalog?.commission?.pct ?? 10);
+  const racketCommissionPct = Number(catalog?.racket_commission_pct ?? 50);
   const givingCommission = form.commission_choice === 'player';
   const racketEstimateCents = estimateRacketCommission(form.rackets, catalogRackets);
   const enabled =
-    data.catalog?.eligible !== false && data.catalog?.can_create_restring_orders !== false;
-  const vendorId = data.catalog?.vendor?.id || data.catalog?.vendor_id || 1;
+    catalog?.eligible !== false && catalog?.can_create_restring_orders !== false;
+  const vendorId = catalog?.vendor?.id || catalog?.vendor_id || 1;
   const [racketQuote, setRacketQuote] = useState(null);
   const [quoteError, setQuoteError] = useState('');
   const racketOrderReady = sellingRacket && racketSaleReady(form.rackets);
@@ -203,7 +160,7 @@ const RestringingSection = () => {
       // Every order starts with the coach keeping their commission ("Keep it").
       setForm({ ...initialRestringingForm, order_kind: form.order_kind });
       setPhoneChecked(false);
-      await load();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'Unable to send order.');
     } finally {
@@ -211,429 +168,297 @@ const RestringingSection = () => {
     }
   };
 
-  const cancelOrder = async orderId => {
-    setCancellingOrderId(orderId);
-    setError('');
-    try {
-      await cancelCoachRestringingOrder(orderId);
-      await load();
-    } catch (err) {
-      setError(err.message || 'Unable to cancel order.');
-    } finally {
-      setCancellingOrderId(null);
-    }
-  };
-
-  if (loading) {
+  if (!enabled) {
     return (
-      <section className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-gray-500">
-        <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-purple-600" />
-        Loading restringing...
-      </section>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        Restringing is not enabled for this coach account yet.
+      </div>
+    );
+  }
+
+  if (sellingRacket && catalogRackets.length === 0) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
+        The shop has no rackets in its catalog yet.
+      </div>
     );
   }
 
   return (
-    <section className="mt-6 space-y-5">
-      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-
-      <div className="rounded-2xl bg-gradient-to-br from-violet-700 to-purple-600 p-4 text-white shadow-sm sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold sm:text-2xl">Restringing</h2>
-            <p className="mt-1 text-sm text-violet-100">
-              Order from The Tennis Garage for your players.
-            </p>
-          </div>
-          {vendorImage ? (
-            <img
-              src={vendorImage}
-              alt={`${data.catalog?.vendor?.name || 'Vendor'} profile`}
-              className="h-10 w-10 shrink-0 rounded-xl object-cover sm:h-12 sm:w-12"
-            />
-          ) : (
-            <CircleDot className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />
-          )}
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-3 sm:mt-5">
-          <div>
-            <p className="text-lg font-bold sm:text-2xl">
-              {money(earnings.earned_cents)}
-            </p>
-            <p className="text-xs text-violet-100">Earned</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold sm:text-2xl">
-              {money(earnings.pending_cents)}
-            </p>
-            <p className="text-xs text-violet-100">Awaiting payment</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold sm:text-2xl">{orderRows.length}</p>
-            <p className="text-xs text-violet-100">Orders</p>
-          </div>
+    <form onSubmit={submit} className="rounded-2xl border border-gray-200 bg-white p-5">
+      {error && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-gray-900">{sellingRacket ? 'Sell a racket' : 'New restring order'}</h3>
+        <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+          <button
+            type="button"
+            aria-pressed={form.player_mode === 'roster'}
+            onClick={() =>
+              updateForm({
+                player_mode: 'roster',
+                new_player_name: '',
+                new_player_phone: ''
+              })
+            }
+            className={`inline-flex min-h-[44px] items-center gap-2 rounded-md px-3 font-medium ${
+              form.player_mode === 'roster'
+                ? 'bg-white text-purple-700 shadow-sm'
+                : 'text-gray-600'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Roster
+          </button>
+          <button
+            type="button"
+            aria-pressed={form.player_mode === 'new'}
+            onClick={() => {
+              updateForm({ player_mode: 'new', player_user_id: '' });
+              setPhoneChecked(false);
+            }}
+            className={`inline-flex min-h-[44px] items-center gap-2 rounded-md px-3 font-medium ${
+              form.player_mode === 'new'
+                ? 'bg-white text-purple-700 shadow-sm'
+                : 'text-gray-600'
+            }`}
+          >
+            <UserPlus className="h-4 w-4" />
+            New player
+          </button>
         </div>
       </div>
 
-      {enabled ? (
-        <form onSubmit={submit} className="rounded-2xl bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Plus className="h-5 w-5 text-purple-600" />
-                <h3 className="font-semibold text-gray-900">{sellingRacket ? 'New racket order' : 'New restring order'}</h3>
-              </div>
-              {catalogRackets.length > 0 && (
-                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-                  {[
-                    { value: 'restring', label: 'Restring', Icon: Wrench },
-                    { value: 'racket', label: 'New racket', Icon: Package }
-                  ].map(({ value, label, Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={form.order_kind === value}
-                      onClick={() => updateForm({ order_kind: value })}
-                      className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
-                        form.order_kind === value ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-              <button
-                type="button"
-                aria-pressed={form.player_mode === 'roster'}
-                onClick={() =>
-                  updateForm({
-                    player_mode: 'roster',
-                    new_player_name: '',
-                    new_player_phone: ''
-                  })
-                }
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
-                  form.player_mode === 'roster'
-                    ? 'bg-white text-purple-700 shadow-sm'
-                    : 'text-gray-600'
-                }`}
-              >
-                <Users className="h-4 w-4" />
-                Roster
-              </button>
-              <button
-                type="button"
-                aria-pressed={form.player_mode === 'new'}
-                onClick={() => {
-                  updateForm({ player_mode: 'new', player_user_id: '' });
-                  setPhoneChecked(false);
-                }}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
-                  form.player_mode === 'new'
-                    ? 'bg-white text-purple-700 shadow-sm'
-                    : 'text-gray-600'
-                }`}
-              >
-                <UserPlus className="h-4 w-4" />
-                New player
-              </button>
-            </div>
-          </div>
-
-          {form.player_mode === 'roster' ? (
-            <div className="grid gap-3 md:grid-cols-3">
-              <RosterPlayerPicker
-                players={filteredPlayers}
-                query={form.player_query}
-                selectedPlayer={selectedRosterPlayer}
-                onQueryChange={player_query => updateForm({ player_query, player_user_id: '' })}
-                onSelect={player =>
-                  updateForm({
-                    player_user_id: String(player.player_user_id || player.id),
-                    player_query: playerLabel(player)
-                  })
-                }
-              />
-            </div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-4">
-              <input
-                required
-                value={form.new_player_name}
-                onChange={event => updateForm({ new_player_name: event.target.value })}
-                placeholder="Player name"
-                className="rounded-lg border border-gray-200 p-3 text-sm"
-              />
-              <div>
-                <input
-                  required
-                  type="tel"
-                  value={form.new_player_phone}
-                  onChange={event => updateForm({ new_player_phone: event.target.value })}
-                  onBlur={() => setPhoneChecked(true)}
-                  placeholder="Mobile number"
-                  aria-invalid={phoneChecked && newPlayerPhoneInvalid}
-                  aria-describedby={phoneChecked && newPlayerPhoneInvalid ? 'restring-phone-hint' : undefined}
-                  className={`w-full rounded-lg border p-3 text-sm ${
-                    phoneChecked && newPlayerPhoneInvalid ? 'border-red-400' : 'border-gray-200'
-                  }`}
-                />
-                {phoneChecked && newPlayerPhoneInvalid && (
-                  <p id="restring-phone-hint" className="mt-1 text-xs text-red-600">
-                    Enter a 10-digit mobile number. The pay link is sent by text.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {sellingRacket ? (
-            <>
-              <div className="mt-5 space-y-4">
-                {form.rackets.map((item, index) => (
-                  <RacketSaleFields
-                    key={index}
-                    index={index}
-                    item={item}
-                    rackets={catalogRackets}
-                    tiers={tiers}
-                    strings={data.catalog?.catalog || data.catalog?.strings || []}
-                    removable={form.rackets.length > 1}
-                    onChange={patch => updateRacketSale(index, patch)}
-                    onTierChange={value => updateRacketSaleTier(index, value)}
-                    onRemove={() => setForm(current => ({
-                      ...current,
-                      rackets: current.rackets.filter((_, itemIndex) => itemIndex !== index)
-                    }))}
-                  />
-                ))}
-              </div>
-              <button type="button" onClick={() => setForm(current => ({ ...current, rackets: [...current.rackets, newRacketSaleItem()] }))} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
-                <Plus className="h-4 w-4" /> Add another racket
-              </button>
-              <RacketQuoteSummary quote={racketQuote} error={quoteError} ready={racketOrderReady} />
-            </>
-          ) : (
-          <>
-          <div className="mt-5 space-y-4">
-            {form.items.map((item, index) => {
-              const selectedServiceTier = tiers.find(tier => String(tier.id) === String(item.service_tier_id));
-              const ownStringRequired = serviceTierRequiresOwnString(selectedServiceTier);
-              const compositionTier = Boolean(selectedServiceTier?.string_composition);
-              const stockedStrings = (data.catalog?.catalog || data.catalog?.strings || []).filter(string =>
-                !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
-              );
-              const selectedString = stockedStrings.find(string => String(string.id) === String(item.string_id));
-              return (
-                <fieldset key={index} className="rounded-xl border border-gray-200 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <legend className="font-semibold text-gray-900">Racket {index + 1}</legend>
-                    {form.items.length > 1 && (
-                      <button type="button" onClick={() => removeRacket(index)} className="text-sm font-medium text-red-600">
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <ServiceSelect tiers={tiers} value={item.service_tier_id} onChange={value => updateServiceTier(index, value)} />
-                    <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
-                  </div>
-                  <ServiceTierStrings
-                    tiers={tiers}
-                    strings={data.catalog?.catalog || data.catalog?.strings || []}
-                    selectedTier={selectedServiceTier}
-                    onUseRecommendation={({ tierId, tensionLbs }) => {
-                      updateServiceTier(index, String(tierId));
-                      if (tensionLbs) updateRacket(index, { tension_lbs: String(tensionLbs), advice_requested: false });
-                    }}
-                  />
-
-                  {ownStringRequired && (
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700">Player&apos;s string</label>
-                      <input required value={item.own_string_text} onChange={event => updateRacket(index, { own_string_text: event.target.value })} placeholder="e.g. Solinco Hyper-G 16L" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm" />
-                    </div>
-                  )}
-
-                  {!ownStringRequired && compositionTier && (
-                    <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm text-violet-800"><span className="font-medium">String: Shop&apos;s choice.</span> This service includes a shop-selected composition.</div>
-                  )}
-
-                  {!ownStringRequired && !compositionTier && selectedServiceTier && (
-                    <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={patch => updateRacket(index, patch)} />
-                  )}
-
-                  <TensionInput item={item} onChange={patch => updateRacket(index, patch)} />
-
-                  <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <input type="checkbox" checked={item.advice_requested} onChange={event => updateRacket(index, { advice_requested: event.target.checked })} />
-                    {coachDropOff
-                      ? 'Let the stringer advise you at drop-off'
-                      : 'Let the stringer advise at drop-off'}
-                  </label>
-                  <label className="mt-3 block text-sm font-medium text-gray-700">
-                    Note for vendor
-                    <textarea value={item.notes} onChange={event => updateRacket(index, { notes: event.target.value })} placeholder="e.g. Check grommets or add a stencil" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm" rows={2} />
-                  </label>
-                </fieldset>
-              );
-            })}
-          </div>
-
-          <button type="button" onClick={addRacket} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700">
-            <Plus className="h-4 w-4" /> Add another racket
-          </button>
-          </>
-          )}
-
-          <div className="mt-5">
-            <p className="text-sm font-medium text-gray-700">{sellingRacket ? 'Who picks it up?' : 'Who brings the rackets in?'}</p>
-            <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-              {[
-                { value: 'player', label: sellingRacket ? 'Player picks up' : 'Player drops off', Icon: User },
-                { value: 'coach', label: sellingRacket ? 'I pick up' : 'I drop off', Icon: Hand }
-              ].map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={form.contact_party === value}
-                  onClick={() => updateForm({ contact_party: value })}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
-                    form.contact_party === value
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-600'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              {coachDropOff
-                ? sellingRacket
-                  ? 'The shop tells you when it is ready, and you collect it. The invoice still goes to your player.'
-                  : 'The shop deals with you: drop-off, ready and pickup all come to you. The invoice still goes to your player.'
-                : 'The shop deals with your player directly, invoice included.'}
-            </p>
-          </div>
-
-          <div className="mt-5">
-            <p className="text-sm font-medium text-gray-700">
-              {sellingRacket ? `Your commission: ${racketCommissionPct}% of the profit` : `Your ${commissionPct}% commission`}
-            </p>
-            <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-              {[
-                { value: 'keep', label: 'Keep it', Icon: Wallet },
-                { value: 'player', label: 'Give it to my player', Icon: Gift }
-              ].map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={form.commission_choice === value}
-                  onClick={() => updateForm({ commission_choice: value })}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-2 font-medium ${
-                    form.commission_choice === value
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-600'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              {sellingRacket
-                ? givingCommission
-                  ? `Your player gets ${racketQuote ? money(racketQuote.coach_discount_cents) : `about ${money(racketEstimateCents)}`} off, and you earn nothing on it.`
-                  : `You earn ${racketQuote ? money(racketQuote.coach_commission_cents) : `about ${money(racketEstimateCents)}`} when your player pays and picks up: ${racketCommissionPct}% of the profit after the racket's cost and the card fee.`
-                : givingCommission
-                  ? `Your player gets ${commissionPct}% off this order, and you earn nothing on it.`
-                  : `You earn ${commissionPct}% of the order, before tax, when your player pays.`}
-            </p>
-          </div>
-
-          <button
-            disabled={
-              creating ||
-              (form.player_mode === 'roster' && !form.player_user_id) ||
-              (sellingRacket && !racketSaleReady(form.rackets))
+      {form.player_mode === 'roster' ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <RosterPlayerPicker
+            players={filteredPlayers}
+            query={form.player_query}
+            selectedPlayer={selectedRosterPlayer}
+            onQueryChange={player_query => updateForm({ player_query, player_user_id: '' })}
+            onSelect={player =>
+              updateForm({
+                player_user_id: String(player.player_user_id || player.id),
+                player_query: playerLabel(player)
+              })
             }
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            <Send className="h-4 w-4" />
-            {creating ? 'Sending...' : 'Send order & pay link'}
-          </button>
-        </form>
+          />
+        </div>
       ) : (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          Restringing is not enabled for this coach account yet.
+        <div className="grid gap-3 md:grid-cols-4">
+          <input
+            required
+            aria-label="Player name"
+            value={form.new_player_name}
+            onChange={event => updateForm({ new_player_name: event.target.value })}
+            placeholder="Player name"
+            className="rounded-lg border border-gray-200 p-3 text-sm"
+          />
+          <div>
+            <input
+              required
+              type="tel"
+              aria-label="Mobile number"
+              value={form.new_player_phone}
+              onChange={event => updateForm({ new_player_phone: event.target.value })}
+              onBlur={() => setPhoneChecked(true)}
+              placeholder="Mobile number"
+              aria-invalid={phoneChecked && newPlayerPhoneInvalid}
+              aria-describedby={phoneChecked && newPlayerPhoneInvalid ? 'restring-phone-hint' : undefined}
+              className={`w-full rounded-lg border p-3 text-sm ${
+                phoneChecked && newPlayerPhoneInvalid ? 'border-red-400' : 'border-gray-200'
+              }`}
+            />
+            {phoneChecked && newPlayerPhoneInvalid && (
+              <p id="restring-phone-hint" className="mt-1 text-xs text-red-600">
+                Enter a 10-digit mobile number. The pay link is sent by text.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h3 className="font-semibold text-gray-900">Your orders</h3>
-        <div className="mt-4 space-y-3">
-          {orderRows.length ? (
-            orderRows.map(order => (
-              <div
-                key={order.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 p-4"
-              >
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {order.player_name || order.display_name || 'Player'}{' '}
-                    <span className="text-xs font-normal text-gray-500">#{order.id}</span>
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {racketSaleSummary(order) || (
-                      <>
-                        {Number(order.item_count || order.items?.length || 1)} racket{Number(order.item_count || order.items?.length || 1) === 1 ? '' : 's'} ·{' '}
-                        {order.service_tier_name || order.items?.[0]?.service_tier_name || 'Restringing'}
-                      </>
-                    )}{' '}·{' '}
-                    {order.fulfillment_status?.replaceAll('_', ' ')}
-                  </p>
-                  {order.contact_party === 'coach' && (
-                    <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
-                      <Hand className="h-3 w-3" />
-                      You drop off and collect
-                    </p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-emerald-700">
-                    {coachCommissionStatusText(order)}
-                  </p>
-                  <p className="text-xs text-gray-500">{order.payment_status}</p>
-                  {order.fulfillment_status === 'pending' && order.payment_status === 'unpaid' && (
-                    <button
-                      type="button"
-                      disabled={cancellingOrderId === order.id}
-                      onClick={() => cancelOrder(order.id)}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 disabled:opacity-60"
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel order'}
-                    </button>
-                  )}
-                </div>
+      {sellingRacket ? (
+        <>
+          <div className="mt-5 space-y-4">
+            {form.rackets.map((item, index) => (
+              <RacketSaleFields
+                key={index}
+                index={index}
+                item={item}
+                rackets={catalogRackets}
+                tiers={tiers}
+                strings={catalog?.catalog || catalog?.strings || []}
+                removable={form.rackets.length > 1}
+                onChange={patch => updateRacketSale(index, patch)}
+                onTierChange={value => updateRacketSaleTier(index, value)}
+                onRemove={() => setForm(current => ({
+                  ...current,
+                  rackets: current.rackets.filter((_, itemIndex) => itemIndex !== index)
+                }))}
+              />
+            ))}
+          </div>
+          <button type="button" onClick={() => setForm(current => ({ ...current, rackets: [...current.rackets, newRacketSaleItem()] }))} className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-purple-200 px-4 text-sm font-semibold text-purple-700">
+            <Plus className="h-4 w-4" /> Add another racket
+          </button>
+          <RacketQuoteSummary quote={racketQuote} error={quoteError} ready={racketOrderReady} />
+        </>
+      ) : (
+      <>
+      <div className="mt-5 space-y-4">
+        {form.items.map((item, index) => {
+          const selectedServiceTier = tiers.find(tier => String(tier.id) === String(item.service_tier_id));
+          const ownStringRequired = serviceTierRequiresOwnString(selectedServiceTier);
+          const compositionTier = Boolean(selectedServiceTier?.string_composition);
+          const stockedStrings = (catalog?.catalog || catalog?.strings || []).filter(string =>
+            !selectedServiceTier?.string_category || string.category === selectedServiceTier.string_category
+          );
+          const selectedString = stockedStrings.find(string => String(string.id) === String(item.string_id));
+          return (
+            <fieldset key={index} className="rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <legend className="font-semibold text-gray-900">Racket {index + 1}</legend>
+                {form.items.length > 1 && (
+                  <button type="button" onClick={() => removeRacket(index)} className="min-h-[44px] px-2 text-sm font-medium text-red-700">
+                    Remove
+                  </button>
+                )}
               </div>
-            ))
-          ) : (
-            <p className="py-5 text-center text-sm text-gray-500">
-              No restringing orders yet.
-            </p>
-          )}
-        </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <ServiceSelect tiers={tiers} value={item.service_tier_id} onChange={value => updateServiceTier(index, value)} />
+                <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
+              </div>
+              <ServiceTierStrings
+                tiers={tiers}
+                strings={catalog?.catalog || catalog?.strings || []}
+                selectedTier={selectedServiceTier}
+                onUseRecommendation={({ tierId, tensionLbs }) => {
+                  updateServiceTier(index, String(tierId));
+                  if (tensionLbs) updateRacket(index, { tension_lbs: String(tensionLbs), advice_requested: false });
+                }}
+              />
+
+              {ownStringRequired && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Player&apos;s string
+                    <input required value={item.own_string_text} onChange={event => updateRacket(index, { own_string_text: event.target.value })} placeholder="e.g. Solinco Hyper-G 16L" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal" />
+                  </label>
+                </div>
+              )}
+
+              {!ownStringRequired && compositionTier && (
+                <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm text-violet-800"><span className="font-medium">String: Shop&apos;s choice.</span> This service includes a shop-selected composition.</div>
+              )}
+
+              {!ownStringRequired && !compositionTier && selectedServiceTier && (
+                <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={patch => updateRacket(index, patch)} />
+              )}
+
+              <TensionInput item={item} onChange={patch => updateRacket(index, patch)} />
+
+              <label className="mt-3 flex min-h-[44px] items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={item.advice_requested} onChange={event => updateRacket(index, { advice_requested: event.target.checked })} />
+                {coachDropOff
+                  ? 'Let the stringer advise you at drop-off'
+                  : 'Let the stringer advise at drop-off'}
+              </label>
+              <label className="mt-3 block text-sm font-medium text-gray-700">
+                Note for vendor
+                <textarea value={item.notes} onChange={event => updateRacket(index, { notes: event.target.value })} placeholder="e.g. Check grommets or add a stencil" className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal" rows={2} />
+              </label>
+            </fieldset>
+          );
+        })}
       </div>
-    </section>
+
+      <button type="button" onClick={addRacket} className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-purple-200 px-4 text-sm font-semibold text-purple-700">
+        <Plus className="h-4 w-4" /> Add another racket
+      </button>
+      </>
+      )}
+
+      <div className="mt-5">
+        <p className="text-sm font-medium text-gray-700">{sellingRacket ? 'Who picks it up?' : 'Who brings the rackets in?'}</p>
+        <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+          {[
+            { value: 'player', label: sellingRacket ? 'Player picks up' : 'Player drops off', Icon: User },
+            { value: 'coach', label: sellingRacket ? 'I pick up' : 'I drop off', Icon: Hand }
+          ].map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={form.contact_party === value}
+              onClick={() => updateForm({ contact_party: value })}
+              className={`inline-flex min-h-[44px] items-center gap-2 rounded-md px-3 font-medium ${
+                form.contact_party === value
+                  ? 'bg-white text-purple-700 shadow-sm'
+                  : 'text-gray-600'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-gray-600">
+          {coachDropOff
+            ? sellingRacket
+              ? 'The shop tells you when it is ready, and you collect it. The invoice still goes to your player.'
+              : 'The shop deals with you: drop-off, ready and pickup all come to you. The invoice still goes to your player.'
+            : 'The shop deals with your player directly, invoice included.'}
+        </p>
+      </div>
+
+      <div className="mt-5">
+        <p className="text-sm font-medium text-gray-700">
+          {sellingRacket ? `Your commission: ${racketCommissionPct}% of the profit` : `Your ${commissionPct}% commission`}
+        </p>
+        <div className="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+          {[
+            { value: 'keep', label: 'Keep it', Icon: Wallet },
+            { value: 'player', label: 'Give it to my player', Icon: Gift }
+          ].map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={form.commission_choice === value}
+              onClick={() => updateForm({ commission_choice: value })}
+              className={`inline-flex min-h-[44px] items-center gap-2 rounded-md px-3 font-medium ${
+                form.commission_choice === value
+                  ? 'bg-white text-purple-700 shadow-sm'
+                  : 'text-gray-600'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-gray-600">
+          {sellingRacket
+            ? givingCommission
+              ? `Your player gets ${racketQuote ? money(racketQuote.coach_discount_cents) : `about ${money(racketEstimateCents)}`} off, and you earn nothing on it.`
+              : `You earn ${racketQuote ? money(racketQuote.coach_commission_cents) : `about ${money(racketEstimateCents)}`} when your player pays and picks up: ${racketCommissionPct}% of the profit after the racket's cost and the card fee.`
+            : givingCommission
+              ? `Your player gets ${commissionPct}% off this order, and you earn nothing on it.`
+              : `You earn ${commissionPct}% of the order, before tax, when your player pays.`}
+        </p>
+      </div>
+
+      <button
+        disabled={
+          creating ||
+          (form.player_mode === 'roster' && !form.player_user_id) ||
+          (sellingRacket && !racketSaleReady(form.rackets))
+        }
+        className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60 sm:w-auto"
+      >
+        <Send className="h-4 w-4" />
+        {creating ? 'Sending...' : sellingRacket ? 'Create racket order' : 'Create restring order'}
+      </button>
+      <p className="mt-2 text-xs text-gray-600">Your player gets the pay link by text.</p>
+    </form>
   );
 };
 
@@ -732,7 +557,7 @@ const RacketQuoteSummary = ({ quote, error, ready }) => {
   );
   return (
     <div className="mt-4 space-y-1.5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-      <p className="mb-2 font-semibold text-gray-900">What your player pays</p>
+      <p className="mb-2 font-semibold text-gray-900">Order summary</p>
       {quote.items.map((item, index) => (
         <React.Fragment key={index}>
           {row(
@@ -745,10 +570,10 @@ const RacketQuoteSummary = ({ quote, error, ready }) => {
       ))}
       {quote.coach_discount_cents > 0 && row('Your commission, given to them', `-${money(quote.coach_discount_cents)}`, 'text-emerald-700')}
       {row('Sales tax', money(quote.tax_cents))}
-      {row('Total', money(quote.total_cents), 'border-t border-gray-200 pt-2 text-base font-semibold text-gray-900')}
+      {row('Player pays', money(quote.total_cents), 'border-t border-gray-200 pt-2 text-base font-semibold text-gray-900')}
       {quote.commission_choice === 'player'
-        ? row('You earn', money(0), 'pt-1 font-medium text-gray-500')
-        : row('You earn', money(quote.coach_commission_cents), 'pt-1 font-semibold text-emerald-700')}
+        ? row('You earn', money(0), 'pt-1 font-medium text-gray-600')
+        : row('You earn', money(quote.coach_commission_cents), 'pt-1 font-semibold text-emerald-800')}
     </div>
   );
 };
@@ -805,17 +630,19 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
       <div className="flex items-center justify-between gap-3">
         <legend className="font-semibold text-gray-900">Racket {index + 1}</legend>
         {removable && (
-          <button type="button" onClick={onRemove} className="text-sm font-medium text-red-600">
+          <button type="button" onClick={onRemove} className="min-h-[44px] px-2 text-sm font-medium text-red-700">
             Remove
           </button>
         )}
       </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="mt-3">
+        <label htmlFor={`racket-product-${index}`} className="block text-sm font-medium text-gray-700">Racket</label>
         <select
+          id={`racket-product-${index}`}
           required
           value={item.racket_product_id}
           onChange={event => onChange({ racket_product_id: event.target.value, grip_size: '' })}
-          className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
+          className="mt-1 w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
         >
           <option value="">Choose a racket</option>
           {rackets.map(entry => (
@@ -824,17 +651,40 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
             </option>
           ))}
         </select>
-        <select
-          required
-          disabled={!racket}
-          value={item.grip_size}
-          onChange={event => onChange({ grip_size: event.target.value })}
-          className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm disabled:bg-gray-50"
-        >
-          <option value="">Grip size</option>
-          {(racket?.grip_sizes || []).map(size => <option key={size} value={size}>{size}</option>)}
-        </select>
       </div>
+      {racket && (
+        <fieldset className="mt-3">
+          <legend className="text-sm font-medium text-gray-700">Grip size</legend>
+          {(racket.grip_sizes || []).length ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {racket.grip_sizes.map(size => {
+                const selected = String(item.grip_size) === String(size);
+                return (
+                  <label
+                    key={size}
+                    className={`inline-flex min-h-[44px] min-w-[56px] cursor-pointer items-center justify-center rounded-full border px-4 text-sm font-semibold focus-within:ring-2 focus-within:ring-purple-500 ${
+                      selected ? 'border-purple-600 bg-purple-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-purple-200'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`grip-size-${index}`}
+                      value={size}
+                      required
+                      checked={selected}
+                      onChange={() => onChange({ grip_size: size })}
+                      className="sr-only"
+                    />
+                    {size}
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-gray-600">The shop hasn&apos;t listed grip sizes for this racket.</p>
+          )}
+        </fieldset>
+      )}
 
       {racket && (
         <div className="mt-3 flex gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
@@ -870,19 +720,34 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
         <RacketPhotoViewer racket={racket} onClose={() => setViewingPhoto(false)} />
       )}
 
-      <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+      <label className="mt-4 flex min-h-[44px] cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-200 px-3 py-2">
+        <span className="text-sm">
+          <span className="block font-medium text-gray-900">String it before pickup</span>
+          <span className="block text-xs text-gray-600">Labor is free; they pay for the string.</span>
+        </span>
         <input
           type="checkbox"
+          role="switch"
+          aria-checked={item.with_string}
           checked={item.with_string}
           onChange={event => onChange({ with_string: event.target.checked })}
+          className="peer sr-only"
         />
-        String it before pickup (labor is free, they pay for the string)
+        <span
+          aria-hidden="true"
+          className={`relative h-7 w-12 shrink-0 rounded-full transition peer-focus-visible:ring-2 peer-focus-visible:ring-purple-500 ${
+            item.with_string ? 'bg-purple-600' : 'bg-gray-300'
+          }`}
+        >
+          <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${item.with_string ? 'left-[22px]' : 'left-0.5'}`} />
+        </span>
       </label>
 
       {item.with_string && (
         <>
           <select
             required
+            aria-label="String service"
             value={item.service_tier_id}
             onChange={event => onTierChange(event.target.value)}
             className="mt-3 w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
@@ -1204,4 +1069,4 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
   </fieldset>
 );
 
-export default RestringingSection;
+export default PlayerOrderForm;

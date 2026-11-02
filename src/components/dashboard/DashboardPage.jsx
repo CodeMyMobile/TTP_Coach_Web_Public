@@ -15,9 +15,7 @@ import {
   Edit,
   User,
   Users,
-  MapPin,
-  TrendingUp,
-  CircleDot
+  MapPin
 } from 'lucide-react';
 import {
   getCoachRequests,
@@ -30,14 +28,13 @@ import AvailabilityReminderSheet from '../modals/AvailabilityReminderSheet';
 import { hasReviewedRecently, markAvailabilityReviewed } from '../../utils/availabilityReview';
 import { getLessonDateKey, getLessonMoments, getLessonStatus } from '../../utils/lessonDisplay';
 import { resolveBookingPaymentState } from '../../utils/bookingPaymentState';
-import CoachSuppliesModal from '../modals/CoachSuppliesModal';
 import StudentsSection from './sections/StudentsSection';
 import EarningsSection from './sections/EarningsSection';
 import PackagesSection from './sections/PackagesSection';
 import LocationsSection from './sections/LocationsSection';
 import CoachGroupsSection from './sections/CoachGroupsSection';
 import PayOnCourtSection from './sections/PayOnCourtSection';
-import RestringingSection from './sections/RestringingSection';
+import ProShopSection from './sections/ProShopSection';
 import './DashboardPage.css';
 
 const parseNumber = (value) => {
@@ -464,6 +461,9 @@ const DashboardPage = ({
   onDeleteGroup = () => {},
   onViewGroup = async () => null,
   onOpenUpcomingLessons = () => {},
+  proShopTab = 'restring',
+  proShopHref = () => '/pro-shop',
+  onOpenProShop = () => {},
   onOpenTransactionsHistory = () => {},
   onOpenPayoutHistory = () => {},
   isPlayerBlocked = () => false,
@@ -602,7 +602,6 @@ const DashboardPage = ({
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
-  const [suppliesOpen, setSuppliesOpen] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showAvailabilityReminder, setShowAvailabilityReminder] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -1442,7 +1441,7 @@ const DashboardPage = ({
                       className="dashboard-settings-menu-item"
                       onClick={() => {
                         setShowSettingsMenu(false);
-                        setSuppliesOpen(true);
+                        onOpenProShop('supplies');
                       }}
                     >
                       <ShoppingBag className="h-4 w-4" />
@@ -1483,26 +1482,21 @@ const DashboardPage = ({
               { key: 'today', label: 'Today', icon: CalendarPlus },
               { key: 'calendar', label: 'Calendar', icon: Calendar },
               { key: 'students', label: 'Students', icon: Users },
-              { key: 'earnings', label: 'Earnings', icon: DollarSign },
-              { key: 'restringing', label: 'Restringing', icon: CircleDot },
-              { key: 'pay-on-court', label: 'Pay on court', icon: DollarSign },
+              { key: 'groups', label: 'Groups', icon: Users },
               { key: 'packages', label: 'Packages', icon: Package },
               { key: 'locations', label: 'Locations', icon: MapPin },
-              { key: 'groups', label: 'Groups', icon: Users },
-              { key: 'upcoming', label: 'Upcoming', icon: TrendingUp, isRouteLink: true }
+              // Restrings, racket sales and coach supplies. Pay on court now lives under
+              // Earnings, and Upcoming is linked from Today.
+              { key: 'pro-shop', label: 'Pro Shop', icon: ShoppingBag },
+              { key: 'earnings', label: 'Earnings', icon: DollarSign }
             ].map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => {
-                  if (tab.isRouteLink) {
-                    onOpenUpcomingLessons();
-                    return;
-                  }
-                  onDashboardTabChange(tab.key);
-                }}
+                aria-current={dashboardTab === tab.key ? 'page' : undefined}
+                onClick={() => onDashboardTabChange(tab.key)}
                 className={`flex w-full items-center justify-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium sm:w-auto sm:justify-start ${
-                  dashboardTab === tab.key && !tab.isRouteLink
+                  dashboardTab === tab.key
                     ? 'bg-purple-600 text-white shadow'
                     : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
@@ -1707,7 +1701,9 @@ const DashboardPage = ({
             onLessonSelect={onLessonSelect}
             coachName={profile?.name || profile?.full_name || profile?.first_name || ''}
             onViewFullCalendar={() => onDashboardTabChange('calendar')}
-            onOpenRestringing={() => onDashboardTabChange('restringing')}
+            onOpenUpcomingLessons={onOpenUpcomingLessons}
+            proShopHref={proShopHref}
+            onOpenProShop={onOpenProShop}
           />
         )}
 
@@ -1754,14 +1750,23 @@ const DashboardPage = ({
         )}
 
         {dashboardTab === 'earnings' && (
-          <EarningsSection
-            stats={statsData}
-            onOpenTransactionsHistory={onOpenTransactionsHistory}
-            onOpenPayoutHistory={onOpenPayoutHistory}
-          />
+          <>
+            <EarningsSection
+              stats={statsData}
+              onOpenTransactionsHistory={onOpenTransactionsHistory}
+              onOpenPayoutHistory={onOpenPayoutHistory}
+            />
+            <PayOnCourtSection
+              lessons={mergedLessons}
+              onLessonSelect={onLessonSelect}
+              onMarkedPaid={onRefreshSchedule}
+            />
+          </>
         )}
 
-        {dashboardTab === 'restringing' && <RestringingSection />}
+        {dashboardTab === 'pro-shop' && (
+          <ProShopSection tab={proShopTab} onTabChange={tab => onOpenProShop(tab, { replace: true })} />
+        )}
 
         {dashboardTab === 'pay-on-court' && (
           <PayOnCourtSection
@@ -1998,7 +2003,6 @@ const DashboardPage = ({
         }}
         onClose={() => setShowAvailabilityReminder(false)}
       />
-      <CoachSuppliesModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
     </div>
   );
 };
