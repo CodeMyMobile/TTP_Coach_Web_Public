@@ -33,6 +33,12 @@ import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
 import UpcomingLessonsPage from './components/dashboard/UpcomingLessonsPage';
+import {
+  DEFAULT_PRO_SHOP_TAB,
+  parseProShopTab,
+  PRO_SHOP_PATH,
+  proShopSearch
+} from './components/dashboard/sections/proShop';
 import EarningsHistoryPage from './components/dashboard/sections/EarningsHistoryPage';
 import StudentDetailModal from './components/modals/StudentDetailModal';
 import LessonConfirmationSheet from './components/modals/LessonConfirmationSheet';
@@ -291,6 +297,10 @@ function App() {
   const isSettingsRoute = currentPath === '/settings';
   const isNotificationsRoute = currentPath === '/notifications';
   const isUpcomingLessonsRoute = currentPath === '/upcoming-lessons';
+  const isProShopRoute = currentPath === PRO_SHOP_PATH;
+  // Restringing was a dashboard tab with no address of its own; anyone holding this path
+  // goes to the Pro Shop's Restring tab.
+  const isLegacyRestringingRoute = currentPath === '/restringing';
   const isGoogleCalendarRoute = currentPath === '/google-calendar';
   const isGoogleRedirectRoute = currentPath === '/redirect';
   const isTransactionsHistoryRoute = currentPath === '/earnings/transactions';
@@ -392,11 +402,44 @@ function App() {
     setCurrentPath(normalizePath(targetPath));
   }, [buildPath, normalizePath]);
 
+  // The Pro Shop's tab lives in "?tab=", so the Today cards and the back button reach it.
+  const [proShopTab, setProShopTab] = useState(() => parseProShopTab(window.location.search));
+
+  const openProShop = useCallback((tab, { replace = false } = {}) => {
+    const nextTab = tab || DEFAULT_PRO_SHOP_TAB;
+    const target = `${buildPath(PRO_SHOP_PATH)}${proShopSearch(nextTab)}`;
+    if (`${window.location.pathname}${window.location.search}` !== target) {
+      window.history[replace ? 'replaceState' : 'pushState'](null, '', target);
+    }
+    setProShopTab(parseProShopTab(proShopSearch(nextTab)));
+    setCurrentPath(PRO_SHOP_PATH);
+  }, [buildPath]);
+
+  const proShopHref = useCallback(
+    (tab) => `${buildPath(PRO_SHOP_PATH)}${proShopSearch(tab || DEFAULT_PRO_SHOP_TAB)}`,
+    [buildPath]
+  );
+
   useEffect(() => {
-    const handlePopState = () => setCurrentPath(normalizePath(window.location.pathname));
+    const handlePopState = () => {
+      setCurrentPath(normalizePath(window.location.pathname));
+      setProShopTab(parseProShopTab(window.location.search));
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [normalizePath]);
+
+  // Every dashboard tab but the Pro Shop lives at /dashboard.
+  const handleDashboardTabChange = useCallback((key) => {
+    if (key === 'pro-shop' || key === 'restringing') {
+      openProShop(key === 'restringing' ? 'restring' : undefined);
+      return;
+    }
+    setDashboardTab(key);
+    if (currentPath !== '/dashboard') {
+      navigate('/dashboard');
+    }
+  }, [currentPath, navigate, openProShop]);
 
   useLayoutEffect(() => {
     const allowedAuthenticatedRoutes = new Set([
@@ -404,6 +447,8 @@ function App() {
       '/settings',
       '/notifications',
       '/upcoming-lessons',
+      PRO_SHOP_PATH,
+      '/restringing',
       '/google-calendar',
       '/redirect',
       '/earnings/transactions',
@@ -432,6 +477,12 @@ function App() {
     isPlayerDetailRoute,
     navigate
   ]);
+
+  useLayoutEffect(() => {
+    if (isLegacyRestringingRoute && isAuthenticated) {
+      openProShop('restring', { replace: true });
+    }
+  }, [isLegacyRestringingRoute, isAuthenticated, openProShop]);
 
   useEffect(() => {
     if (
@@ -2222,8 +2273,11 @@ function App() {
           isMobile={isMobile}
           calendarConnected={calendarConnected}
           onOpenGoogleCalendar={() => navigate('/google-calendar')}
-          dashboardTab={dashboardTab}
-          onDashboardTabChange={setDashboardTab}
+          dashboardTab={isProShopRoute ? 'pro-shop' : dashboardTab}
+          onDashboardTabChange={handleDashboardTabChange}
+          proShopTab={proShopTab}
+          proShopHref={proShopHref}
+          onOpenProShop={openProShop}
           calendarView={calendarView}
           onCalendarViewChange={setCalendarView}
           currentDate={currentDate}

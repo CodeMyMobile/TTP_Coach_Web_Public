@@ -2,18 +2,21 @@ import React, { useEffect, useMemo, useState } from 'react';
 import moment from 'moment';
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarDays,
   ChevronRight,
   CircleDot,
   Clock,
+  ListChecks,
   MapPin,
   MessageCircle,
+  Package,
   ShoppingBag,
   Users
 } from 'lucide-react';
-import CoachSuppliesModal from '../../modals/CoachSuppliesModal';
-import { getCoachRestringingOrders } from '../../../services/coach';
-import { getRestringingOrderSummary } from './restringingOrderPayload';
+import { getCoachRestringingEarnings, getCoachRestringingOrders } from '../../../services/coach';
+import { normalizeRestringingEarnings } from './restringingOrderPayload';
+import { proShopSummary } from './proShop';
 import {
   formatLessonDuration,
   getBookedGroupParticipants,
@@ -265,41 +268,161 @@ const CancelledLessonCard = ({ lesson, onLessonSelect }) => {
   );
 };
 
-const SuppliesCard = ({ onOpen }) => (
-  <button
-    type="button"
-    onClick={onOpen}
-    className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-200 hover:shadow"
-  >
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
-      <ShoppingBag className="h-5 w-5" />
-    </span>
-    <span className="min-w-0 flex-1">
-      <span className="block text-sm font-semibold text-gray-900">Coach supplies</span>
-      <span className="block truncate text-xs text-gray-500">Restrings &amp; balls at your coach price</span>
-    </span>
-    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
-  </button>
-);
+const money = cents =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(cents || 0) / 100);
 
-const RestringingCard = ({ summary, onOpen }) => (
-  <button
-    type="button"
-    onClick={onOpen}
-    className="mobile-restringing-card flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-200 hover:shadow"
-  >
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
-      <CircleDot className="h-5 w-5" />
+const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
+// A link that moves within the app, but stays a real link (new tab, copy address).
+const onAppLink = (event, go) => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return;
+  }
+  event.preventDefault();
+  go();
+};
+
+// One Pro Shop card: a full card from tablet width up, a compact tile on phones.
+const ProShopCard = ({ card, compact = false, href, onOpen }) => {
+  const { Icon } = card;
+  const iconTile = (
+    <span
+      aria-hidden="true"
+      className={`flex shrink-0 items-center justify-center rounded-xl ${compact ? 'h-10 w-10' : 'h-11 w-11'}`}
+      style={{ backgroundColor: card.tint, color: card.accent }}
+    >
+      <Icon className="h-5 w-5" />
     </span>
-    <span className="min-w-0 flex-1">
-      <span className="block text-sm font-semibold text-gray-900">Restringing</span>
-      <span className="block truncate text-xs text-gray-500">
-        {summary.awaitingDropOff} awaiting drop-off · {summary.ready} ready
-      </span>
-    </span>
-    <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
-  </button>
-);
+  );
+
+  if (compact) {
+    return (
+      <a
+        href={href}
+        onClick={event => onAppLink(event, onOpen)}
+        className="flex min-h-[44px] flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 transition hover:border-purple-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+      >
+        {iconTile}
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold leading-tight text-gray-900">{card.title}</span>
+          <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-600">{card.shortLabel}</span>
+          <span className="mt-1 block text-xs text-gray-700">{card.compactStatus}</span>
+        </span>
+      </a>
+    );
+  }
+
+  return (
+    <article className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5">
+      <div className="flex items-start gap-3">
+        {iconTile}
+        <div className="min-w-0">
+          <h4 className="text-base font-semibold text-gray-900">{card.title}</h4>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">{card.label}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-gray-600">{card.description}</p>
+      <p className="mt-3 text-sm font-medium text-gray-900">{card.status}</p>
+      <div className="mt-auto pt-4">
+        <a
+          href={href}
+          onClick={event => onAppLink(event, onOpen)}
+          className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-purple-600 px-4 text-sm font-semibold text-white transition hover:bg-purple-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+        >
+          {card.action}
+        </a>
+      </div>
+    </article>
+  );
+};
+
+const ProShopSection = ({ summary, earnings, proShopHref, onOpenProShop }) => {
+  const cards = [
+    {
+      tab: 'supplies',
+      Icon: ShoppingBag,
+      tint: '#F3EEFF',
+      accent: '#6D28D9',
+      title: 'Coach supplies',
+      label: 'For you',
+      shortLabel: 'For you',
+      description: 'Restrings and balls for your own lessons, at your coach price.',
+      status: summary.openSupplies ? plural(summary.openSupplies, 'open supply order') : 'No open supply orders',
+      compactStatus: `${summary.openSupplies} open`,
+      action: 'Shop supplies'
+    },
+    {
+      tab: 'restring',
+      Icon: CircleDot,
+      tint: '#E3F5F1',
+      accent: '#0F766E',
+      title: 'Restringing',
+      label: 'For players · You earn',
+      shortLabel: 'For players',
+      description: "Collect your players' rackets; The Tennis Garage strings them.",
+      status: `${summary.restringAwaitingDropOff} awaiting drop-off · ${summary.restringReady} ready`,
+      compactStatus: `${summary.restringAwaitingDropOff} drop-off · ${summary.restringReady} ready`,
+      action: 'New restring order'
+    },
+    {
+      tab: 'racket',
+      Icon: Package,
+      tint: '#FFF1DC',
+      accent: '#B45309',
+      title: 'Racket sales',
+      label: 'For players · You earn',
+      shortLabel: 'For players',
+      description: 'Order a new frame for a player, strung and ready for pickup.',
+      status: summary.openRackets ? plural(summary.openRackets, 'open racket order') : 'No open racket orders',
+      compactStatus: `${summary.openRackets} open`,
+      action: 'Sell a racket'
+    }
+  ];
+
+  return (
+    <section aria-labelledby="today-pro-shop" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h3 id="today-pro-shop" className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+          Pro Shop
+        </h3>
+        <a
+          href={proShopHref()}
+          onClick={event => onAppLink(event, () => onOpenProShop())}
+          className="inline-flex min-h-[44px] items-center gap-1 text-sm font-medium text-purple-700 hover:text-purple-800"
+        >
+          {money(earnings.earned_cents)} earned · {money(earnings.pending_cents)} awaiting payment ·{' '}
+          {plural(summary.playerOrders, 'order')}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </div>
+
+      <div className="hidden gap-4 md:grid md:grid-cols-3">
+        {cards.map(card => (
+          <ProShopCard key={card.tab} card={card} href={proShopHref(card.tab)} onOpen={() => onOpenProShop(card.tab)} />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 md:hidden">
+        {cards.map(card => (
+          <ProShopCard key={card.tab} compact card={card} href={proShopHref(card.tab)} onOpen={() => onOpenProShop(card.tab)} />
+        ))}
+      </div>
+
+      <dl className="grid grid-cols-3 divide-x divide-gray-100 rounded-xl border border-gray-200 bg-white md:hidden">
+        {[
+          { label: 'Awaiting drop-off', value: summary.awaitingDropOff },
+          { label: 'Ready for pickup', value: summary.ready },
+          { label: 'Awaiting payment', value: summary.awaitingPayment }
+        ].map(cell => (
+          <div key={cell.label} className="px-3 py-2">
+            <dd className="text-base font-semibold tabular-nums text-gray-900">{cell.value}</dd>
+            <dt className="text-[11px] leading-tight text-gray-600">{cell.label}</dt>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+};
 
 // Compact busy time range: show the meridiem once when start and end share it
 // ("3:30 – 5:30 PM"); keep both when they differ ("11:30 AM – 1:00 PM").
@@ -370,10 +493,12 @@ const TodayPage = ({
   onLessonSelect,
   coachName = '',
   onViewFullCalendar = () => {},
-  onOpenRestringing = () => {}
+  onOpenUpcomingLessons = () => {},
+  proShopHref = () => '/pro-shop',
+  onOpenProShop = () => {}
 }) => {
-  const [suppliesOpen, setSuppliesOpen] = useState(false);
-  const [restringingSummary, setRestringingSummary] = useState({ awaitingDropOff: 0, ready: 0 });
+  const [proShopOrders, setProShopOrders] = useState([]);
+  const [proShopEarnings, setProShopEarnings] = useState(null);
   const todayLabel = useMemo(() => moment().format('dddd, MMMM D'), []);
   const todayKey = useMemo(() => moment().format('YYYY-MM-DD'), []);
   const greeting = useMemo(() => {
@@ -391,9 +516,12 @@ const TodayPage = ({
 
     getCoachRestringingOrders()
       .then(response => {
-        if (active) {
-          setRestringingSummary(getRestringingOrderSummary(response?.orders || response || []));
-        }
+        if (active) setProShopOrders(response?.orders || response || []);
+      })
+      .catch(() => {});
+    getCoachRestringingEarnings()
+      .then(response => {
+        if (active) setProShopEarnings(response);
       })
       .catch(() => {});
 
@@ -474,9 +602,12 @@ const TodayPage = ({
         <p className="text-sm text-gray-500">{subline}</p>
       </header>
 
-      <SuppliesCard onOpen={() => setSuppliesOpen(true)} />
-      <CoachSuppliesModal isOpen={suppliesOpen} onClose={() => setSuppliesOpen(false)} />
-      <RestringingCard summary={restringingSummary} onOpen={onOpenRestringing} />
+      <ProShopSection
+        summary={proShopSummary(proShopOrders)}
+        earnings={normalizeRestringingEarnings(proShopEarnings)}
+        proShopHref={proShopHref}
+        onOpenProShop={onOpenProShop}
+      />
 
       {(requests.length > 0 || cancelledLessons.length > 0) && (
         <section className="space-y-3">
@@ -556,6 +687,17 @@ const TodayPage = ({
           <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <CalendarDays className="h-4 w-4 text-purple-600" />
             View full calendar
+          </span>
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenUpcomingLessons}
+          className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition hover:border-purple-200 hover:shadow-sm"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <ListChecks className="h-4 w-4 text-purple-600" />
+            All upcoming lessons
           </span>
           <ChevronRight className="h-4 w-4 text-gray-400" />
         </button>

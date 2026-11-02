@@ -73,8 +73,10 @@ export const filterRosterPlayers = (players = [], query = '') => {
   });
 };
 
+// GET /coach/restringing/earnings answers { earnings: { total_commission_cents, ... } }.
+// Read unwrapped, every total came out as $0.
 export const normalizeRestringingEarnings = (earnings = {}) => {
-  const summary = earnings || {};
+  const summary = earnings?.earnings || earnings || {};
   return {
     earned_cents: summary.total_commission_cents ?? summary.earned_cents ?? summary.earned ?? 0,
     pending_cents: summary.pending_commission_cents ?? summary.pending_cents ?? summary.pending ?? 0
