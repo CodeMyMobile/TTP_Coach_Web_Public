@@ -5,6 +5,7 @@ import {
   LESSON_DESCRIPTION_MAX_LENGTH,
   LESSON_TITLE_MAX_LENGTH,
   buildLessonUpdatePayload,
+  existingLessonPlayerIds,
   getLessonMetadataLimitState,
   mergeSavedLessonDetail
 } from '../lessonEdit.js';
@@ -92,4 +93,19 @@ test('getLessonMetadataLimitState reports title and description character limits
     isOverLimit: false,
     label: '500/500'
   });
+});
+
+test('an edit starts with the players still on the class, not those who cancelled', () => {
+  const lesson = {
+    group_players: [
+      { player_id: 1334, status: 2, payment_status: 2, payment_method: null }, // cancelled
+      { player_id: 248, status: 1, payment_status: 1, payment_method: 'credit' },
+      { player_id: 1726, status: 0, payment_status: 0, payment_method: 'comped' },
+      { player_id: 77, status: 0, payment_status: 0, payment_method: null }, // invited, not paid yet
+      { player_id: 0, status: 1, payment_status: 1 }
+    ]
+  };
+  assert.deepEqual(existingLessonPlayerIds(lesson), [248, 1726, 77]);
+  assert.deepEqual(existingLessonPlayerIds({ groupPlayers: [{ playerId: '5', status: 1 }] }), [5]);
+  assert.deepEqual(existingLessonPlayerIds({}), []);
 });
