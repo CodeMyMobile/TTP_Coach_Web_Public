@@ -1,4 +1,5 @@
 import { getLessonType } from './lessonDisplay.js';
+import { resolveBookingPaymentState } from './bookingPaymentState.js';
 
 export const LESSON_TITLE_MAX_LENGTH = 100;
 export const LESSON_DESCRIPTION_MAX_LENGTH = 500;
@@ -17,6 +18,25 @@ export const getLessonMetadataLimitState = (field, value = '') => {
 };
 
 export const isEditableGroupLesson = (lesson) => getLessonType(lesson) === 'group';
+
+// The players an edit starts with: those still on the class. A player who cancelled
+// stays in group_players, and saving the edit sends every listed player back, which
+// the API takes as re-adding them: a cancelled player came back as a pending invite.
+export const existingLessonPlayerIds = (lesson) => {
+  const players = Array.isArray(lesson?.group_players)
+    ? lesson.group_players
+    : Array.isArray(lesson?.groupPlayers)
+      ? lesson.groupPlayers
+      : [];
+  return players
+    .filter((player) => resolveBookingPaymentState({
+      status: player?.status,
+      paymentStatus: player?.payment_status ?? player?.paymentStatus,
+      paymentMethod: player?.payment_method ?? player?.paymentMethod
+    }).key !== 'cancelled')
+    .map((player) => Number(player?.player_id ?? player?.playerId ?? player?.id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+};
 
 const resolveSavedLessonPayload = (payload) => {
   if (!payload || typeof payload !== 'object') {

@@ -57,7 +57,7 @@ import {
   updateCoachPlayerGroup
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
-import { buildLessonUpdatePayload, mergeSavedLessonDetail } from './utils/lessonEdit';
+import { buildLessonUpdatePayload, existingLessonPlayerIds, mergeSavedLessonDetail } from './utils/lessonEdit';
 import {
   createCoachLessonWaitlistCallbacks,
   createCoachLessonWaitlistController,
@@ -1198,15 +1198,7 @@ function App() {
         ? selectedLessonDetail.groupIds
         : [];
 
-    const existingPlayers = Array.isArray(selectedLessonDetail.group_players)
-      ? selectedLessonDetail.group_players
-      : Array.isArray(selectedLessonDetail.groupPlayers)
-        ? selectedLessonDetail.groupPlayers
-        : [];
-
-    const existingPlayerIds = existingPlayers
-      .map((player) => Number(player?.player_id ?? player?.playerId ?? player?.id))
-      .filter((id) => Number.isFinite(id) && id > 0);
+    const existingPlayerIds = existingLessonPlayerIds(selectedLessonDetail);
 
     setIsEditingLesson(true);
     setLessonEditData({
