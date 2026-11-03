@@ -5,6 +5,8 @@ import {
   buildCoachRestringingOrderPayload,
   buildCoachSelfPurchasePayload,
   estimateCoachPurchase,
+  newCoachSupplyRacket,
+  racketNeedsTension,
   isCoachPurchase,
   coachCommissionStatusText,
   initialRestringingForm,
@@ -524,4 +526,20 @@ test('stringQuizComplete needs an answer to every question', () => {
   assert.equal(stringQuizComplete({ ...answers, priority: '' }), false);
   assert.equal(stringQuizComplete(undefined), false);
   assert.deepEqual(STRING_QUIZ_QUESTIONS.map(question => question.key), ['armDiscomfort', 'breakFrequency', 'priority', 'premiumPreference']);
+});
+
+test('a coach supply racket starts asking for a tension, not left to the stringer', () => {
+  const racket = newCoachSupplyRacket();
+  assert.equal(racket.advice_requested, false);
+  assert.equal(racket.tension_lbs, '');
+  assert.equal(racketNeedsTension(racket), true);
+});
+
+test('a racket needs a tension in range unless the stringer advises', () => {
+  const racket = newCoachSupplyRacket();
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52' }), false);
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '90' }), true);
+  assert.equal(racketNeedsTension({ ...racket, advice_requested: true }), false);
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52', split_tension: true, tension_lbs_crosses: '' }), true);
+  assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52', split_tension: true, tension_lbs_crosses: '50' }), false);
 });
