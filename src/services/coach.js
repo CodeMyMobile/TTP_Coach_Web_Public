@@ -454,6 +454,26 @@ export const getCoachRequests = ({ perPage = 20, page = 1, search } = {}) => {
   return request(path);
 };
 
+// A player who isn't on the roster yet asking for lessons. The coach answers on the
+// request's own page: saying yes needs them to confirm their calendar is up to date,
+// because the player is then texted a link to book one of their open times.
+export const getCoachLessonRequest = (requestId) => {
+  if (!requestId) {
+    throw new Error('A request id is required to load a lesson request.');
+  }
+  return request(`/coach/lesson-requests/${encodeURIComponent(requestId)}`);
+};
+
+export const answerCoachLessonRequest = (requestId, action, { calendarConfirmed = false } = {}) => {
+  if (!requestId) {
+    throw new Error('A request id is required to answer a lesson request.');
+  }
+  return request(`/coach/lesson-requests/${encodeURIComponent(requestId)}/${action}`, {
+    method: 'POST',
+    body: action === 'accept' ? { calendar_confirmed: calendarConfirmed === true } : {}
+  });
+};
+
 export const updateCoachRequest = ({
   requestType,
   requestId,
@@ -768,6 +788,8 @@ export default {
   updateCoachLesson,
   markPayOnCourtLessonPaid,
   getCoachRequests,
+  getCoachLessonRequest,
+  answerCoachLessonRequest,
   updateCoachRequest,
   getCoachPlayerGroups,
   getCoachPlayerGroupById,
