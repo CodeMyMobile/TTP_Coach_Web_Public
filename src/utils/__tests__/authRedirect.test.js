@@ -89,3 +89,25 @@ test('redirectToSignInOnForbidden leaves other failures to the caller', async ()
   delete global.window;
   await removeTokens();
 });
+
+test('an expired session on a request link remembers the link for after sign-in', async () => {
+  await storeTokens('coach-token', 'refresh-token');
+  const locationState = setupWindow();
+  const items = new Map();
+  global.window.location.pathname = '/dashboard/requests/7';
+  global.window.sessionStorage = {
+    getItem: (key) => (items.has(key) ? items.get(key) : null),
+    setItem: (key, value) => items.set(key, value),
+    removeItem: (key) => items.delete(key)
+  };
+
+  const { redirectToSignInOnForbidden } = await import('../authRedirect.js');
+  const { peekReturnPath } = await import('../authRoutes.js');
+  await redirectToSignInOnForbidden({ status: 401 });
+
+  assert.equal(locationState.assignedPath, '/');
+  assert.equal(peekReturnPath(), '/dashboard/requests/7');
+
+  delete global.window;
+  await removeTokens();
+});

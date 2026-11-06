@@ -1,5 +1,6 @@
 import { clearStoredUser } from '../hooks/authStorage.js';
 import { getAccessToken, removeTokens } from './tokenHelper.js';
+import { rememberReturnPath } from './authRoutes.js';
 
 export const redirectToSignIn = async () => {
   clearStoredUser();
@@ -12,6 +13,9 @@ export const redirectToSignIn = async () => {
   if (window.location.pathname === '/') {
     return;
   }
+
+  // An expired session on a link from a text: come back to it after signing in.
+  rememberReturnPath(window.location.pathname);
 
   if (typeof window.location.assign === 'function') {
     window.location.assign('/');

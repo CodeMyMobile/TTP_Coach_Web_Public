@@ -435,6 +435,7 @@ const DashboardPage = ({
   onRequestAvailabilityOnboarding,
   onOpenSettings,
   onOpenNotifications = () => {},
+  onOpenNewPlayerRequest = () => {},
   onLogout,
   studentSearchQuery,
   onStudentSearchQueryChange,
@@ -608,6 +609,7 @@ const DashboardPage = ({
   const [dismissedActionBar, setDismissedActionBar] = useState(false);
   const [requestItems, setRequestItems] = useState([]);
   const [awaitingPlayerItems, setAwaitingPlayerItems] = useState([]);
+  const [newPlayerRequestItems, setNewPlayerRequestItems] = useState([]);
   const [requestsPage, setRequestsPage] = useState(1);
   const [requestsPerPage] = useState(20);
   const [requestsCount, setRequestsCount] = useState(0);
@@ -756,6 +758,10 @@ const DashboardPage = ({
         const awaitingList = Array.isArray(response?.awaiting_player_confirmation)
           ? response.awaiting_player_confirmation
           : [];
+        // New players' requests aren't paged; they lead the first page.
+        const newPlayerList =
+          page === 1 && Array.isArray(response?.new_player_requests) ? response.new_player_requests : [];
+        const newPlayerCount = Array.isArray(response?.new_player_requests) ? response.new_player_requests.length : 0;
         const breakdownCount =
           typeof response?.breakdown?.awaiting_player_confirmation === 'number'
             ? (response?.count || 0) + response.breakdown.awaiting_player_confirmation
@@ -763,10 +769,11 @@ const DashboardPage = ({
 
         setRequestItems(list);
         setAwaitingPlayerItems(awaitingList);
+        setNewPlayerRequestItems(newPlayerList);
         setRequestsCount(
-          typeof breakdownCount === 'number'
+          (typeof breakdownCount === 'number'
             ? breakdownCount
-            : list.length + awaitingList.length
+            : list.length + awaitingList.length) + newPlayerCount
         );
       } catch (error) {
         setRequestsError(getRequestErrorMessage(error, 'Failed to load requests.'));
@@ -1069,7 +1076,24 @@ const DashboardPage = ({
     };
   });
 
-  const actionItems = [...actionableItems, ...awaitingItems];
+  // Answered on their own page, where the coach checks their calendar first.
+  const newPlayerItems = newPlayerRequestItems.map((requestItem, index) => ({
+    id: `new-player-${requestItem.request_id}-${index}`,
+    type: 'new-player',
+    name: requestItem?.player?.full_name || 'Player',
+    detail: requestItem?.summary || 'wants lessons',
+    info: 'New player',
+    timestamp: requestItem.created_at,
+    avatarUrl: '',
+    acceptLabel: 'Review request',
+    plainAcceptLabel: true,
+    hideDecline: true,
+    onDetails: () => onOpenNewPlayerRequest(requestItem.request_id),
+    onAccept: () => onOpenNewPlayerRequest(requestItem.request_id),
+    onDecline: null
+  }));
+
+  const actionItems = [...newPlayerItems, ...actionableItems, ...awaitingItems];
   const notificationItems = actionItems;
   const canGoToPrevRequestPage = requestsPage > 1;
   const canGoToNextRequestPage = !requestsLoading && requestsPage * requestsPerPage < requestsCount;
@@ -1532,14 +1556,16 @@ const DashboardPage = ({
                       <div className="request-row">
                         <div className="request-avatar">{getInitials(item.name)}</div>
                         <div className="request-info">
-                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : 'roster'}`}>
-                            {item.type === 'lesson' ? '🎾 Lesson Request' : '👤 Roster Request'}
+                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : item.type === 'new-player' ? 'new-player' : 'roster'}`}>
+                            {item.type === 'lesson' ? '🎾 Lesson Request' : item.type === 'new-player' ? '🌱 New Player' : '👤 Roster Request'}
                           </div>
                           <div className="request-name">{item.name}</div>
-                          {item.info && <div className="request-meta">{item.info}</div>}
+                          {item.type === 'new-player'
+                            ? <div className="request-meta">{item.detail}</div>
+                            : item.info && <div className="request-meta">{item.info}</div>}
                         </div>
-                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : 'roster'}`}>
-                          {item.type === 'lesson' ? 'Lesson' : 'Roster'}
+                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : item.type === 'new-player' ? 'new-player' : 'roster'}`}>
+                          {item.type === 'lesson' ? 'Lesson' : item.type === 'new-player' ? 'New player' : 'Roster'}
                         </div>
                       </div>
                     </div>
@@ -1571,7 +1597,7 @@ const DashboardPage = ({
                         >
                           {item.activeAction === 'confirm' || item.activeAction === 'approve'
                             ? 'Processing...'
-                            : `✓ ${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
+                            : `${item.plainAcceptLabel ? '' : '✓ '}${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
                         </button>
                       )}
                     </div>
@@ -1621,14 +1647,16 @@ const DashboardPage = ({
                       <div className="request-row">
                         <div className="request-avatar">{getInitials(item.name)}</div>
                         <div className="request-info">
-                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : 'roster'}`}>
-                            {item.type === 'lesson' ? '🎾 Lesson' : '👤 Roster'}
+                          <div className={`request-type-tag ${item.type === 'lesson' ? 'lesson' : item.type === 'new-player' ? 'new-player' : 'roster'}`}>
+                            {item.type === 'lesson' ? '🎾 Lesson' : item.type === 'new-player' ? '🌱 New Player' : '👤 Roster'}
                           </div>
                           <div className="request-name">{item.name}</div>
-                          {item.info && <div className="request-meta">{item.info}</div>}
+                          {item.type === 'new-player'
+                            ? <div className="request-meta">{item.detail}</div>
+                            : item.info && <div className="request-meta">{item.info}</div>}
                         </div>
-                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : 'roster'}`}>
-                          {item.type === 'lesson' ? 'New' : 'Roster'}
+                        <div className={`request-badge ${item.type === 'lesson' ? 'new' : item.type === 'new-player' ? 'new-player' : 'roster'}`}>
+                          {item.type === 'lesson' ? 'New' : item.type === 'new-player' ? 'New player' : 'Roster'}
                         </div>
                       </div>
                     </div>
@@ -1660,7 +1688,7 @@ const DashboardPage = ({
                         >
                           {item.activeAction === 'confirm' || item.activeAction === 'approve'
                             ? 'Processing...'
-                            : `✓ ${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
+                            : `${item.plainAcceptLabel ? '' : '✓ '}${item.acceptLabel || (item.type === 'lesson' ? 'Confirm' : 'Approve')}`}
                         </button>
                       )}
                     </div>

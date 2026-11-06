@@ -13,7 +13,7 @@ import { useCoachStudents } from './hooks/useCoachStudents';
 import useCoachProfile from './hooks/useCoachProfile';
 import useAuth from './hooks/useAuth.jsx';
 import { createDefaultProfile } from './constants/profile';
-import { resolveAuthRedirectPath } from './utils/authRoutes';
+import { clearReturnPath, peekReturnPath, rememberReturnPath, resolveAuthRedirectPath } from './utils/authRoutes';
 import {
   deleteCoachPackage,
   listCoachPackages,
@@ -32,6 +32,7 @@ import LessonCreatedSuccessModal from './components/modals/LessonCreatedSuccessM
 import GoogleCalendarSyncPage from './components/settings/GoogleCalendarSyncPage';
 import { coachStripePaymentIntent, updateCoachLessons } from './api/coach';
 import NotificationsPage from './components/notifications/NotificationsPage';
+import NewPlayerRequestPage from './components/dashboard/NewPlayerRequestPage';
 import UpcomingLessonsPage from './components/dashboard/UpcomingLessonsPage';
 import {
   DEFAULT_PRO_SHOP_TAB,
@@ -315,6 +316,11 @@ function App() {
   const playerRoutePlayerId = playerDetailRouteMatch?.[1]
     ? decodeURIComponent(playerDetailRouteMatch[1])
     : '';
+  const lessonRequestRouteMatch = currentPath.match(/^\/dashboard\/requests\/([^/]+)\/?$/);
+  const isLessonRequestRoute = Boolean(lessonRequestRouteMatch);
+  const lessonRequestRouteId = lessonRequestRouteMatch?.[1]
+    ? decodeURIComponent(lessonRequestRouteMatch[1])
+    : '';
   const shouldShowOnboarding = (!isProfileComplete || isEditingProfile) && isAuthenticated;
 
   useEffect(() => {
@@ -455,16 +461,26 @@ function App() {
       '/earnings/payouts'
     ]);
 
-    if (isLessonDetailRoute || isPlayerDetailRoute) {
+    if (isLessonDetailRoute || isPlayerDetailRoute || isLessonRequestRoute) {
       allowedAuthenticatedRoutes.add(currentPath);
+    }
+
+    if (!authInitialising && !isAuthenticated) {
+      rememberReturnPath(currentPath);
     }
 
     const redirectPath = resolveAuthRedirectPath({
       authInitialising,
       isAuthenticated,
       currentPath,
-      allowedAuthenticatedRoutes
+      allowedAuthenticatedRoutes,
+      returnPath: isAuthenticated ? peekReturnPath() : null
     });
+
+    // Signed in: the link has been followed, or the coach was already signed in.
+    if (!authInitialising && isAuthenticated) {
+      clearReturnPath();
+    }
 
     if (redirectPath) {
       navigate(redirectPath, { replace: true });
@@ -474,6 +490,7 @@ function App() {
     isAuthenticated,
     currentPath,
     isLessonDetailRoute,
+    isLessonRequestRoute,
     isPlayerDetailRoute,
     navigate
   ]);
@@ -2247,6 +2264,14 @@ function App() {
         />
       ) : isGoogleCalendarRoute || isGoogleRedirectRoute ? (
         <GoogleCalendarSyncPage onBack={() => navigate('/settings')} />
+      ) : isLessonRequestRoute ? (
+        <NewPlayerRequestPage
+          requestId={lessonRequestRouteId}
+          onBack={() => navigate('/dashboard')}
+          onAddAvailability={handleAddAvailabilityOpen}
+          onEditWeeklyAvailability={() => handleRequestAvailabilityOnboarding()}
+          availabilityEditorOpen={showAddLessonModal}
+        />
       ) : isNotificationsRoute ? (
         <NotificationsPage
           onBack={() => navigate('/dashboard')}
@@ -2312,6 +2337,7 @@ function App() {
           onRequestAvailabilityOnboarding={handleRequestAvailabilityOnboarding}
           onOpenSettings={() => navigate('/settings')}
           onOpenNotifications={() => navigate('/notifications')}
+          onOpenNewPlayerRequest={(requestId) => navigate(`/dashboard/requests/${encodeURIComponent(requestId)}`)}
           onOpenUpcomingLessons={() => navigate('/upcoming-lessons')}
           onOpenTransactionsHistory={() => navigate('/earnings/transactions')}
           onOpenPayoutHistory={() => navigate('/earnings/payouts')}

@@ -1002,6 +1002,10 @@
   color: #7c3aed;
 }
 
+.request-type-tag.new-player {
+  color: #b45309;
+}
+
 .request-name {
   font-size: 15px;
   color: #1e293b;
@@ -1030,6 +1034,11 @@
 .request-badge.roster {
   background: #ede9fe;
   color: #7c3aed;
+}
+
+.request-badge.new-player {
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .request-actions {
