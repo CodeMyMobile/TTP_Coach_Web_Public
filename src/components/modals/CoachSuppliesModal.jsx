@@ -283,17 +283,28 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                   const qty = Number(quantities[offer.id] || 0);
                   return (
                     <div key={offer.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{offer.name}</p>
-                        {offer.description && <p className="text-xs text-gray-500">{offer.description}</p>}
-                        <p className="text-xs text-gray-500">
-                          {money(addOnUnitCents(offer, rackets.length > 0))}
-                          {offer.coaches_only
-                            ? ' coach price'
-                            : rackets.length > 0 && Number(offer.regular_price_cents) > Number(offer.bundle_price_cents)
-                              ? ' with a restring'
-                              : ''}
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {/* The shop's product photo (shop app, Offers with a restring), when it has one. */}
+                        {offer.image_url ? (
+                          <img
+                            src={offer.image_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-14 w-14 shrink-0 rounded-lg border border-gray-100 bg-white object-contain"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900">{offer.name}</p>
+                          {offer.description && <p className="text-xs text-gray-500">{offer.description}</p>}
+                          <p className="text-xs text-gray-500">
+                            {money(addOnUnitCents(offer, rackets.length > 0))}
+                            {offer.coaches_only
+                              ? ' coach price'
+                              : rackets.length > 0 && Number(offer.regular_price_cents) > Number(offer.bundle_price_cents)
+                                ? ' with a restring'
+                                : ''}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
