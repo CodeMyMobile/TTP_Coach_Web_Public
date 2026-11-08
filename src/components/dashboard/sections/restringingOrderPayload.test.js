@@ -5,6 +5,8 @@ import {
   buildCoachRestringingOrderPayload,
   buildCoachSelfPurchasePayload,
   estimateCoachPurchase,
+  restringUnitCents,
+  stringOnlyCents,
   newCoachSupplyRacket,
   racketNeedsTension,
   isCoachPurchase,
@@ -542,4 +544,23 @@ test('a racket needs a tension in range unless the stringer advises', () => {
   assert.equal(racketNeedsTension({ ...racket, advice_requested: true }), false);
   assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52', split_tension: true, tension_lbs_crosses: '' }), true);
   assert.equal(racketNeedsTension({ ...racket, tension_lbs: '52', split_tension: true, tension_lbs_crosses: '50' }), false);
+});
+
+test('a string the shop has priced costs labor plus the string; otherwise the service price', () => {
+  const tier = { id: 2, price_cents: 4499, string_category: 'std_poly' };
+  const own = { id: 1, price_cents: 2999, string_category: null };
+  const priced = { id: 7, string_price_cents: 2200, restring_price_cents: 5199 };
+  assert.equal(restringUnitCents(tier, priced), 5199);
+  assert.equal(restringUnitCents(tier, { id: 8, string_price_cents: null, restring_price_cents: null }), 4499);
+  assert.equal(restringUnitCents(tier, null), 4499);
+  assert.equal(restringUnitCents(own, priced), 2999);
+  // With a new racket labor is free: the string's own price.
+  assert.equal(stringOnlyCents(tier, [own, tier], priced), 2200);
+  assert.equal(stringOnlyCents(tier, [own, tier]), 1500);
+  // The coach's own purchase: only a racket that names the priced string uses it.
+  const rackets = [
+    { service_tier_id: 2, string_selection: 'specified', string_id: '7' },
+    { service_tier_id: 2, string_selection: 'shop_choice', string_id: '7' },
+  ];
+  assert.equal(estimateCoachPurchase({ rackets, tiers: [own, tier], strings: [priced] }).subtotalCents, 5199 + 4499);
 });
