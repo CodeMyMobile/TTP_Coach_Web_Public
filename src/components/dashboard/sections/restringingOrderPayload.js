@@ -276,14 +276,31 @@ export const addOnUnitCents = (offer, withRestring) => {
   return Number.isFinite(bundle) ? bundle : 0;
 };
 
-// What the coach pays before sales tax, which the checkout adds: tier prices
-// for the rackets, add-ons as above, less the shop's coach discount. The
+const centsOrNull = value => (value === null || value === undefined || value === '' ? null : Number(value));
+
+// The string a racket names, when the coach picked one ("specified").
+export const racketString = (racket, strings = []) =>
+  racket?.string_selection === 'specified' && racket?.string_id
+    ? strings.find(string => String(string.id) === String(racket.string_id)) || null
+    : null;
+
+// One restring's price, the API's rule: a string the shop has priced costs
+// labor plus the string (the catalog's restring_price_cents); otherwise the
+// service's price.
+export const restringUnitCents = (tier, string = null) => {
+  const restring = centsOrNull(string?.restring_price_cents);
+  if (tier?.string_category && restring !== null && centsOrNull(string?.string_price_cents) !== null) return restring;
+  return Number(tier?.price_cents || 0);
+};
+
+// What the coach pays before sales tax, which the checkout adds: each racket's
+// restring price, add-ons as above, less the shop's coach discount. The
 // discount doesn't come off coaches-only offers, whose price is already the coach's.
-export const estimateCoachPurchase = ({ rackets = [], tiers = [], addOns = [], quantities = {}, coachDiscountPct = 0 }) => {
+export const estimateCoachPurchase = ({ rackets = [], tiers = [], strings = [], addOns = [], quantities = {}, coachDiscountPct = 0 }) => {
   const withRestring = rackets.length > 0;
   const racketCents = rackets.reduce((sum, racket) => {
     const tier = tiers.find(entry => String(entry.id) === String(racket.service_tier_id));
-    return sum + Number(tier?.price_cents || 0);
+    return sum + restringUnitCents(tier, racketString(racket, strings));
   }, 0);
   const addOnCents = addOns.reduce(
     (sum, offer) => sum + addOnUnitCents(offer, withRestring) * Number(quantities[offer.id] || 0),
@@ -343,10 +360,13 @@ export const racketSpecSummary = (specs = {}) =>
   ].filter(Boolean).join(' · ');
 
 // What a string job costs with a new racket: labor is free, so the string only.
-// Labor is the cheapest service with no string in it, the API's rule; a service
-// with no string costs nothing. With no labor-only service, the whole price.
-export const stringOnlyCents = (tier, tiers = []) => {
+// A string the shop has priced costs that price. Otherwise labor is the cheapest
+// service with no string in it, the API's rule; a service with no string costs
+// nothing. With no labor-only service, the whole price.
+export const stringOnlyCents = (tier, tiers = [], string = null) => {
   if (!tier) return 0;
+  const stringPrice = centsOrNull(string?.string_price_cents);
+  if (tier.string_category && stringPrice !== null) return stringPrice;
   const price = Number(tier.price_cents || 0);
   if (!tier.string_category && !tier.string_composition) return 0;
   const laborPrices = tiers

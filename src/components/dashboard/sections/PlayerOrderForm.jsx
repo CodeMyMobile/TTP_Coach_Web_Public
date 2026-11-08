@@ -768,7 +768,7 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
             </div>
           )}
           {!ownStringRequired && tier && !tier.string_composition && (
-            <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={onChange} />
+            <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={onChange} laborFree />
           )}
           <TensionInput item={item} onChange={onChange} advisePlaceholder="The stringer sets it" />
           <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
@@ -1020,7 +1020,8 @@ export const TensionInput = ({ item, onChange, advisePlaceholder = 'Set at drop-
   );
 };
 
-export const StringSelection = ({ value, strings, selectedString, gauge, onChange }) => (
+// laborFree: a string job with a new racket, where a priced string costs the string only.
+export const StringSelection = ({ value, strings, selectedString, gauge, onChange, laborFree = false }) => (
   <fieldset className="mt-3 rounded-lg border border-gray-200 p-3">
     <legend className="px-1 text-sm font-medium text-gray-700">String choice</legend>
     <div className="flex flex-wrap gap-4 text-sm text-gray-700">
@@ -1051,7 +1052,12 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
         >
           <option value="">Choose a stocked string</option>
           {strings.map(string => (
-            <option key={string.id} value={string.id}>{string.brand} {string.name}</option>
+            <option key={string.id} value={string.id}>
+              {string.brand} {string.name}
+              {(laborFree ? string.string_price_cents : string.restring_price_cents) != null
+                ? ` · ${money(laborFree ? string.string_price_cents : string.restring_price_cents)}`
+                : ''}
+            </option>
           ))}
         </select>
         {selectedString?.gauges_stocked?.length ? (

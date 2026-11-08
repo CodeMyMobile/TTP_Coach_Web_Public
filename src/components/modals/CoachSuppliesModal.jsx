@@ -86,7 +86,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
   const vendorId = catalog?.vendor?.id || catalog?.vendor_id || 1;
   const vendorName = catalog?.vendor?.name || 'The Tennis Garage';
   const coachDiscountPct = Number(catalog?.coach_discount_pct || 0);
-  const estimate = estimateCoachPurchase({ rackets, tiers, addOns, quantities, coachDiscountPct });
+  const estimate = estimateCoachPurchase({ rackets, tiers, strings, addOns, quantities, coachDiscountPct });
   const hasSelection = rackets.length > 0 || addOns.some(offer => Number(quantities[offer.id] || 0) > 0);
   const missingTension = rackets.some(racketNeedsTension);
 
