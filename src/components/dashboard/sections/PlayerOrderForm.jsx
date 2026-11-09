@@ -2,9 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Gift, Hand, Loader2, Maximize2, Plus, Send, User, UserPlus, Users, Wallet, X } from 'lucide-react';
 import {
   createCoachRestringingOrder,
+  getCoachPlayerStrings,
   quoteCoachRacketOrder,
-  recommendRestringStrings
+  recommendRestringStrings,
+  saveCoachPlayerGameProfile
 } from '../../../services/coach';
+import { clientStringLines, quizAnswersFromProfile } from './clientStrings';
 import {
   buildCoachRestringingOrderPayload,
   filterRosterPlayers,
@@ -62,6 +65,18 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
   const selectedRosterPlayer = players.find(
     player => String(player.player_user_id || player.id) === String(form.player_user_id)
   );
+  // The picked client's past strings and ratings, and their game profile.
+  const historyPlayerId = form.player_mode === 'roster' ? form.player_user_id : '';
+  const [clientHistory, setClientHistory] = useState(null);
+  useEffect(() => {
+    setClientHistory(null);
+    if (!historyPlayerId) return undefined;
+    let cancelled = false;
+    getCoachPlayerStrings(historyPlayerId)
+      .then(data => { if (!cancelled) setClientHistory({ playerId: historyPlayerId, ...data }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [historyPlayerId]);
   const coachDropOff = form.contact_party === 'coach';
   const commissionPct = Number(catalog?.commission?.pct ?? 10);
   const racketCommissionPct = Number(catalog?.racket_commission_pct ?? 50);
@@ -248,6 +263,9 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
               })
             }
           />
+          {clientHistory?.strings?.length ? (
+            <ClientStrings strings={clientHistory.strings} name={selectedRosterPlayer ? playerLabel(selectedRosterPlayer) : ''} />
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-4">
@@ -332,7 +350,15 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
-                <ServiceSelect tiers={tiers} strings={catalog?.catalog || catalog?.strings || []} item={item} onChange={patch => updateRacket(index, patch)} vendorId={vendorId} />
+                <ServiceSelect
+                  tiers={tiers}
+                  strings={catalog?.catalog || catalog?.strings || []}
+                  item={item}
+                  onChange={patch => updateRacket(index, patch)}
+                  vendorId={vendorId}
+                  playerId={historyPlayerId}
+                  profile={clientHistory?.playerId === historyPlayerId ? clientHistory?.profile : null}
+                />
               </div>
               <ServiceTierStrings
                 tiers={tiers}
@@ -471,6 +497,28 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
       </button>
       <p className="mt-2 text-xs text-gray-600">Your player gets the pay link by text.</p>
     </form>
+  );
+};
+
+// The client's last few setups and how they rated them, so the coach can see what worked.
+const ClientStrings = ({ strings, name }) => {
+  const lines = clientStringLines(strings);
+  return (
+    <section aria-label="Their past strings" className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm md:col-span-3">
+      <p className="font-semibold text-gray-900">{name ? `${name}’s past strings` : 'Past strings'}</p>
+      <ul className="mt-2 space-y-2">
+        {lines.map(line => (
+          <li key={line.key} className="flex flex-col gap-0.5">
+            <span className="font-medium text-gray-900">{line.title}</span>
+            <span className="text-xs text-gray-500">{line.detail}</span>
+            {line.rating ? (
+              <span className={`text-xs ${line.rated ? 'font-medium text-purple-700' : 'text-gray-400'}`}>{line.rating}</span>
+            ) : null}
+            {line.comment ? <span className="text-xs italic text-gray-600">“{line.comment}”</span> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 };
 
@@ -796,7 +844,7 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
 // The string, picked first: the shop's strings by category, narrowed by type chips, then the
 // services with no string to name. "Help me choose" asks about the client and picks one.
 // onChange gets the racket fields the pick sets (its service included).
-export const ServiceSelect = ({ tiers, strings = [], item, onChange, vendorId }) => {
+export const ServiceSelect = ({ tiers, strings = [], item, onChange, vendorId, playerId = '', profile = null }) => {
   const [filter, setFilter] = useState('all');
   const [quizOpen, setQuizOpen] = useState(false);
   const pickedCategory = item?.string_selection === 'specified'
@@ -835,6 +883,8 @@ export const ServiceSelect = ({ tiers, strings = [], item, onChange, vendorId })
       {quizOpen && (
         <StringQuiz
           vendorId={vendorId}
+          playerId={playerId}
+          profile={profile}
           onUse={({ value, tensionLbs }) => {
             onChange({
               ...stringPickPatch(value, tiers, strings),
@@ -912,8 +962,11 @@ export const ServiceTierStrings = ({ tiers, strings, selectedTier }) => {
 
 // "Help me choose": the player app's questions, answered by the coach for their client. Its
 // pick fills in the string and a suggested tension, both still editable.
-const StringQuiz = ({ vendorId, onUse }) => {
-  const [answers, setAnswers] = useState({});
+// Starts from the client's game profile when there is one; new or changed answers are saved
+// back to it.
+const StringQuiz = ({ vendorId, onUse, playerId = '', profile = null }) => {
+  const [answers, setAnswers] = useState(() => quizAnswersFromProfile(profile));
+  const [savedKey, setSavedKey] = useState(() => JSON.stringify(quizAnswersFromProfile(profile)));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -931,6 +984,13 @@ const StringQuiz = ({ vendorId, onUse }) => {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [answersKey, vendorId]);
+
+  // Complete answers that differ from what the profile already holds go back to it. Best effort.
+  useEffect(() => {
+    if (!playerId || !answersKey || answersKey === savedKey) return;
+    setSavedKey(answersKey);
+    saveCoachPlayerGameProfile(playerId, JSON.parse(answersKey)).catch(() => {});
+  }, [answersKey, playerId, savedKey]);
 
   const options = result?.options || [];
   const [pick, ...alternatives] = options;

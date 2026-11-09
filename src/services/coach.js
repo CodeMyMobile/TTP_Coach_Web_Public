@@ -761,6 +761,13 @@ export const recommendRestringStrings = ({ vendorId, answers }) => request('/res
   body: { vendor_id: vendorId, answers }
 });
 export const getCoachRestringingPlayers = () => request('/coach/restringing/players');
+// A client's strings and ratings, and their game profile (roster players only).
+export const getCoachPlayerStrings = playerId => request(`/coach/restringing/players/${encodeURIComponent(playerId)}/strings`);
+// "Help me choose" answers, kept on the client's game profile.
+export const saveCoachPlayerGameProfile = (playerId, answers) => request(`/coach/restringing/players/${encodeURIComponent(playerId)}/game-profile`, {
+  method: 'POST',
+  body: { answers }
+});
 export const getCoachRestringingOrders = () => request('/coach/restringing/orders');
 export const getCoachRestringingEarnings = () => request('/coach/restringing/earnings');
 export const createCoachRestringingOrder = (payload = {}) => request('/coach/restringing/orders', {
