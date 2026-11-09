@@ -1,3 +1,4 @@
+import { categoryInFilter } from './stringQuiz.js';
 export const newRestringingOrderItem = () => ({
   service_tier_id: '',
   racket_make_model: '',
@@ -439,9 +440,12 @@ const formatCents = cents =>
 const serviceLabel = tier => String(tier?.name || '').replace(/^restring(ing)?\s*\+\s*/i, '').trim() || 'Restring';
 const stringTitle = string => `${string?.brand || ''} ${string?.name || ''}`.trim();
 
-export const stringPickGroups = (tiers = [], strings = []) => {
+// filterKey narrows the strings to a type (STRING_TYPE_FILTERS); the category of the string
+// already picked (keepCategory) always stays, so the pick never disappears from the list.
+export const stringPickGroups = (tiers = [], strings = [], filterKey = 'all', keepCategory = null) => {
   const categoryTiers = tiers.filter(tier => tier.string_category && !tier.string_composition);
   const groups = categoryTiers
+    .filter(tier => tier.string_category === keepCategory || categoryInFilter(tier.string_category, filterKey))
     .map(tier => ({
       label: serviceLabel(tier),
       options: strings
