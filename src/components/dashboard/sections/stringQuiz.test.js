@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { QUIZ_QUESTIONS, categoryInFilter, quizComplete, rankCategories, recommendFromQuiz } from './stringQuiz.js';
+import { QUIZ_QUESTIONS, categoryInFilter, quizComplete } from './stringQuiz.js';
 import { stringPickGroups } from './restringingOrderPayload.js';
 
 const tiers = [
@@ -16,26 +16,11 @@ const strings = [
   { id: 13, brand: 'Luxilon', name: 'ALU Power', category: 'prem_poly', string_price_cents: 2500, restring_price_cents: 5499 },
 ];
 
-test('the questions start with the player\'s level', () => {
-  assert.equal(QUIZ_QUESTIONS[0].key, 'level');
-  assert.deepEqual(QUIZ_QUESTIONS.map(question => question.key), ['level', 'arm', 'priority', 'frequency']);
-  assert.equal(quizComplete({ level: 'advanced', arm: 'no', priority: 'spin' }), false);
-});
-
-test('level changes the pick: a beginner gets synthetic gut, an advanced spin player premium poly', () => {
-  assert.equal(rankCategories({ level: 'getting_started', arm: 'no', priority: 'spin', frequency: 'weekly' })[0], 'syn_gut');
-  assert.equal(rankCategories({ level: 'advanced', arm: 'no', priority: 'spin', frequency: 'few' })[0], 'prem_poly');
-  // A sore arm never gets polyester, whatever the level.
-  assert.ok(rankCategories({ level: 'competitive', arm: 'yes', priority: 'spin', frequency: 'few' }).every(category => !category.includes('poly')));
-});
-
-test('the result is the shop\'s first string in the category, with an alternative', () => {
-  const result = recommendFromQuiz({ level: 'advanced', arm: 'no', priority: 'spin', frequency: 'few' }, { tiers, strings });
-  assert.equal(result.pick.tier.id, 6);
-  assert.equal(result.pick.string.name, 'ALU Power'); // Luxilon before Solinco
-  assert.equal(result.tensionLbs, 50);
-  assert.equal(result.alternative, null); // no standard poly or hybrid at this shop
-  assert.equal(recommendFromQuiz({ level: 'advanced', arm: 'no', priority: 'spin', frequency: 'few' }, { tiers: [], strings }), null);
+test('the five questions, level first, in the values the shared engine takes', () => {
+  assert.deepEqual(QUIZ_QUESTIONS.map(question => question.key), ['level', 'arm', 'priority', 'frequency', 'breakage']);
+  assert.deepEqual(QUIZ_QUESTIONS[4].options.map(option => option.value), ['rarely', 'sometimes', 'often']);
+  assert.equal(quizComplete({ level: 'advanced', arm: 'no', priority: 'spin', frequency: 'few' }), false);
+  assert.equal(quizComplete({ level: 'advanced', arm: 'no', priority: 'spin', frequency: 'few', breakage: 'often' }), true);
 });
 
 test('type chips narrow the string list, keeping the string already picked', () => {

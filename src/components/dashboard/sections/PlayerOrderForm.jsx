@@ -2,14 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Gift, Hand, Loader2, Maximize2, Plus, Send, User, UserPlus, Users, Wallet, X } from 'lucide-react';
 import {
   createCoachRestringingOrder,
-  quoteCoachRacketOrder
+  quoteCoachRacketOrder,
+  recommendRestringStrings
 } from '../../../services/coach';
 import {
   buildCoachRestringingOrderPayload,
   filterRosterPlayers,
   playerLabel,
   serviceTierRequiresOwnString,
-  restringUnitCents,
   stringPickGroups,
   stringPickPatch,
   stringPickValue,
@@ -27,7 +27,7 @@ import {
   racketSpecSummary,
   stringOnlyCents
 } from './restringingOrderPayload';
-import { QUIZ_QUESTIONS, STRING_TYPE_FILTERS, quizComplete, recommendFromQuiz } from './stringQuiz';
+import { QUIZ_QUESTIONS, STRING_TYPE_FILTERS, quizComplete } from './stringQuiz';
 
 const money = cents =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
@@ -332,7 +332,7 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
-                <ServiceSelect tiers={tiers} strings={catalog?.catalog || catalog?.strings || []} item={item} onChange={patch => updateRacket(index, patch)} />
+                <ServiceSelect tiers={tiers} strings={catalog?.catalog || catalog?.strings || []} item={item} onChange={patch => updateRacket(index, patch)} vendorId={vendorId} />
               </div>
               <ServiceTierStrings
                 tiers={tiers}
@@ -796,7 +796,7 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
 // The string, picked first: the shop's strings by category, narrowed by type chips, then the
 // services with no string to name. "Help me choose" asks about the client and picks one.
 // onChange gets the racket fields the pick sets (its service included).
-export const ServiceSelect = ({ tiers, strings = [], item, onChange }) => {
+export const ServiceSelect = ({ tiers, strings = [], item, onChange, vendorId }) => {
   const [filter, setFilter] = useState('all');
   const [quizOpen, setQuizOpen] = useState(false);
   const pickedCategory = item?.string_selection === 'specified'
@@ -834,8 +834,7 @@ export const ServiceSelect = ({ tiers, strings = [], item, onChange }) => {
       </div>
       {quizOpen && (
         <StringQuiz
-          tiers={tiers}
-          strings={strings}
+          vendorId={vendorId}
           onUse={({ value, tensionLbs }) => {
             onChange({
               ...stringPickPatch(value, tiers, strings),
@@ -913,12 +912,30 @@ export const ServiceTierStrings = ({ tiers, strings, selectedTier }) => {
 
 // "Help me choose": the player app's questions, answered by the coach for their client. Its
 // pick fills in the string and a suggested tension, both still editable.
-const StringQuiz = ({ tiers, strings, onUse }) => {
+const StringQuiz = ({ vendorId, onUse }) => {
   const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const complete = quizComplete(answers);
-  const result = complete ? recommendFromQuiz(answers, { tiers, strings }) : null;
-  const pickValue = option => (option.string ? `s:${option.string.id}` : `t:${option.tier.id}`);
-  const pickName = option => (option.string ? `${option.string.brand} ${option.string.name}`.trim() : option.label);
+  const answersKey = complete ? JSON.stringify(answers) : '';
+
+  useEffect(() => {
+    if (!answersKey || !vendorId) return undefined;
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    recommendRestringStrings({ vendorId, answers: JSON.parse(answersKey) })
+      .then(data => { if (!cancelled) setResult(data); })
+      .catch(err => { if (!cancelled) setError(err?.message || 'Unable to get a recommendation.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [answersKey, vendorId]);
+
+  const options = result?.options || [];
+  const [pick, ...alternatives] = options;
+  const name = option => `${option.string.brand} ${option.string.name}`.trim();
+  const use = option => onUse({ value: `s:${option.string.id}`, tensionLbs: option.tension_lbs });
 
   return (
     <div className="space-y-3 rounded-lg border border-purple-100 bg-purple-50/40 p-3 text-xs text-gray-600">
@@ -934,8 +951,7 @@ const StringQuiz = ({ tiers, strings, onUse }) => {
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  title={option.hint || undefined}
-                  onClick={() => setAnswers(current => ({ ...current, [question.key]: option.value }))}
+                  onClick={() => { setAnswers(current => ({ ...current, [question.key]: option.value })); setResult(null); }}
                   className={`rounded-full border px-3 py-1 ${
                     selected ? 'border-purple-600 bg-purple-600 text-white' : 'border-gray-200 bg-white text-gray-700'
                   }`}
@@ -949,37 +965,43 @@ const StringQuiz = ({ tiers, strings, onUse }) => {
         </div>
       ))}
 
-      {complete && !result && (
+      {loading && <p className="text-gray-500">Finding a string...</p>}
+      {error && <p className="text-red-600">{error}</p>}
+      {result && !pick && !loading && (
         <p className="text-amber-700">The shop has nothing in stock for these answers. Pick a string above.</p>
       )}
-      {result && (
-        <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-700">{result.pick.label}</p>
-          <p className="text-sm font-semibold text-gray-900">
-            {pickName(result.pick)} · {money(restringUnitCents(result.pick.tier, result.pick.string))} · {result.tensionLbs} lbs
-          </p>
-          <ul className="mt-1 list-disc pl-4">
-            {result.reasons.map(reason => <li key={reason}>{reason}</li>)}
-          </ul>
-          {result.warning && <p className="mt-1 text-amber-700">{result.warning}</p>}
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onUse({ value: pickValue(result.pick), tensionLbs: result.tensionLbs })}
-              className="rounded-lg bg-purple-600 px-3 py-2 font-semibold text-white"
-            >
-              Use {pickName(result.pick)}
+      {pick && !loading && (
+        <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-700">Our pick · {pick.category_label}</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {name(pick)} · {money(pick.price_cents)} · {pick.tension_lbs} lbs
+            </p>
+            <ul className="mt-1 list-disc pl-4">
+              {pick.reasons.map(reason => <li key={reason}>{reason}</li>)}
+            </ul>
+            {result.warning && <p className="mt-1 text-amber-700">{result.warning}</p>}
+            <button type="button" onClick={() => use(pick)} className="mt-2 rounded-lg bg-purple-600 px-3 py-2 font-semibold text-white">
+              Use {name(pick)}
             </button>
-            {result.alternative && (
-              <button
-                type="button"
-                onClick={() => onUse({ value: pickValue(result.alternative), tensionLbs: result.tensionLbs })}
-                className="rounded-lg border border-purple-200 bg-white px-3 py-2 font-semibold text-purple-700"
-              >
-                Or {pickName(result.alternative)} ({result.alternative.label.toLowerCase()})
-              </button>
-            )}
           </div>
+          {alternatives.length > 0 && (
+            <div className="space-y-2 border-t border-gray-100 pt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Or compare</p>
+              {alternatives.map(option => (
+                <div key={option.string.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900">{name(option)} · {money(option.price_cents)}</p>
+                    {option.differences?.length ? <p className="text-purple-700">vs our pick: {option.differences.join(' · ')}</p> : null}
+                    {option.reasons?.[0] ? <p>{option.reasons[0]}</p> : null}
+                  </div>
+                  <button type="button" onClick={() => use(option)} className="rounded-lg border border-purple-200 bg-white px-3 py-2 font-semibold text-purple-700">
+                    Use
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
