@@ -10,6 +10,9 @@ import {
   filterRosterPlayers,
   playerLabel,
   serviceTierRequiresOwnString,
+  stringPickGroups,
+  stringPickPatch,
+  stringPickValue,
   serviceTierForCategory,
   serviceTierStringsText,
   STRING_QUIZ_QUESTIONS,
@@ -329,7 +332,7 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
                 )}
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <ServiceSelect tiers={tiers} value={item.service_tier_id} onChange={value => updateServiceTier(index, value)} />
+                <ServiceSelect tiers={tiers} strings={catalog?.catalog || catalog?.strings || []} item={item} onChange={patch => updateRacket(index, patch)} />
                 <RacketInput value={item.racket_make_model} onChange={patch => updateRacket(index, patch)} />
               </div>
               <ServiceTierStrings
@@ -365,6 +368,7 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
                   hybridStrings={hybridStrings}
                   crossesId={item.crosses_string_id}
                   crossesGauge={item.crosses_gauge}
+                  pickedAbove
                 />
               )}
 
@@ -794,18 +798,21 @@ const RacketSaleFields = ({ index, item, rackets, tiers, strings, removable, onC
   );
 };
 
-export const ServiceSelect = ({ tiers, value, onChange }) => (
+// The string, picked first: the shop's strings by category, then the services with no
+// string to name. onChange gets the racket fields the pick sets (its service included).
+export const ServiceSelect = ({ tiers, strings = [], item, onChange }) => (
   <select
     required
-    value={value}
-    onChange={event => onChange(event.target.value)}
+    aria-label="String"
+    value={stringPickValue(item)}
+    onChange={event => onChange(stringPickPatch(event.target.value, tiers, strings))}
     className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
   >
-    <option value="">Choose a service</option>
-    {tiers.map(tier => (
-      <option key={tier.id} value={tier.id}>
-        {tier.name} - {money(tier.price_cents)}
-      </option>
+    <option value="">Choose a string</option>
+    {stringPickGroups(tiers, strings).map(group => (
+      <optgroup key={group.label} label={group.label}>
+        {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </optgroup>
     ))}
   </select>
 );
@@ -1036,13 +1043,17 @@ export const TensionInput = ({ item, onChange, advisePlaceholder = 'Set at drop-
 // laborFree: a string job with a new racket, where a priced string costs the string only.
 // hybridStrings: the strings a custom hybrid's crosses can be (in stock, with the shop's
 // price); offered once a priced mains string is chosen. Left out, no hybrid.
-export const StringSelection = ({ value, strings, selectedString, gauge, onChange, laborFree = false, hybridStrings = [], crossesId = '', crossesGauge = '' }) => {
+// pickedAbove: the string was picked in ServiceSelect, so only its gauge and a hybrid's
+// crosses are asked here.
+export const StringSelection = ({ value, strings, selectedString, gauge, onChange, laborFree = false, hybridStrings = [], crossesId = '', crossesGauge = '', pickedAbove = false }) => {
   const crossesString = selectedString?.string_price_cents != null
     ? hybridStrings.find(string => String(string.id) === String(crossesId)) || null
     : null;
+  if (pickedAbove && (value !== 'specified' || !selectedString)) return null;
   return (
   <fieldset className="mt-3 rounded-lg border border-gray-200 p-3">
-    <legend className="px-1 text-sm font-medium text-gray-700">String choice</legend>
+    <legend className="px-1 text-sm font-medium text-gray-700">{pickedAbove ? 'Gauge' : 'String choice'}</legend>
+    {!pickedAbove && (
     <div className="flex flex-wrap gap-4 text-sm text-gray-700">
       <label className="flex items-center gap-2">
         <input
@@ -1061,8 +1072,10 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
         Shop&apos;s choice
       </label>
     </div>
+    )}
     {value === 'specified' && (
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className={`${pickedAbove ? '' : 'mt-3 '}grid gap-3 sm:grid-cols-2`}>
+        {!pickedAbove && (
         <select
           required
           value={selectedString ? selectedString.id : ''}
@@ -1079,6 +1092,7 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
             </option>
           ))}
         </select>
+        )}
         {selectedString?.gauges_stocked?.length ? (
           <select
             value={gauge}

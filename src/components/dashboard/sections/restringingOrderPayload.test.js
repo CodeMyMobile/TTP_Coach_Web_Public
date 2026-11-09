@@ -5,6 +5,9 @@ import {
   buildCoachRestringingOrderPayload,
   buildCoachSelfPurchasePayload,
   estimateCoachPurchase,
+  stringPickGroups,
+  stringPickPatch,
+  stringPickValue,
   restringUnitCents,
   stringOnlyCents,
   newCoachSupplyRacket,
@@ -580,4 +583,35 @@ test('a custom hybrid sends the crosses and costs labor plus half of each string
   // Shop's choice: no crosses sent.
   const [shop] = buildCoachSelfPurchasePayload({ rackets: [{ ...racket, string_selection: 'shop_choice' }], vendorId: 1 }).items;
   assert.equal('crosses_string_id' in shop, false);
+});
+
+test('the string is picked first: strings by category with prices, then services with no string to name', () => {
+  const tiers = [
+    { id: 1, name: 'Restringing Only', price_cents: 2999, string_category: null },
+    { id: 2, name: 'Restringing + Premium Polyester', price_cents: 4999, string_category: 'prem_poly' },
+    { id: 9, name: 'Restring + Natural Gut Hybrid', price_cents: 6999, string_category: null, string_composition: 'natural_gut_hybrid' },
+  ];
+  const strings = [
+    { id: 12, brand: 'Babolat', name: 'RPM Blast', category: 'prem_poly', string_price_cents: 2200, restring_price_cents: 5199 },
+    { id: 11, brand: 'Solinco', name: 'Hyper-G', category: 'prem_poly', string_price_cents: null, restring_price_cents: null },
+  ];
+  const groups = stringPickGroups(tiers, strings);
+  assert.deepEqual(groups[0], {
+    label: 'Premium Polyester',
+    options: [
+      { value: 's:12', label: 'Babolat RPM Blast · $51.99' },
+      { value: 's:11', label: 'Solinco Hyper-G · $49.99' },
+    ],
+  });
+  assert.deepEqual(groups[1].options.map(option => option.value), ['t:1', 't:2', 't:9']);
+
+  assert.deepEqual(stringPickPatch('s:12', tiers, strings), {
+    string_id: '12', gauge: '', own_string_text: '', crosses_string_id: '', crosses_gauge: '',
+    service_tier_id: '2', string_selection: 'specified',
+  });
+  assert.equal(stringPickPatch('t:1', tiers, strings).string_selection, 'player_supplied');
+  assert.equal(stringPickPatch('t:2', tiers, strings).string_selection, 'shop_choice');
+  assert.equal(stringPickValue({ string_selection: 'specified', string_id: '12', service_tier_id: '2' }), 's:12');
+  assert.equal(stringPickValue({ string_selection: 'shop_choice', string_id: '', service_tier_id: '2' }), 't:2');
+  assert.equal(stringPickValue({ service_tier_id: '' }), '');
 });
