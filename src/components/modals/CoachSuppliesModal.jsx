@@ -204,7 +204,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                     </div>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       <RacketInput value={racket.racket_make_model} onChange={patch => updateRacket(index, patch)} />
-                      <ServiceSelect tiers={tiers} strings={strings} item={racket} onChange={patch => updateRacket(index, patch)} />
+                      <ServiceSelect tiers={tiers} strings={strings} item={racket} onChange={patch => updateRacket(index, patch)} vendorId={vendorId} />
                     </div>
                     <ServiceTierStrings tiers={tiers} strings={strings} selectedTier={tier} />
                     {ownStringRequired && (

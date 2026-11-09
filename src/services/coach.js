@@ -754,6 +754,12 @@ export const getRestringingStringRecommendation = (answers = {}) => request('/re
   method: 'POST',
   body: answers
 });
+// The string recommendation engine shared with the player app: the client's five answers and
+// the shop in, { options: [pick, ...alternatives], warning } out.
+export const recommendRestringStrings = ({ vendorId, answers }) => request('/restringing/recommendations', {
+  method: 'POST',
+  body: { vendor_id: vendorId, answers }
+});
 export const getCoachRestringingPlayers = () => request('/coach/restringing/players');
 export const getCoachRestringingOrders = () => request('/coach/restringing/orders');
 export const getCoachRestringingEarnings = () => request('/coach/restringing/earnings');
