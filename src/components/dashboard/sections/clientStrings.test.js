@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clientStringLines, quizAnswersFromProfile, setupName } from './clientStrings.js';
+import { clientLevelLine, clientStringLines, quizAnswersFromProfile, setupName } from './clientStrings.js';
 
 const rated = {
   order_item_id: 101,
@@ -51,4 +51,12 @@ test('the profile prefills only the quiz’s own questions and options', () => {
   );
   assert.deepEqual(quizAnswersFromProfile({ level: 'pro', arm: null }), {});
   assert.deepEqual(quizAnswersFromProfile(null), {});
+});
+
+test('the client’s level says where it came from, and is absent when unknown', () => {
+  assert.equal(clientLevelLine({ level: 'intermediate', ntrp: 3.5, level_source: 'results' }), 'Intermediate · NTRP 3.5, from match results');
+  assert.equal(clientLevelLine({ level: 'advanced', ntrp: 4.5, level_source: 'self_rated' }), 'Advanced · NTRP 4.5, self-rated');
+  assert.equal(clientLevelLine({ level: 'competitive', ntrp: null, level_source: 'answered' }), 'Competitive · answered');
+  assert.equal(clientLevelLine({ level: null }), null);
+  assert.equal(clientLevelLine(null), null);
 });

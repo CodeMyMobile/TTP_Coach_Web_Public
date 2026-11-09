@@ -7,7 +7,7 @@ import {
   recommendRestringStrings,
   saveCoachPlayerGameProfile
 } from '../../../services/coach';
-import { clientStringLines, quizAnswersFromProfile } from './clientStrings';
+import { clientLevelLine, clientStringLines, quizAnswersFromProfile } from './clientStrings';
 import {
   buildCoachRestringingOrderPayload,
   filterRosterPlayers,
@@ -263,8 +263,12 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
               })
             }
           />
-          {clientHistory?.strings?.length ? (
-            <ClientStrings strings={clientHistory.strings} name={selectedRosterPlayer ? playerLabel(selectedRosterPlayer) : ''} />
+          {clientHistory?.playerId === historyPlayerId ? (
+            <ClientStrings
+              strings={clientHistory.strings || []}
+              profile={clientHistory.profile}
+              name={selectedRosterPlayer ? playerLabel(selectedRosterPlayer) : ''}
+            />
           ) : null}
         </div>
       ) : (
@@ -500,12 +504,20 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
   );
 };
 
-// The client's last few setups and how they rated them, so the coach can see what worked.
-const ClientStrings = ({ strings, name }) => {
+// The client's level and last few setups, with how they rated them, so the coach can see what
+// worked. Without a known level, "Help me choose" asks for it.
+const ClientStrings = ({ strings, profile, name }) => {
   const lines = clientStringLines(strings);
+  const level = clientLevelLine(profile);
   return (
     <section aria-label="Their past strings" className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm md:col-span-3">
-      <p className="font-semibold text-gray-900">{name ? `${name}’s past strings` : 'Past strings'}</p>
+      <p className="text-xs text-gray-600">
+        <span className="font-semibold text-gray-900">Level:</span>{' '}
+        {level || 'Not known yet. Help me choose asks for it.'}
+      </p>
+      {lines.length ? (
+        <p className="mt-2 font-semibold text-gray-900">{name ? `${name}’s past strings` : 'Past strings'}</p>
+      ) : null}
       <ul className="mt-2 space-y-2">
         {lines.map(line => (
           <li key={line.key} className="flex flex-col gap-0.5">

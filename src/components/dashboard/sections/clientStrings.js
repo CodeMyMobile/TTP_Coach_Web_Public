@@ -60,6 +60,27 @@ export function clientStringLines(strings, limit = 4) {
   });
 }
 
+const LEVEL_SOURCES = {
+  results: 'from match results',
+  self_rated: 'self-rated',
+  answered: 'answered'
+};
+
+/**
+ * "Intermediate · NTRP 3.5, from match results", from the API's resolved level (match
+ * results, then self-rating, then an answered level). Null when no level is known, and
+ * "Help me choose" asks for it.
+ */
+export function clientLevelLine(profile) {
+  const question = QUIZ_QUESTIONS.find(item => item.key === 'level');
+  const option = question?.options.find(item => item.value === profile?.level);
+  if (!option) return null;
+  const ntrp = Number(profile?.ntrp);
+  const source = LEVEL_SOURCES[profile?.level_source];
+  const detail = [ntrp > 0 ? `NTRP ${ntrp.toFixed(1)}` : '', source].filter(Boolean).join(', ');
+  return detail ? `${option.label} · ${detail}` : option.label;
+}
+
 /** The quiz answers the profile already holds, to start "Help me choose" from. */
 export function quizAnswersFromProfile(profile) {
   const answers = {};
