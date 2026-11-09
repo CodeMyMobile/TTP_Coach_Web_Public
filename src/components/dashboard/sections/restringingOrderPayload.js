@@ -5,6 +5,9 @@ export const newRestringingOrderItem = () => ({
   string_selection: 'shop_choice',
   string_id: '',
   gauge: '',
+  // A custom hybrid's crosses; string_id/gauge are then the mains.
+  crosses_string_id: '',
+  crosses_gauge: '',
   advice_requested: true,
   tension_lbs: '',
   split_tension: false,
@@ -223,6 +226,12 @@ export const buildRestringItems = formItems =>
       if (Number.isInteger(stringId) && stringId > 0) item.string_id = stringId;
       const gauge = String(formItem.gauge || '').trim();
       if (gauge) item.gauge = gauge;
+      const crossesId = Number(formItem.crosses_string_id);
+      if (item.string_id && Number.isInteger(crossesId) && crossesId > 0) {
+        item.crosses_string_id = crossesId;
+        const crossesGauge = String(formItem.crosses_gauge || '').trim();
+        if (crossesGauge) item.crosses_gauge = crossesGauge;
+      }
     }
     // The stringer sets the tension at drop-off when advice is requested, and
     // the API ignores any tension sent with it.
@@ -287,8 +296,14 @@ export const racketString = (racket, strings = []) =>
 // One restring's price, the API's rule: a string the shop has priced costs
 // labor plus the string (the catalog's restring_price_cents); otherwise the
 // service's price.
-export const restringUnitCents = (tier, string = null) => {
+export const restringUnitCents = (tier, string = null, crosses = null) => {
   const restring = centsOrNull(string?.restring_price_cents);
+  // A custom hybrid: labor plus half of each string, the halves rounded half-up once.
+  const mainsPrice = centsOrNull(string?.string_price_cents);
+  const crossesPrice = centsOrNull(crosses?.string_price_cents);
+  if (tier?.string_category && crosses && restring !== null && mainsPrice !== null && crossesPrice !== null) {
+    return restring - mainsPrice + Math.floor((mainsPrice + crossesPrice) / 2 + 0.5);
+  }
   if (tier?.string_category && restring !== null && centsOrNull(string?.string_price_cents) !== null) return restring;
   return Number(tier?.price_cents || 0);
 };
@@ -300,7 +315,10 @@ export const estimateCoachPurchase = ({ rackets = [], tiers = [], strings = [], 
   const withRestring = rackets.length > 0;
   const racketCents = rackets.reduce((sum, racket) => {
     const tier = tiers.find(entry => String(entry.id) === String(racket.service_tier_id));
-    return sum + restringUnitCents(tier, racketString(racket, strings));
+    const crosses = racketString(racket, strings) && racket.crosses_string_id
+      ? strings.find(string => String(string.id) === String(racket.crosses_string_id)) || null
+      : null;
+    return sum + restringUnitCents(tier, racketString(racket, strings), crosses);
   }, 0);
   const addOnCents = addOns.reduce(
     (sum, offer) => sum + addOnUnitCents(offer, withRestring) * Number(quantities[offer.id] || 0),

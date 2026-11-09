@@ -564,3 +564,20 @@ test('a string the shop has priced costs labor plus the string; otherwise the se
   ];
   assert.equal(estimateCoachPurchase({ rackets, tiers: [own, tier], strings: [priced] }).subtotalCents, 5199 + 4499);
 });
+
+test('a custom hybrid sends the crosses and costs labor plus half of each string', () => {
+  const tier = { id: 2, price_cents: 4499, string_category: 'std_poly' };
+  const own = { id: 1, price_cents: 2999, string_category: null };
+  const mains = { id: 7, string_price_cents: 2299, restring_price_cents: 5298 };
+  const crosses = { id: 8, string_price_cents: 1800, restring_price_cents: 4799 };
+  assert.equal(restringUnitCents(tier, mains, crosses), 2999 + 2050);
+  const racket = { ...newCoachSupplyRacket(), service_tier_id: '2', racket_make_model: 'Blade', string_selection: 'specified', string_id: '7', gauge: '16', crosses_string_id: '8', crosses_gauge: '17', tension_lbs: '52' };
+  const [item] = buildCoachSelfPurchasePayload({ rackets: [racket], vendorId: 1 }).items;
+  assert.equal(item.string_id, 7);
+  assert.equal(item.crosses_string_id, 8);
+  assert.equal(item.crosses_gauge, '17');
+  assert.equal(estimateCoachPurchase({ rackets: [racket], tiers: [own, tier], strings: [mains, crosses] }).subtotalCents, 5049);
+  // Shop's choice: no crosses sent.
+  const [shop] = buildCoachSelfPurchasePayload({ rackets: [{ ...racket, string_selection: 'shop_choice' }], vendorId: 1 }).items;
+  assert.equal('crosses_string_id' in shop, false);
+});

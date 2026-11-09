@@ -49,6 +49,8 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
   }, [orderKind]);
 
   const tiers = catalog?.service_tiers || catalog?.tiers || [];
+  // A custom hybrid's crosses: strings the shop stocks and has priced.
+  const hybridStrings = (catalog?.catalog || catalog?.strings || []).filter(string => string.string_price_cents != null);
   const catalogRackets = catalog?.rackets || [];
   const sellingRacket = form.order_kind === 'racket';
   const filteredPlayers = useMemo(
@@ -115,6 +117,8 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
       service_tier_id,
       own_string_text: '',
       string_id: '',
+      crosses_string_id: '',
+      crosses_gauge: '',
       gauge: '',
       string_selection: serviceTierRequiresOwnString(tier)
         ? 'player_supplied'
@@ -352,7 +356,16 @@ const PlayerOrderForm = ({ catalog, players = [], orderKind = 'restring', onCrea
               )}
 
               {!ownStringRequired && !compositionTier && selectedServiceTier && (
-                <StringSelection value={item.string_selection} strings={stockedStrings} selectedString={selectedString} gauge={item.gauge} onChange={patch => updateRacket(index, patch)} />
+                <StringSelection
+                  value={item.string_selection}
+                  strings={stockedStrings}
+                  selectedString={selectedString}
+                  gauge={item.gauge}
+                  onChange={patch => updateRacket(index, patch)}
+                  hybridStrings={hybridStrings}
+                  crossesId={item.crosses_string_id}
+                  crossesGauge={item.crosses_gauge}
+                />
               )}
 
               <TensionInput item={item} onChange={patch => updateRacket(index, patch)} />
@@ -1021,7 +1034,13 @@ export const TensionInput = ({ item, onChange, advisePlaceholder = 'Set at drop-
 };
 
 // laborFree: a string job with a new racket, where a priced string costs the string only.
-export const StringSelection = ({ value, strings, selectedString, gauge, onChange, laborFree = false }) => (
+// hybridStrings: the strings a custom hybrid's crosses can be (in stock, with the shop's
+// price); offered once a priced mains string is chosen. Left out, no hybrid.
+export const StringSelection = ({ value, strings, selectedString, gauge, onChange, laborFree = false, hybridStrings = [], crossesId = '', crossesGauge = '' }) => {
+  const crossesString = selectedString?.string_price_cents != null
+    ? hybridStrings.find(string => String(string.id) === String(crossesId)) || null
+    : null;
+  return (
   <fieldset className="mt-3 rounded-lg border border-gray-200 p-3">
     <legend className="px-1 text-sm font-medium text-gray-700">String choice</legend>
     <div className="flex flex-wrap gap-4 text-sm text-gray-700">
@@ -1037,7 +1056,7 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
         <input
           type="radio"
           checked={value === 'shop_choice'}
-          onChange={() => onChange({ string_selection: 'shop_choice', string_id: '', gauge: '' })}
+          onChange={() => onChange({ string_selection: 'shop_choice', string_id: '', gauge: '', crosses_string_id: '', crosses_gauge: '' })}
         />
         Shop&apos;s choice
       </label>
@@ -1047,7 +1066,7 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
         <select
           required
           value={selectedString ? selectedString.id : ''}
-          onChange={event => onChange({ string_id: event.target.value, gauge: '' })}
+          onChange={event => onChange({ string_id: event.target.value, gauge: '', crosses_string_id: '', crosses_gauge: '' })}
           className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
         >
           <option value="">Choose a stocked string</option>
@@ -1070,9 +1089,37 @@ export const StringSelection = ({ value, strings, selectedString, gauge, onChang
             {selectedString.gauges_stocked.map(option => <option key={option} value={option}>{option}</option>)}
           </select>
         ) : null}
+        {selectedString?.string_price_cents != null && hybridStrings.length ? (
+          <label className="text-sm text-gray-700 sm:col-span-2">
+            Crosses (hybrid)
+            <select
+              value={crossesString ? crossesString.id : ''}
+              onChange={event => onChange({ crosses_string_id: event.target.value, crosses_gauge: '' })}
+              className="mt-1 w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
+            >
+              <option value="">Same string as mains</option>
+              {hybridStrings.map(string => (
+                <option key={string.id} value={string.id}>{string.brand} {string.name}</option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-gray-500">Stringing plus half of each string&apos;s price.</span>
+          </label>
+        ) : null}
+        {crossesString ? (
+          <select
+            required
+            value={crossesGauge}
+            onChange={event => onChange({ crosses_gauge: event.target.value })}
+            className="w-full min-w-0 rounded-lg border border-gray-200 p-3 text-sm"
+          >
+            <option value="">Crosses gauge</option>
+            {(crossesString.gauges_stocked || []).map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
+        ) : null}
       </div>
     )}
   </fieldset>
-);
+  );
+};
 
 export default PlayerOrderForm;
