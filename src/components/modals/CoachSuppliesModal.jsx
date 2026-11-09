@@ -203,18 +203,10 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                       </button>
                     </div>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <ServiceSelect tiers={tiers} strings={strings} item={racket} onChange={patch => updateRacket(index, patch)} />
                       <RacketInput value={racket.racket_make_model} onChange={patch => updateRacket(index, patch)} />
+                      <ServiceSelect tiers={tiers} strings={strings} item={racket} onChange={patch => updateRacket(index, patch)} />
                     </div>
-                    <ServiceTierStrings
-                      tiers={tiers}
-                      strings={strings}
-                      selectedTier={tier}
-                      onUseRecommendation={({ tierId, tensionLbs }) => {
-                        updateServiceTier(index, String(tierId));
-                        if (tensionLbs) updateRacket(index, { tension_lbs: String(tensionLbs), advice_requested: false });
-                      }}
-                    />
+                    <ServiceTierStrings tiers={tiers} strings={strings} selectedTier={tier} />
                     {ownStringRequired && (
                       <div className="mt-3">
                         <label className="block text-sm font-medium text-gray-700">Your string</label>
