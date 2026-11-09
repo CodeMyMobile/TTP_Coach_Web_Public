@@ -99,6 +99,8 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
       own_string_text: '',
       string_id: '',
       gauge: '',
+      crosses_string_id: '',
+      crosses_gauge: '',
       string_selection: serviceTierRequiresOwnString(tier) ? 'player_supplied' : 'shop_choice'
     });
   };
@@ -237,6 +239,9 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                         selectedString={selectedString}
                         gauge={racket.gauge}
                         onChange={patch => updateRacket(index, patch)}
+                        hybridStrings={strings.filter(string => string.string_price_cents != null)}
+                        crossesId={racket.crosses_string_id}
+                        crossesGauge={racket.crosses_gauge}
                       />
                     )}
                     <TensionInput item={racket} onChange={patch => updateRacket(index, patch)} />
