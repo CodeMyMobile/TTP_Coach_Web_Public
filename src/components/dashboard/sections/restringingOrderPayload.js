@@ -428,3 +428,62 @@ export const racketSaleSummary = order => {
   if (!count || !order?.racket_sale_label) return null;
   return `${count} new racket${count === 1 ? '' : 's'} · ${order.racket_sale_label}`;
 };
+
+// ─── Picking the string first ───────────────────────────────────────────
+// One "String" pick instead of a service and then a string: the shop's strings
+// grouped by category, then the services with no string to name. Picking a string
+// fills in its category's service, which every order line needs.
+
+const formatCents = cents =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(cents || 0) / 100);
+const serviceLabel = tier => String(tier?.name || '').replace(/^restring(ing)?\s*\+\s*/i, '').trim() || 'Restring';
+const stringTitle = string => `${string?.brand || ''} ${string?.name || ''}`.trim();
+
+export const stringPickGroups = (tiers = [], strings = []) => {
+  const categoryTiers = tiers.filter(tier => tier.string_category && !tier.string_composition);
+  const groups = categoryTiers
+    .map(tier => ({
+      label: serviceLabel(tier),
+      options: strings
+        .filter(string => string.category === tier.string_category && string.in_stock !== false)
+        .sort((left, right) => stringTitle(left).localeCompare(stringTitle(right)))
+        .map(string => ({ value: `s:${string.id}`, label: `${stringTitle(string)} · ${formatCents(restringUnitCents(tier, string))}` }))
+    }))
+    .filter(group => group.options.length);
+  const other = [
+    ...tiers
+      .filter(tier => serviceTierRequiresOwnString(tier))
+      .map(tier => ({ value: `t:${tier.id}`, label: `Player's own string · ${formatCents(tier.price_cents)}` })),
+    ...categoryTiers.map(tier => ({ value: `t:${tier.id}`, label: `Shop's choice: ${serviceLabel(tier)} · ${formatCents(tier.price_cents)}` })),
+    ...tiers
+      .filter(tier => tier.string_composition)
+      .map(tier => ({ value: `t:${tier.id}`, label: `${serviceLabel(tier)}, shop picks · ${formatCents(tier.price_cents)}` }))
+  ];
+  return other.length ? [...groups, { label: 'No string to name', options: other }] : groups;
+};
+
+// The pick a racket's fields stand for.
+export const stringPickValue = item => {
+  if (item?.string_selection === 'specified' && item?.string_id) return `s:${item.string_id}`;
+  return item?.service_tier_id ? `t:${item.service_tier_id}` : '';
+};
+
+// The racket fields a pick sets.
+export const stringPickPatch = (value, tiers = [], strings = []) => {
+  const cleared = { string_id: '', gauge: '', own_string_text: '', crosses_string_id: '', crosses_gauge: '' };
+  if (String(value).startsWith('s:')) {
+    const string = strings.find(row => String(row.id) === String(value).slice(2));
+    const tier = string && tiers.find(row => row.string_category === string.category && !row.string_composition);
+    if (!tier) return { ...cleared, service_tier_id: '', string_selection: 'shop_choice' };
+    return { ...cleared, service_tier_id: String(tier.id), string_selection: 'specified', string_id: String(string.id) };
+  }
+  if (String(value).startsWith('t:')) {
+    const tier = tiers.find(row => String(row.id) === String(value).slice(2));
+    return {
+      ...cleared,
+      service_tier_id: tier ? String(tier.id) : '',
+      string_selection: serviceTierRequiresOwnString(tier) ? 'player_supplied' : 'shop_choice'
+    };
+  }
+  return { ...cleared, service_tier_id: '', string_selection: 'shop_choice' };
+};

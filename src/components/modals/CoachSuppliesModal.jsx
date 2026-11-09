@@ -203,7 +203,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                       </button>
                     </div>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <ServiceSelect tiers={tiers} value={racket.service_tier_id} onChange={value => updateServiceTier(index, value)} />
+                      <ServiceSelect tiers={tiers} strings={strings} item={racket} onChange={patch => updateRacket(index, patch)} />
                       <RacketInput value={racket.racket_make_model} onChange={patch => updateRacket(index, patch)} />
                     </div>
                     <ServiceTierStrings
@@ -242,6 +242,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                         hybridStrings={strings.filter(string => string.string_price_cents != null)}
                         crossesId={racket.crosses_string_id}
                         crossesGauge={racket.crosses_gauge}
+                        pickedAbove
                       />
                     )}
                     <TensionInput item={racket} onChange={patch => updateRacket(index, patch)} />
