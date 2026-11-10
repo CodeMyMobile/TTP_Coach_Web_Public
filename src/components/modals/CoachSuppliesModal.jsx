@@ -25,6 +25,7 @@ import {
   StringSelection,
   TensionInput
 } from '../dashboard/sections/PlayerOrderForm';
+import { ownStringHint, ownStringResults, typedOwnString } from '../dashboard/sections/ownStringSearch';
 
 const money = cents =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
@@ -56,6 +57,8 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(null);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  // The your-string search that's open: which racket, and the highlighted result.
+  const [ownSearch, setOwnSearch] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -190,6 +193,7 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                 const ownStringRequired = serviceTierRequiresOwnString(tier);
                 const stocked = strings.filter(string => !tier?.string_category || string.category === tier.string_category);
                 const selectedString = stocked.find(string => String(string.id) === String(racket.string_id));
+                const ownResults = ownSearch?.index === index ? ownStringResults(racket, strings) : [];
                 return (
                   <fieldset key={index} className="rounded-xl border border-gray-200 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -209,14 +213,65 @@ const CoachSuppliesModal = ({ isOpen, onClose, inline = false, onOrdered = () =>
                     <ServiceTierStrings tiers={tiers} strings={strings} selectedTier={tier} />
                     {ownStringRequired && (
                       <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-700">Your string</label>
-                        <input
-                          required
-                          value={racket.own_string_text}
-                          onChange={event => updateRacket(index, { own_string_text: event.target.value })}
-                          placeholder="e.g. Solinco Hyper-G 16L"
-                          className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm"
-                        />
+                        <label htmlFor={`supplies-own-string-${index}`} className="block text-sm font-medium text-gray-700">Your string</label>
+                        <div className="relative">
+                          <input
+                            id={`supplies-own-string-${index}`}
+                            required
+                            value={racket.own_string_text}
+                            onChange={event => {
+                              updateRacket(index, typedOwnString(event.target.value, strings));
+                              setOwnSearch({ index, active: 0 });
+                            }}
+                            onFocus={() => setOwnSearch({ index, active: 0 })}
+                            // After a tap on a result has landed.
+                            onBlur={() => window.setTimeout(() => setOwnSearch(null), 150)}
+                            onKeyDown={event => {
+                              if (!ownResults.length) return;
+                              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                                event.preventDefault();
+                                const step = event.key === 'ArrowDown' ? 1 : ownResults.length - 1;
+                                setOwnSearch({ index, active: (ownSearch.active + step) % ownResults.length });
+                              } else if (event.key === 'Enter') {
+                                event.preventDefault();
+                                const result = ownResults[ownSearch.active] || ownResults[0];
+                                updateRacket(index, { own_string_text: result.name, string_id: result.id });
+                                setOwnSearch(null);
+                              } else if (event.key === 'Escape') {
+                                setOwnSearch(null);
+                              }
+                            }}
+                            role="combobox"
+                            aria-expanded={ownSearch?.index === index}
+                            aria-autocomplete="list"
+                            autoComplete="off"
+                            placeholder="Start typing a brand or model"
+                            className="mt-1 w-full rounded-lg border border-gray-200 p-3 text-sm"
+                          />
+                          {ownResults.length > 0 && (
+                            <ul role="listbox" className="absolute left-0 right-0 z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                              {ownResults.map((result, resultIndex) => (
+                                <li
+                                  key={result.id}
+                                  role="option"
+                                  aria-selected={resultIndex === ownSearch.active}
+                                  onMouseDown={event => event.preventDefault()}
+                                  onClick={() => {
+                                    updateRacket(index, { own_string_text: result.name, string_id: result.id });
+                                    setOwnSearch(null);
+                                  }}
+                                  className={`flex min-h-[44px] cursor-pointer items-center justify-between gap-3 px-3 text-sm text-gray-900 ${resultIndex === ownSearch.active ? 'bg-violet-50' : 'hover:bg-gray-50'}`}
+                                >
+                                  {result.name}
+                                  {result.inStock && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">In stock</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        {!ownResults.length && ownStringHint(racket, strings) && (
+                          <p className="mt-1 text-xs text-gray-500">{ownStringHint(racket, strings)}</p>
+                        )}
                       </div>
                     )}
                     {!ownStringRequired && tier?.string_composition && (

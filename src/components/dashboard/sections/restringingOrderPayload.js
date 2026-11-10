@@ -221,6 +221,11 @@ export const buildRestringItems = formItems =>
     }
     if (ownStringText) {
       item.own_string_text = ownStringText;
+      // The catalog string the player's own string is, when it's one (ownStringSearch.js).
+      const ownStringId = Number(formItem.string_id);
+      if (stringSelection === 'player_supplied' && Number.isInteger(ownStringId) && ownStringId > 0) {
+        item.string_id = ownStringId;
+      }
     }
     if (stringSelection === 'specified') {
       const stringId = Number(formItem.string_id);
