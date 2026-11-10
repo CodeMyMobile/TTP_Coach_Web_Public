@@ -615,3 +615,28 @@ test('the string is picked first: strings by category with prices, then services
   assert.equal(stringPickValue({ string_selection: 'shop_choice', string_id: '', service_tier_id: '2' }), 't:2');
   assert.equal(stringPickValue({ service_tier_id: '' }), '');
 });
+
+test('buildCoachRestringingOrderPayload sends the catalog string a player supplied string names', () => {
+  const ownItem = string_id => ({
+    service_tier_id: '1',
+    racket_make_model: 'Ezone 100',
+    advice_requested: true,
+    string_selection: 'player_supplied',
+    own_string_text: 'Solinco Hyper-G',
+    string_id
+  });
+  const payload = buildCoachRestringingOrderPayload({
+    form: { player_mode: 'roster', player_user_id: '501', items: [ownItem('11'), ownItem('')] },
+    vendorId: 1
+  });
+
+  assert.deepEqual(payload.items[0], {
+    service_tier_id: 1,
+    racket_make_model: 'Ezone 100',
+    advice_requested: true,
+    string_selection: 'player_supplied',
+    own_string_text: 'Solinco Hyper-G',
+    string_id: 11
+  });
+  assert.equal('string_id' in payload.items[1], false);
+});
