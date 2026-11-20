@@ -55,6 +55,7 @@ import {
   getCoachPlayerGroups,
   unblockCoachPlayer,
   updateCoachRequest,
+  updateCoachPlayer,
   updateCoachPlayerGroup
 } from './services/coach';
 import { getUniqueSelectedPlayerIds, validatePrivateLessonSelection } from './utils/lessonGroupSelection';
@@ -271,6 +272,8 @@ function App() {
   const [blockedPlayerIds, setBlockedPlayerIds] = useState(() => new Set());
   const [playerBlockActionId, setPlayerBlockActionId] = useState(null);
   const [playerBlockError, setPlayerBlockError] = useState(null);
+  const [rosterDecisionPending, setRosterDecisionPending] = useState(null);
+  const [rosterDecisionError, setRosterDecisionError] = useState(null);
   const [adHocSlot, setAdHocSlot] = useState({
     date: '',
     start: '09:00',
@@ -1436,9 +1439,38 @@ function App() {
     setShowStudentDetailModal(false);
     setSelectedStudent(null);
     setStudentLessonsError(null);
+    setRosterDecisionError(null);
 
     if (isPlayerDetailRoute) {
       navigate('/dashboard', { replace: true });
+    }
+  };
+
+  // The roster request text and email link straight here, so the coach can answer it
+  // without hunting for the request in Notifications.
+  const handleStudentRosterDecision = async (status) => {
+    const playerId = selectedStudent?.playerId;
+    if (!playerId || rosterDecisionPending) {
+      return;
+    }
+
+    setRosterDecisionPending(status);
+    setRosterDecisionError(null);
+    try {
+      await updateCoachPlayer({ playerId, status });
+      setSelectedStudent((previous) =>
+        previous && String(previous.playerId) === String(playerId)
+          ? normalizeStudentForDetail({ ...previous, status: status === 'CONFIRMED' ? 1 : 2 })
+          : previous
+      );
+      refreshStudents?.();
+    } catch (error) {
+      console.error('Failed to update roster status', error);
+      setRosterDecisionError(
+        status === 'CONFIRMED' ? 'Could not accept this request. Please try again.' : 'Could not decline this request. Please try again.'
+      );
+    } finally {
+      setRosterDecisionPending(null);
     }
   };
 
@@ -2386,6 +2418,9 @@ function App() {
         blockActionPending={selectedStudent?.playerId ? playerBlockActionId === String(selectedStudent.playerId) : false}
         blockError={playerBlockError}
         onToggleBlock={(nextBlocked) => handleTogglePlayerBlock(selectedStudent, nextBlocked)}
+        rosterDecisionPending={rosterDecisionPending}
+        rosterDecisionError={rosterDecisionError}
+        onRosterDecision={handleStudentRosterDecision}
       />
 
       <LessonDetailModal
