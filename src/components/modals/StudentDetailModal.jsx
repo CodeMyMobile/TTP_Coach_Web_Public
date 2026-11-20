@@ -15,6 +15,18 @@ const resolveStatusLabel = (status) => {
   return 'Unknown';
 };
 
+const isCancelledRoster = (status) => status === 2 || status === '2' || status === 'CANCELLED';
+
+const resolveRosterStatusLabel = (student) => {
+  if (student.isConfirmed) {
+    return 'Active';
+  }
+  if (isCancelledRoster(student.status)) {
+    return student.isPlayerRequest ? 'Request declined' : 'Invite cancelled';
+  }
+  return student.isPlayerRequest ? 'Request pending' : 'Invite pending';
+};
+
 const formatLessonRange = (startValue, endValue) => {
   if (!startValue) {
     return '';
@@ -49,11 +61,18 @@ const StudentDetailModal = ({
   isBlocked = false,
   blockActionPending = false,
   blockError = null,
-  onToggleBlock
+  onToggleBlock,
+  rosterDecisionPending = null,
+  rosterDecisionError = null,
+  onRosterDecision
 }) => {
   if (!student) {
     return null;
   }
+
+  // Only a player's own request is the coach's to answer; a coach's invite waits on the player.
+  const showRosterDecision =
+    Boolean(onRosterDecision) && student.isPlayerRequest && !student.isConfirmed && !isCancelledRoster(student.status);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} placement="center" panelClassName="w-full sm:max-w-3xl">
@@ -63,6 +82,38 @@ const StudentDetailModal = ({
         onClose={onClose}
       />
       <ModalBody className="space-y-4">
+        {showRosterDecision ? (
+          <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+            <p className="text-sm font-semibold text-gray-900">
+              {student.name || 'This player'} wants to join your roster
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              Accept to add them to your players so they can book lessons with you.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onRosterDecision('CONFIRMED')}
+                disabled={Boolean(rosterDecisionPending)}
+                className="flex-1 rounded-lg bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-wait disabled:opacity-60 sm:flex-none"
+              >
+                {rosterDecisionPending === 'CONFIRMED' ? 'Accepting...' : 'Accept'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onRosterDecision('CANCELLED')}
+                disabled={Boolean(rosterDecisionPending)}
+                className="flex-1 rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60 sm:flex-none"
+              >
+                {rosterDecisionPending === 'CANCELLED' ? 'Declining...' : 'Decline'}
+              </button>
+            </div>
+            {rosterDecisionError ? (
+              <p role="alert" className="mt-2 text-xs font-medium text-red-600">{rosterDecisionError}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4">
           <div>
             <p className="text-sm font-semibold text-gray-900">
@@ -98,7 +149,7 @@ const StudentDetailModal = ({
             <div>
               <span className="block text-xs uppercase text-gray-400">Status</span>
               <span className="font-medium text-gray-900">
-                {student.isConfirmed ? 'Active' : student.isPlayerRequest ? 'Request pending' : 'Invite pending'}
+                {resolveRosterStatusLabel(student)}
               </span>
             </div>
             <div>
