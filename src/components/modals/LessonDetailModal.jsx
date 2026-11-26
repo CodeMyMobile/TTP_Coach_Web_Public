@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { getCoachPlayerPackageUsage, markPayOnCourtLessonPaid } from '../../services/coach';
+import { getCoachPlayerLessonCounts, getCoachPlayerPackageUsage, markPayOnCourtLessonPaid } from '../../services/coach';
 import { openSmsComposer, openPhoneDialer, textAllParticipants } from '../../utils/messaging';
 import moment from 'moment';
 import {
@@ -421,6 +421,35 @@ const LessonDetailModal = ({
     setCompedPlayerActionError('');
   }, [isOpen, lesson]);
 
+  // Lessons each player has had with this coach (ttp-api GET /coach/player-lesson-counts).
+  // Until the counts arrive, or if they can't be loaded, no count is shown rather than 0.
+  const participantIdsKey = useMemo(() => {
+    if (!resolvedLesson) return '';
+    const rows = [
+      ...(Array.isArray(resolvedLesson.group_players) ? resolvedLesson.group_players : []),
+      ...(Array.isArray(resolvedLesson.groupPlayers) ? resolvedLesson.groupPlayers : []),
+      ...(Array.isArray(resolvedLesson.students) ? resolvedLesson.students : []),
+      ...(Array.isArray(students) ? students : []),
+      { player_id: resolvedLesson.player_id || resolvedLesson.playerId }
+    ];
+    const ids = rows.map((row) => row?.player_id || row?.playerId || row?.id).filter(Boolean).map(String);
+    return [...new Set(ids)].sort().join(',');
+  }, [resolvedLesson, students]);
+  const [lessonCounts, setLessonCounts] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLessonCounts(null);
+    if (!participantIdsKey) return undefined;
+    getCoachPlayerLessonCounts(participantIdsKey.split(','))
+      .then((response) => {
+        if (!cancelled) setLessonCounts(response?.counts || {});
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [participantIdsKey]);
+
   if (!resolvedLesson) {
     return null;
   }
@@ -467,7 +496,7 @@ const LessonDetailModal = ({
       .join('')
       .slice(0, 2)
       .toUpperCase(),
-    level: student.level || student.skill_level || resolvedLesson.studentLevel || 'Intermediate',
+    level: student.level || student.skill_level || '',
     lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
     phone: student.phone || student.phone_number || '',
     profilePicture: student.profile_picture || student.profilePicture || '',
@@ -490,7 +519,7 @@ const LessonDetailModal = ({
               .join('')
               .slice(0, 2)
               .toUpperCase(),
-            level: resolvedLesson.studentLevel || 'Intermediate',
+            level: resolvedLesson.studentLevel || '',
             lessonsCompleted: resolvedLesson.lessonsCompleted || 0,
             paymentStatus: resolvedLesson.payment_status ?? resolvedLesson.paymentStatus,
             paymentMethod:
@@ -507,7 +536,7 @@ const LessonDetailModal = ({
         id: student.id || student.playerId || student.player_id || student.name,
         playerId: student.playerId || student.player_id || student.id || null,
         name: student.name || student.full_name || student.player_name,
-        level: student.level || student.skill_level || 'Intermediate',
+        level: student.level || student.skill_level || '',
         lessonsCompleted: student.lessonCount || student.lessonsCompleted || student.lessons_completed || 0,
         phone: student.phone || student.phone_number || '',
         status: student.status,
@@ -573,7 +602,7 @@ const LessonDetailModal = ({
         .slice(0, 2)
         .toUpperCase() ||
       'ST',
-    level: participant.level || 'Intermediate',
+    level: participant.level || '',
     lessonsCompleted: participant.lessonsCompleted || 0,
     phone: participant.phone || '',
     rawStatus: participant.status,
@@ -636,6 +665,16 @@ const LessonDetailModal = ({
     !locallyPaidPayOnCourtKeys.has(`${currentLessonId}:direct`);
 
   const primaryStudent = participantList[0];
+
+  const participantSummary = (participant, { usta = true } = {}) => {
+    const parts = [];
+    if (participant.level) parts.push(usta ? `USTA ${participant.level}` : participant.level);
+    if (lessonCounts && participant.playerId) {
+      const count = Number(lessonCounts[String(participant.playerId)] || 0);
+      parts.push(count ? `${count} ${count === 1 ? 'lesson' : 'lessons'}` : 'No lessons yet');
+    }
+    return parts.join(' · ');
+  };
   const groupLessonTitle =
     resolvedLesson.metadata?.title ||
     resolvedLesson.title ||
@@ -931,7 +970,7 @@ const LessonDetailModal = ({
       </div>
       <div className="flex-1">
         <p className="text-sm font-semibold text-slate-800">{participant.name}</p>
-        <p className="text-xs text-slate-500">USTA {participant.level} · {participant.lessonsCompleted} lessons</p>
+        {participantSummary(participant) && <p className="text-xs text-slate-500">{participantSummary(participant)}</p>}
         <p className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${participantStatusClass(participant.status).text}`}><span className={`h-1.5 w-1.5 rounded-full ${participantStatusClass(participant.status).dot}`} />{participant.status}</p>
         {creditLabel && (
           <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-purple-600">
@@ -1600,7 +1639,7 @@ const LessonDetailModal = ({
                     </div>
                     <div className="flex-1">
                       <p className="text-base font-semibold text-slate-900">{primaryStudent.name}</p>
-                      <p className="text-sm text-slate-500">{primaryStudent.level} · {primaryStudent.lessonsCompleted} lessons</p>
+                      {participantSummary(primaryStudent, { usta: false }) && <p className="text-sm text-slate-500">{participantSummary(primaryStudent, { usta: false })}</p>}
                     </div>
                     <button
                       type="button"

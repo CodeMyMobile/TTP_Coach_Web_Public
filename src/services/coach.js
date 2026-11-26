@@ -248,6 +248,13 @@ export const getCoachPlayerPreviousLessons = ({ playerId, perPage, page } = {}) 
 
 export const getCoachPlayerBlocks = () => request('/coach/player-blocks');
 
+// How many lessons each player has had with this coach: { counts: { [playerId]: n } }.
+export const getCoachPlayerLessonCounts = (playerIds = []) => {
+  const ids = [...new Set(playerIds.filter(Boolean).map(String))];
+  if (!ids.length) return Promise.resolve({ counts: {} });
+  return request(`/coach/player-lesson-counts?player_ids=${encodeURIComponent(ids.join(','))}`);
+};
+
 export const blockCoachPlayer = ({ playerId, reason } = {}) => {
   if (!playerId) {
     throw new Error('A player id is required to block a player.');
